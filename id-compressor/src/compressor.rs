@@ -1,9 +1,9 @@
 /*
 on compressor:
 
-generate_next_id
++ generate_next_id
 
-take_next_block
++ take_next_block
 
 finalize_block
 
@@ -24,6 +24,7 @@ normalize_to_session_space
 
 */
 use super::id_types::*;
+pub(crate) mod tables;
 
 pub struct IdCompressor {
     // state
@@ -65,6 +66,10 @@ impl IdCompressor {
                 Some((LocalId::new(-self.last_taken_local_id_count), count))
             },
         }
+    }
+
+    pub fn finalize_block(&mut self, block: IdBlock) {
+        // Do everything
     }
 }
 
