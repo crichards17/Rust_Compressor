@@ -1,5 +1,5 @@
-pub mod id_types;
 pub mod compressor;
+pub mod id_types;
 
 #[cfg(test)]
 mod tests {
