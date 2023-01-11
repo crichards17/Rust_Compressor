@@ -35,7 +35,7 @@ pub struct StableId {
     pub(crate) id: u128,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Eq, PartialEq, Hash, Copy, Clone)]
 pub struct SessionId {
     id: u128,
 }
