@@ -22,6 +22,12 @@ normalize_to_op_space
 
 normalize_to_session_space
 
+
+
+
+STRUCTURE
+Proposal: Compressor owns the final_space_table, uuid_space_table, and session_table.
+
 */
 use super::id_types::*;
 pub(crate) mod tables;
@@ -31,6 +37,7 @@ pub struct IdCompressor {
     session_id: SessionId,
     local_id_count: i64,
     last_taken_local_id_count: i64,
+    // final_space: tables::final_space::FinalSpace,
 }
 
 impl IdCompressor {
