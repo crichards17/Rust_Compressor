@@ -35,16 +35,16 @@ use super::id_types::*;
 pub(crate) mod tables;
 use self::tables::sessions::Sessions;
 
-pub struct IdCompressor<'a> {
+pub struct IdCompressor {
     // state
     session_id: SessionId,
     local_id_count: i64,
     last_taken_local_id_count: i64,
-    sessions: Sessions<'a>,
+    sessions: Sessions,
     // final_space: tables::final_space::FinalSpace,
 }
 
-impl<'a> IdCompressor<'a> {
+impl IdCompressor {
     // TODO: Update to match final state
     pub fn new() -> Self {
         IdCompressor {

@@ -5,26 +5,33 @@
 
 use crate::compressor::tables::session_space::SessionSpace;
 use crate::id_types::SessionId;
+use std::cell::{RefCell, RefMut};
 use std::collections::HashMap;
+use std::rc::Rc;
 
-pub struct Sessions<'a> {
-    sessions: HashMap<SessionId, SessionSpace<'a>>,
+pub struct Sessions {
+    sessions: HashMap<SessionId, Rc<RefCell<SessionSpace>>>,
 }
 
-impl<'a> Sessions<'a> {
-    pub fn new() -> Sessions<'a> {
+impl Sessions {
+    pub fn new() -> Sessions {
         Sessions {
             sessions: HashMap::new(),
         }
     }
 
-    pub fn get_or_create(&mut self, session_id: SessionId) -> &mut SessionSpace<'a> {
-        self.sessions
+    pub fn get_or_create(&mut self, session_id: SessionId) -> Rc<RefCell<SessionSpace>> {
+        (self
+            .sessions
             .entry(session_id)
-            .or_insert(SessionSpace::new(session_id))
+            .or_insert(SessionSpace::new(session_id)))
+        .clone()
     }
 
-    pub fn get(&self, session_id: SessionId) -> Option<&SessionSpace<'a>> {
-        self.sessions.get(&session_id)
+    pub fn get(&self, session_id: SessionId) -> Option<Rc<RefCell<SessionSpace>>> {
+        match self.sessions.get(&session_id) {
+            None => None,
+            Some(rc) => Some(rc.clone()),
+        }
     }
 }
