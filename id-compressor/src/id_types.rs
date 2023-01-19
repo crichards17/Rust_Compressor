@@ -1,13 +1,16 @@
 use uuid::Uuid;
 
+#[derive(Clone, Copy)]
 pub struct SessionSpaceId {
     pub(crate) id: i64,
 }
 
+#[derive(Clone, Copy)]
 pub struct OpSpaceId {
     pub(crate) id: i64,
 }
 
+#[derive(Clone, Copy)]
 pub struct LocalId {
     id: i64,
 }
@@ -27,10 +30,12 @@ impl LocalId {
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct FinalId {
     pub(crate) id: u64,
 }
 
+#[derive(Clone, Copy)]
 pub struct StableId {
     pub(crate) id: u128,
 }

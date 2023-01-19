@@ -33,25 +33,31 @@ Proposal: Compressor owns the final_space_table, uuid_space_table, and session_t
 */
 use super::id_types::*;
 pub(crate) mod tables;
+use self::tables::final_space::FinalSpace;
 use self::tables::session_space::Sessions;
 
-pub struct IdCompressor {
-    // state
+const DEFAULT_CLUSTER_CAPACITY: u64 = 512;
+pub struct IdCompressor<'a> {
     session_id: SessionId,
     local_id_count: i64,
     last_taken_local_id_count: i64,
     sessions: Sessions,
-    // final_space: tables::final_space::FinalSpace,
+    final_space: FinalSpace<'a>,
+    cluster_capacity: u64,
+    cluster_next_base_final_id: FinalId,
 }
 
-impl IdCompressor {
-    // TODO: Update to match final state
+impl<'a> IdCompressor<'a> {
     pub fn new() -> Self {
         IdCompressor {
             session_id: SessionId::new(),
             local_id_count: 0,
             last_taken_local_id_count: 0,
             sessions: Sessions::new(),
+            final_space: FinalSpace::new(),
+            cluster_capacity: DEFAULT_CLUSTER_CAPACITY,
+            // TODO: Confirm 0-based FinalID range:
+            cluster_next_base_final_id: FinalId { id: (0) },
         }
     }
 
@@ -82,7 +88,7 @@ impl IdCompressor {
 
     pub fn finalize_range(&mut self, id_range: &IdRange) {
         // Check if the block has IDs
-        let range = match &id_range.range {
+        let (range_base, range_len) = match &id_range.range {
             None => return,
             Some(range) => {
                 if range.1 == 0 {
@@ -98,10 +104,20 @@ impl IdCompressor {
         let session_space = self.sessions.deref(&session_space_ref);
         let tail_cluster = match session_space.get_tail_cluster() {
             Some(tail_cluster) => tail_cluster,
+            // This is the first cluster in the session
             None => {
-                let new_cluster = session_space.add_cluster(session_creator, base_final_id, base_local_id, capacity)
+                // May be better to return None here and proceed in the order noted for "add new cluster:".
+                // Reasoning: new cluster can be instantiated with block capacity (if larger than default),
+                //  rather than needing to create a default, check capacity, check if latest, then increase capacity.
+                let new_cluster = session_space.add_cluster(
+                    session_space_ref,
+                    self.cluster_next_base_final_id,
+                    *range_base,
+                    self.cluster_capacity,
+                );
+                new_cluster
             }
-        }
+        };
 
         // + If space in the current cluster, increment the count of that cluster to account for the new block
         // + If no space in the current cluster, check whether this is the "latest" cluster. If so, expand the cluster as needed.

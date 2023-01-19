@@ -35,15 +35,19 @@ impl Sessions {
         }
     }
 
-    pub fn get(&self, session_id: SessionId) -> Option<&SessionSpace> {
+    pub fn get(&mut self, session_id: SessionId) -> Option<&SessionSpace> {
         match self.session_map.get(&session_id) {
             None => None,
-            Some(session_space_ref) => Some(self.deref(session_space_ref)),
+            Some(session_space_ref) => Some(self.deref_immut(session_space_ref)),
         }
     }
 
     pub fn deref(&mut self, session_space_ref: &SessionSpaceRef) -> &mut SessionSpace {
         &mut self.session_list[session_space_ref.index]
+    }
+
+    pub fn deref_immut(&self, session_space_ref: &SessionSpaceRef) -> &SessionSpace {
+        &self.session_list[session_space_ref.index]
     }
 }
 
@@ -84,7 +88,8 @@ impl SessionSpace {
             count: 0,
         };
         self.cluster_chain.push(new_cluster);
-        &mut self.cluster_chain[self.cluster_chain.len() - 1]
+        let tail_index = self.cluster_chain.len() - 1;
+        &mut self.cluster_chain[tail_index]
     }
 }
 
@@ -96,6 +101,7 @@ pub struct IdCluster {
     count: u64,
 }
 
+#[derive(Clone, Copy)]
 pub struct SessionSpaceRef {
     index: usize,
 }
