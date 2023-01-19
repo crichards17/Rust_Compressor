@@ -33,7 +33,7 @@ Proposal: Compressor owns the final_space_table, uuid_space_table, and session_t
 */
 use super::id_types::*;
 pub(crate) mod tables;
-use self::tables::sessions::Sessions;
+use self::tables::session_space::Sessions;
 
 pub struct IdCompressor {
     // state
@@ -84,16 +84,22 @@ impl IdCompressor {
         // Check if the block has IDs
         let range = match &id_range.range {
             None => return,
-            Some(range) => range,
+            Some(range) => {
+                if range.1 == 0 {
+                    return;
+                }
+                range
+            }
         };
 
         // Check for space in this Session's current allocated cluster
-        let session_space = self.sessions.get_or_create(id_range.id);
+        let session_space_ref = self.sessions.get_or_create(id_range.id);
         // Get cluster chain's tail cluster
+        let session_space = self.sessions.deref(&session_space_ref);
         let tail_cluster = match session_space.get_tail_cluster() {
             Some(tail_cluster) => tail_cluster,
             None => {
-                // Create new cluster in session_space
+                let new_cluster = session_space.add_cluster(session_creator, base_final_id, base_local_id, capacity)
             }
         }
 
