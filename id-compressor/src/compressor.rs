@@ -99,13 +99,14 @@ impl<'a> IdCompressor<'a> {
         };
 
         // Check for space in this Session's current allocated cluster
+        // + Get or create SessionSpace for the passed SessionId:
         let session_space_ref = self.sessions.get_or_create(id_range.id);
-        // Get cluster chain's tail cluster
         let session_space = self.sessions.deref(&session_space_ref);
+        // + Get cluster chain's tail cluster:
         let tail_cluster = match session_space.get_tail_cluster() {
             Some(tail_cluster) => tail_cluster,
-            // This is the first cluster in the session
             None => {
+                // This is the first cluster in the session
                 // May be better to return None here and proceed in the order noted for "add new cluster:".
                 // Reasoning: new cluster can be instantiated with block capacity (if larger than default),
                 //  rather than needing to create a default, check capacity, check if latest, then increase capacity.
