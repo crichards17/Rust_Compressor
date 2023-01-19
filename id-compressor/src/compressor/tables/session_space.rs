@@ -36,18 +36,18 @@ impl Sessions {
     }
 
     pub fn get(&mut self, session_id: SessionId) -> Option<&SessionSpace> {
-        match self.session_map.get(&session_id) {
+        let session_option = self.session_map.get(&session_id).copied();
+        match session_option {
             None => None,
-            Some(session_space_ref) => Some(self.deref_immut(session_space_ref)),
+            Some(session_space_ref) => {
+                let session_space = self.deref(&session_space_ref);
+                Some(session_space)
+            }
         }
     }
 
     pub fn deref(&mut self, session_space_ref: &SessionSpaceRef) -> &mut SessionSpace {
         &mut self.session_list[session_space_ref.index]
-    }
-
-    pub fn deref_immut(&self, session_space_ref: &SessionSpaceRef) -> &SessionSpace {
-        &self.session_list[session_space_ref.index]
     }
 }
 
