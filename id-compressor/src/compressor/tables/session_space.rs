@@ -2,6 +2,7 @@
 The local/UUID space within an individual Session.
 Effectively represents the cluster chain for a given session.
 */
+use crate::compressor::utils::Dereferencer;
 use crate::id_types::SessionId;
 use crate::id_types::*;
 use std::collections::HashMap;
@@ -36,14 +37,22 @@ impl Sessions {
     }
 
     pub fn get(&mut self, session_id: SessionId) -> Option<&SessionSpace> {
-        match self.session_map.get(&session_id).copied() {
+        match self.session_map.get(&session_id) {
             None => None,
-            Some(session_space_ref) => Some(self.deref(&session_space_ref)),
+            Some(session_space_ref) => Some(self.deref_session_space(*session_space_ref)),
         }
     }
+}
 
-    pub fn deref(&mut self, session_space_ref: &SessionSpaceRef) -> &mut SessionSpace {
+impl Dereferencer<SessionSpaceRef, SessionSpace, ClusterRef, IdCluster> for Sessions {
+    fn deref_session_space(&mut self, session_space_ref: SessionSpaceRef) -> &mut SessionSpace {
         &mut self.session_list[session_space_ref.index]
+    }
+
+    fn deref_cluster(&mut self, cluster_ref: ClusterRef) -> &mut IdCluster {
+        &mut self
+            .deref_session_space(cluster_ref.session_space)
+            .cluster_chain[cluster_ref.cluster_chain_index]
     }
 }
 
@@ -90,14 +99,20 @@ impl SessionSpace {
 }
 
 pub struct IdCluster {
-    session_creator: SessionSpaceRef,
-    base_final_id: FinalId,
-    base_local_id: LocalId,
-    capacity: u64,
-    count: u64,
+    pub(crate) session_creator: SessionSpaceRef,
+    pub(crate) base_final_id: FinalId,
+    pub(crate) base_local_id: LocalId,
+    pub(crate) capacity: u64,
+    pub(crate) count: u64,
 }
 
 #[derive(Clone, Copy)]
 pub struct SessionSpaceRef {
     index: usize,
+}
+
+#[derive(Clone, Copy)]
+pub struct ClusterRef {
+    session_space: SessionSpaceRef,
+    cluster_chain_index: usize,
 }

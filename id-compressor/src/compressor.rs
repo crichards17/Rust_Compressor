@@ -33,21 +33,22 @@ Proposal: Compressor owns the final_space_table, uuid_space_table, and session_t
 */
 use super::id_types::*;
 pub(crate) mod tables;
+pub(crate) mod utils;
 use self::tables::final_space::FinalSpace;
 use self::tables::session_space::Sessions;
 
 const DEFAULT_CLUSTER_CAPACITY: u64 = 512;
-pub struct IdCompressor<'a> {
+pub struct IdCompressor {
     session_id: SessionId,
-    local_id_count: i64,
-    last_taken_local_id_count: i64,
+    local_id_count: u64,
+    last_taken_local_id_count: u64,
     sessions: Sessions,
-    final_space: FinalSpace<'a>,
+    final_space: FinalSpace,
     cluster_capacity: u64,
     cluster_next_base_final_id: FinalId,
 }
 
-impl<'a> IdCompressor<'a> {
+impl IdCompressor {
     pub fn new() -> Self {
         IdCompressor {
             session_id: SessionId::new(),
@@ -65,7 +66,7 @@ impl<'a> IdCompressor<'a> {
     pub fn generate_next_id(&mut self) -> SessionSpaceId {
         self.local_id_count += 1;
         SessionSpaceId {
-            id: -self.local_id_count,
+            id: -(self.local_id_count as i64),
         }
     }
 
@@ -81,14 +82,17 @@ impl<'a> IdCompressor<'a> {
                     "Must only allocate a positive number of IDs. Count was {}",
                     count
                 );
-                Some((LocalId::new(-self.last_taken_local_id_count), count))
+                Some((
+                    LocalId::new(-(self.last_taken_local_id_count as i64)),
+                    count,
+                ))
             },
         }
     }
 
     pub fn finalize_range(&mut self, id_range: &IdRange) {
         // Check if the block has IDs
-        let (range_base, range_len) = match &id_range.range {
+        let (range_base_local, range_len) = match &id_range.range {
             None => return,
             Some(range) => {
                 if range.1 == 0 {
@@ -101,25 +105,30 @@ impl<'a> IdCompressor<'a> {
         // Check for space in this Session's current allocated cluster
         // + Get or create SessionSpace for the passed SessionId:
         let session_space_ref = self.sessions.get_or_create(id_range.id);
-        let session_space = self.sessions.deref(&session_space_ref);
+        let session_space = self.sessions.deref_session_space(session_space_ref);
         // + Get cluster chain's tail cluster:
         let tail_cluster = match session_space.get_tail_cluster() {
             Some(tail_cluster) => tail_cluster,
             None => {
                 // This is the first cluster in the session
-                // May be better to return None here and proceed in the order noted for "add new cluster:".
-                // Reasoning: new cluster can be instantiated with block capacity (if larger than default),
-                //  rather than needing to create a default, check capacity, check if latest, then increase capacity.
+                debug_assert!(*range_base_local == -1);
                 let new_cluster = session_space.add_cluster(
                     session_space_ref,
                     self.cluster_next_base_final_id,
-                    *range_base,
+                    *range_base_local,
                     self.cluster_capacity,
                 );
+                self.cluster_next_base_final_id += self.cluster_capacity;
+                self.final_space.add_cluster(&new_cluster);
+                // uuid_space.add_cluster
                 new_cluster
             }
         };
-
+        if (tail_cluster.capacity - tail_cluster.count) >= *range_len {
+            // Add block to current cluster
+        } else {
+            // Add portion of block to current cluster up to capacity, rest to new block
+        }
         // + If space in the current cluster, increment the count of that cluster to account for the new block
         // + If no space in the current cluster, check whether this is the "latest" cluster. If so, expand the cluster as needed.
         // + If no space in the current cluster and this is not the "latest" cluster, add a new cluster:
@@ -133,5 +142,5 @@ impl<'a> IdCompressor<'a> {
 pub struct IdRange {
     id: SessionId,
     // (First LocalID in the range, count)
-    range: Option<(LocalId, i64)>,
+    range: Option<(LocalId, u64)>,
 }
