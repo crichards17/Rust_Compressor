@@ -64,7 +64,7 @@ impl PartialOrd<i64> for LocalId {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, PartialOrd)]
 pub struct FinalId {
     pub(crate) id: u64,
 }
