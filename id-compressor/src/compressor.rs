@@ -36,6 +36,7 @@ pub(crate) mod tables;
 pub(crate) mod utils;
 use self::tables::final_space::FinalSpace;
 use self::tables::session_space::Sessions;
+use self::tables::uuid_space::UuidSpace;
 
 const DEFAULT_CLUSTER_CAPACITY: u64 = 512;
 pub struct IdCompressor {
@@ -44,6 +45,7 @@ pub struct IdCompressor {
     last_taken_local_id_count: u64,
     sessions: Sessions,
     final_space: FinalSpace,
+    uuid_space: UuidSpace,
     cluster_capacity: u64,
     cluster_next_base_final_id: FinalId,
 }
@@ -56,8 +58,8 @@ impl IdCompressor {
             last_taken_local_id_count: 0,
             sessions: Sessions::new(),
             final_space: FinalSpace::new(),
+            uuid_space: UuidSpace::new(),
             cluster_capacity: DEFAULT_CLUSTER_CAPACITY,
-            // TODO: Confirm 0-based FinalID range:
             cluster_next_base_final_id: FinalId { id: (0) },
         }
     }
@@ -90,38 +92,44 @@ impl IdCompressor {
         }
     }
 
-    pub fn finalize_range(&mut self, id_range: &IdRange) {
+    pub fn finalize_range(
+        &mut self,
+        IdRange {
+            id: session_id,
+            range,
+        }: &IdRange,
+    ) {
         // Check if the block has IDs
-        let (range_base_local, range_len) = match &id_range.range {
+        let (range_base_local, range_len) = match range {
             None => return,
-            Some(range) => {
-                if range.1 == 0 {
-                    return;
-                }
-                range
+            Some((_, 0)) => {
+                return;
             }
+            Some(range) => range,
         };
 
         // Check for space in this Session's current allocated cluster
         // + Get or create SessionSpace for the passed SessionId:
-        let session_space_ref = self.sessions.get_or_create(id_range.id);
-        let session_space = self.sessions.deref_session_space(session_space_ref);
+        let session_space_ref = self.sessions.get_or_create(*session_id);
+        let session_space = self.sessions.deref_session_space_mut(session_space_ref);
         // + Get cluster chain's tail cluster:
         let tail_cluster = match session_space.get_tail_cluster() {
             Some(tail_cluster) => tail_cluster,
             None => {
                 // This is the first cluster in the session
                 debug_assert!(*range_base_local == -1);
-                let new_cluster = session_space.add_cluster(
+                let new_cluster_ref = session_space.add_cluster(
                     session_space_ref,
                     self.cluster_next_base_final_id,
                     *range_base_local,
                     self.cluster_capacity,
                 );
                 self.cluster_next_base_final_id += self.cluster_capacity;
-                self.final_space.add_cluster(&new_cluster);
-                // uuid_space.add_cluster
-                new_cluster
+                self.final_space
+                    .add_cluster(new_cluster_ref, &self.sessions);
+                self.uuid_space
+                    .add_cluster(*session_id, new_cluster_ref, &self.sessions);
+                self.sessions.deref_cluster_mut(new_cluster_ref)
             }
         };
         if (tail_cluster.capacity - tail_cluster.count) >= *range_len {

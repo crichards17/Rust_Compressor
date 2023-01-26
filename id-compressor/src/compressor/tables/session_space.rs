@@ -2,7 +2,6 @@
 The local/UUID space within an individual Session.
 Effectively represents the cluster chain for a given session.
 */
-use crate::compressor::utils::Dereferencer;
 use crate::id_types::SessionId;
 use crate::id_types::*;
 use std::collections::HashMap;
@@ -39,18 +38,29 @@ impl Sessions {
     pub fn get(&mut self, session_id: SessionId) -> Option<&SessionSpace> {
         match self.session_map.get(&session_id) {
             None => None,
-            Some(session_space_ref) => Some(self.deref_session_space(*session_space_ref)),
+            Some(session_space_ref) => Some(self.deref_session_space_mut(*session_space_ref)),
         }
     }
-}
 
-impl Dereferencer<SessionSpaceRef, SessionSpace, ClusterRef, IdCluster> for Sessions {
-    fn deref_session_space(&mut self, session_space_ref: SessionSpaceRef) -> &mut SessionSpace {
+    pub fn deref_session_space_mut(
+        &mut self,
+        session_space_ref: SessionSpaceRef,
+    ) -> &mut SessionSpace {
         &mut self.session_list[session_space_ref.index]
     }
 
-    fn deref_cluster(&mut self, cluster_ref: ClusterRef) -> &mut IdCluster {
+    pub fn deref_session_space(&self, session_space_ref: SessionSpaceRef) -> &SessionSpace {
+        &self.session_list[session_space_ref.index]
+    }
+
+    pub fn deref_cluster_mut(&mut self, cluster_ref: ClusterRef) -> &mut IdCluster {
         &mut self
+            .deref_session_space_mut(cluster_ref.session_space)
+            .cluster_chain[cluster_ref.cluster_chain_index]
+    }
+
+    pub fn deref_cluster(&self, cluster_ref: ClusterRef) -> &IdCluster {
+        &self
             .deref_session_space(cluster_ref.session_space)
             .cluster_chain[cluster_ref.cluster_chain_index]
     }
@@ -84,7 +94,7 @@ impl SessionSpace {
         base_final_id: FinalId,
         base_local_id: LocalId,
         capacity: u64,
-    ) -> &mut IdCluster {
+    ) -> ClusterRef {
         let new_cluster = IdCluster {
             session_creator,
             base_final_id,
@@ -94,7 +104,10 @@ impl SessionSpace {
         };
         self.cluster_chain.push(new_cluster);
         let tail_index = self.cluster_chain.len() - 1;
-        &mut self.cluster_chain[tail_index]
+        ClusterRef {
+            session_space: session_creator,
+            cluster_chain_index: tail_index,
+        }
     }
 }
 
