@@ -82,6 +82,10 @@ impl SessionSpace {
         }
     }
 
+    pub fn session_id(&self) -> SessionId {
+        self.session_id
+    }
+
     pub fn get_tail_cluster(&mut self) -> Option<ClusterRef> {
         if self.cluster_chain.is_empty() {
             return None;

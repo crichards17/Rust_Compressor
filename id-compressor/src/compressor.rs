@@ -5,7 +5,7 @@ on compressor:
 
 + take_next_block
 
-+ finalize_block
++ finalize_range
 
 + setClusterSize
 
@@ -16,13 +16,17 @@ deserialize
 ----------------------
 on id types:
 
-decompress
++ decompress
 
 recompress
 
 normalize_to_op_space
 
 normalize_to_session_space
+
+// TODO:
+1. Review eager finals
+2. Write some decompression tests :)
 
 */
 use super::id_types::*;
@@ -172,6 +176,35 @@ impl IdCompressor {
             .add_cluster(session_id, new_cluster_ref, &self.sessions);
         new_cluster_ref
     }
+}
+
+impl SessionSpaceId {
+    pub fn decompress(&self, compressor: &IdCompressor) -> Result<StableId, DecompressionError> {
+        match self.to_space() {
+            CompressedId::Final(final_id) => {
+                match compressor
+                    .final_space
+                    .search(final_id, &compressor.sessions)
+                {
+                    Some(containing_cluster) => {
+                        let final_delta = final_id.id - containing_cluster.base_final_id.id;
+                        let aligned_local = containing_cluster.base_local_id - final_delta;
+                        Ok(compressor
+                            .sessions
+                            .deref_session_space(containing_cluster.session_creator)
+                            .session_id()
+                            + aligned_local)
+                    }
+                    None => Err(DecompressionError::UnknownFinalId),
+                }
+            }
+            CompressedId::Local(local_id) => Ok(compressor.session_id + local_id),
+        }
+    }
+}
+
+pub enum DecompressionError {
+    UnknownFinalId,
 }
 
 pub struct IdRange {

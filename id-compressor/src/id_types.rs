@@ -7,6 +7,16 @@ pub struct SessionSpaceId {
     pub(crate) id: i64,
 }
 
+impl SessionSpaceId {
+    pub(crate) fn to_space(&self) -> CompressedId {
+        if self.id < 0 {
+            return CompressedId::Local(LocalId { id: self.id });
+        } else {
+            CompressedId::Final(FinalId { id: self.id as u64 })
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
 pub struct OpSpaceId {
     pub(crate) id: i64,
@@ -75,7 +85,7 @@ impl Sub<u64> for LocalId {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord)]
 pub struct FinalId {
     pub(crate) id: u64,
 }
@@ -96,6 +106,12 @@ impl std::ops::AddAssign<u64> for FinalId {
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct StableId {
     pub(crate) id: u128,
+}
+
+impl StableId {
+    pub(crate) fn null() -> StableId {
+        StableId { id: 0 }
+    }
 }
 
 #[derive(Eq, PartialEq, Hash, Copy, Clone)]
@@ -122,4 +138,9 @@ impl SessionId {
     pub(crate) fn id(&self) -> u128 {
         self.id
     }
+}
+
+pub enum CompressedId {
+    Local(LocalId),
+    Final(FinalId),
 }
