@@ -1,3 +1,5 @@
+use std::ops::Sub;
+
 use uuid::Uuid;
 
 #[derive(Clone, Copy)]
@@ -60,6 +62,15 @@ impl PartialOrd<i64> for LocalId {
             return Some(std::cmp::Ordering::Greater);
         } else {
             Some(std::cmp::Ordering::Equal)
+        }
+    }
+}
+
+impl Sub<u64> for LocalId {
+    type Output = LocalId;
+    fn sub(self, rhs: u64) -> Self::Output {
+        LocalId {
+            id: self.id - rhs as i64,
         }
     }
 }

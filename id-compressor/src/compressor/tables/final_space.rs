@@ -32,4 +32,8 @@ impl FinalSpace {
 
         self.clusters.push(new_cluster_ref);
     }
+
+    pub fn is_last(&self, cluster_ref: ClusterRef) -> bool {
+        cluster_ref == self.clusters[self.clusters.len() - 1]
+    }
 }

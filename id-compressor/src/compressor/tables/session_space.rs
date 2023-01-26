@@ -22,12 +22,12 @@ impl Sessions {
     pub fn get_or_create(&mut self, session_id: SessionId) -> SessionSpaceRef {
         match self.session_map.get(&session_id) {
             None => {
-                let new_session_space = SessionSpace::new(session_id);
-                self.session_list.push(new_session_space);
-                let new_session_space_index = self.session_list.len() - 1;
+                let new_session_space_index = self.session_list.len();
                 let new_session_space_ref = SessionSpaceRef {
                     index: new_session_space_index,
                 };
+                let new_session_space = SessionSpace::new(session_id, new_session_space_ref);
+                self.session_list.push(new_session_space);
                 self.session_map.insert(session_id, new_session_space_ref);
                 new_session_space_ref
             }
@@ -55,48 +55,51 @@ impl Sessions {
 
     pub fn deref_cluster_mut(&mut self, cluster_ref: ClusterRef) -> &mut IdCluster {
         &mut self
-            .deref_session_space_mut(cluster_ref.session_space)
+            .deref_session_space_mut(cluster_ref.session_space_ref)
             .cluster_chain[cluster_ref.cluster_chain_index]
     }
 
     pub fn deref_cluster(&self, cluster_ref: ClusterRef) -> &IdCluster {
         &self
-            .deref_session_space(cluster_ref.session_space)
+            .deref_session_space(cluster_ref.session_space_ref)
             .cluster_chain[cluster_ref.cluster_chain_index]
     }
 }
 
 pub struct SessionSpace {
     session_id: SessionId,
+    self_ref: SessionSpaceRef,
     // Sorted on LocalId.
     cluster_chain: Vec<IdCluster>,
 }
 
 impl SessionSpace {
-    pub fn new(session_id: SessionId) -> SessionSpace {
+    pub fn new(session_id: SessionId, self_ref: SessionSpaceRef) -> SessionSpace {
         SessionSpace {
             session_id,
+            self_ref,
             cluster_chain: Vec::new(),
         }
     }
 
-    pub fn get_tail_cluster(&mut self) -> Option<&mut IdCluster> {
+    pub fn get_tail_cluster(&mut self) -> Option<ClusterRef> {
         if self.cluster_chain.is_empty() {
             return None;
         }
-        let len = self.cluster_chain.len();
-        Some(&mut self.cluster_chain[len - 1])
+        Some(ClusterRef {
+            session_space_ref: self.self_ref,
+            cluster_chain_index: self.cluster_chain.len() - 1,
+        })
     }
 
     pub fn add_cluster(
         &mut self,
-        session_creator: SessionSpaceRef,
         base_final_id: FinalId,
         base_local_id: LocalId,
         capacity: u64,
     ) -> ClusterRef {
         let new_cluster = IdCluster {
-            session_creator,
+            session_creator: self.self_ref,
             base_final_id,
             base_local_id,
             capacity,
@@ -105,7 +108,7 @@ impl SessionSpace {
         self.cluster_chain.push(new_cluster);
         let tail_index = self.cluster_chain.len() - 1;
         ClusterRef {
-            session_space: session_creator,
+            session_space_ref: self.self_ref,
             cluster_chain_index: tail_index,
         }
     }
@@ -119,13 +122,13 @@ pub struct IdCluster {
     pub(crate) count: u64,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct SessionSpaceRef {
     index: usize,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct ClusterRef {
-    session_space: SessionSpaceRef,
+    session_space_ref: SessionSpaceRef,
     cluster_chain_index: usize,
 }
