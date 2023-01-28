@@ -5,9 +5,9 @@ on compressor:
 
 + take_next_block
 
-finalize_block
++ finalize_range
 
-setClusterSize // must only be called after sequencing :)
++ setClusterSize
 
 serialize
 
@@ -16,7 +16,7 @@ deserialize
 ----------------------
 on id types:
 
-decompress
++ decompress
 
 recompress
 
@@ -24,18 +24,16 @@ normalize_to_op_space
 
 normalize_to_session_space
 
-
-
-
-STRUCTURE
-Proposal: Compressor owns the final_space_table, uuid_space_table, and session_table.
+// TODO:
+1. Review eager finals
+2. Write some decompression tests :)
 
 */
 use super::id_types::*;
 pub(crate) mod tables;
 pub(crate) mod utils;
 use self::tables::final_space::FinalSpace;
-use self::tables::session_space::Sessions;
+use self::tables::session_space::{ClusterRef, SessionSpace, SessionSpaceRef, Sessions};
 use self::tables::uuid_space::UuidSpace;
 
 const DEFAULT_CLUSTER_CAPACITY: u64 = 512;
@@ -62,6 +60,10 @@ impl IdCompressor {
             cluster_capacity: DEFAULT_CLUSTER_CAPACITY,
             cluster_next_base_final_id: FinalId { id: (0) },
         }
+    }
+
+    pub fn set_cluster_capacity(&mut self, new_cluster_capacity: u64) {
+        self.cluster_capacity = new_cluster_capacity;
     }
 
     // TODO: Eager finals
@@ -107,44 +109,102 @@ impl IdCompressor {
             }
             Some(range) => range,
         };
+        // TODO: CRAIG: WHY?
+        let range_base_local = *range_base_local;
+        let range_len = *range_len;
+        let session_id = *session_id;
 
-        // Check for space in this Session's current allocated cluster
-        // + Get or create SessionSpace for the passed SessionId:
-        let session_space_ref = self.sessions.get_or_create(*session_id);
-        let session_space = self.sessions.deref_session_space_mut(session_space_ref);
-        // + Get cluster chain's tail cluster:
-        let tail_cluster = match session_space.get_tail_cluster() {
+        let session_space_ref = self.sessions.get_or_create(session_id);
+        let tail_cluster_ref = match self
+            .sessions
+            .deref_session_space_mut(session_space_ref)
+            .get_tail_cluster()
+        {
             Some(tail_cluster) => tail_cluster,
             None => {
                 // This is the first cluster in the session
-                debug_assert!(*range_base_local == -1);
-                let new_cluster_ref = session_space.add_cluster(
+                debug_assert!(range_base_local == -1);
+                self.add_empty_cluster(
                     session_space_ref,
-                    self.cluster_next_base_final_id,
-                    *range_base_local,
+                    range_base_local,
+                    session_id,
                     self.cluster_capacity,
-                );
-                self.cluster_next_base_final_id += self.cluster_capacity;
-                self.final_space
-                    .add_cluster(new_cluster_ref, &self.sessions);
-                self.uuid_space
-                    .add_cluster(*session_id, new_cluster_ref, &self.sessions);
-                self.sessions.deref_cluster_mut(new_cluster_ref)
+                )
             }
         };
-        if (tail_cluster.capacity - tail_cluster.count) >= *range_len {
-            // Add block to current cluster
+        let tail_cluster = self.sessions.deref_cluster_mut(tail_cluster_ref);
+        let remaining_capacity = tail_cluster.capacity - tail_cluster.count;
+        if remaining_capacity >= range_len {
+            // The current IdBlock range fits in the existing cluster
+            tail_cluster.count += range_len;
         } else {
-            // Add portion of block to current cluster up to capacity, rest to new block
+            let overflow = range_len - remaining_capacity;
+            let new_claimed_final_count = overflow + self.cluster_capacity;
+            if self.final_space.is_last(tail_cluster_ref) {
+                // Tail_cluster is the last cluster, and so can be expanded.
+                self.cluster_next_base_final_id += new_claimed_final_count;
+                tail_cluster.capacity += new_claimed_final_count;
+                tail_cluster.count += range_len;
+            } else {
+                // Tail_cluster is not the last cluster. Fill and overflow to new.
+                tail_cluster.count = tail_cluster.capacity;
+                let new_cluster_ref = self.add_empty_cluster(
+                    session_space_ref,
+                    range_base_local - remaining_capacity,
+                    session_id,
+                    new_claimed_final_count,
+                );
+                self.sessions.deref_cluster_mut(new_cluster_ref).count += overflow;
+            }
         }
-        // + If space in the current cluster, increment the count of that cluster to account for the new block
-        // + If no space in the current cluster, check whether this is the "latest" cluster. If so, expand the cluster as needed.
-        // + If no space in the current cluster and this is not the "latest" cluster, add a new cluster:
-        // ++ Claim next block of final IDs
-        // ++ Create a new cluster in this SessionSpace's cluster_chain (base capacity)
-        // ++ Create a new cluster reference in the FinalSpace table
-        // ++ Create a new entry in the UuidSpace table
     }
+
+    fn add_empty_cluster(
+        &mut self,
+        session_space_ref: SessionSpaceRef,
+        base_local: LocalId,
+        session_id: SessionId,
+        capacity: u64,
+    ) -> ClusterRef {
+        let session_space = self.sessions.deref_session_space_mut(session_space_ref);
+        let new_cluster_ref =
+            session_space.add_cluster(self.cluster_next_base_final_id, base_local, capacity);
+        self.cluster_next_base_final_id += capacity;
+        self.final_space
+            .add_cluster(new_cluster_ref, &self.sessions);
+        self.uuid_space
+            .add_cluster(session_id, new_cluster_ref, &self.sessions);
+        new_cluster_ref
+    }
+}
+
+impl SessionSpaceId {
+    pub fn decompress(&self, compressor: &IdCompressor) -> Result<StableId, DecompressionError> {
+        match self.to_space() {
+            CompressedId::Final(final_id) => {
+                match compressor
+                    .final_space
+                    .search(final_id, &compressor.sessions)
+                {
+                    Some(containing_cluster) => {
+                        let final_delta = final_id.id - containing_cluster.base_final_id.id;
+                        let aligned_local = containing_cluster.base_local_id - final_delta;
+                        Ok(compressor
+                            .sessions
+                            .deref_session_space(containing_cluster.session_creator)
+                            .session_id()
+                            + aligned_local)
+                    }
+                    None => Err(DecompressionError::UnknownFinalId),
+                }
+            }
+            CompressedId::Local(local_id) => Ok(compressor.session_id + local_id),
+        }
+    }
+}
+
+pub enum DecompressionError {
+    UnknownFinalId,
 }
 
 pub struct IdRange {

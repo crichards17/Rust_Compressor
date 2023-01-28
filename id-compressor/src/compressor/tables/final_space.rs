@@ -1,9 +1,12 @@
+use crate::id_types::FinalId;
+
 /*
 Propose: rename to final_space_table
 Vec will contain references to cluster chains
 
 */
-use super::session_space::{ClusterRef, Sessions};
+use super::session_space::{ClusterRef, IdCluster, Sessions};
+use std::cmp::Ordering;
 
 pub struct FinalSpace {
     // Sorted on final ID. Stores references to clusters held in some session space table.
@@ -31,5 +34,32 @@ impl FinalSpace {
         }
 
         self.clusters.push(new_cluster_ref);
+    }
+
+    pub fn is_last(&self, cluster_ref: ClusterRef) -> bool {
+        cluster_ref == self.clusters[self.clusters.len() - 1]
+    }
+
+    pub fn search<'a>(
+        &self,
+        target_final: FinalId,
+        sessions: &'a Sessions,
+    ) -> Option<&'a IdCluster> {
+        self.clusters
+            .binary_search_by(|current_cluster_ref| {
+                let current_cluster = sessions.deref_cluster(*current_cluster_ref);
+                let cluster_base_final_val = current_cluster.base_final_id.id;
+                let cluster_max_final_val = cluster_base_final_val + current_cluster.count - 1;
+                let target_final_val = target_final.id;
+                if cluster_max_final_val < target_final_val {
+                    return Ordering::Less;
+                } else if cluster_base_final_val > target_final_val {
+                    return Ordering::Greater;
+                } else {
+                    Ordering::Equal
+                }
+            })
+            .ok()
+            .map(|index| sessions.deref_cluster(self.clusters[index]))
     }
 }
