@@ -96,7 +96,7 @@ impl IdCompressor {
 
     pub fn finalize_range(
         &mut self,
-        IdRange {
+        &IdRange {
             id: session_id,
             range,
         }: &IdRange,
@@ -109,10 +109,6 @@ impl IdCompressor {
             }
             Some(range) => range,
         };
-        // TODO: CRAIG: WHY?
-        let range_base_local = *range_base_local;
-        let range_len = *range_len;
-        let session_id = *session_id;
 
         let session_space_ref = self.sessions.get_or_create(session_id);
         let tail_cluster_ref = match self
