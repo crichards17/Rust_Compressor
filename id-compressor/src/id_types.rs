@@ -9,10 +9,32 @@ pub struct SessionSpaceId {
 
 impl SessionSpaceId {
     pub(crate) fn to_space(&self) -> CompressedId {
-        if self.id < 0 {
+        if self.is_local() {
             return CompressedId::Local(LocalId { id: self.id });
         } else {
             CompressedId::Final(FinalId { id: self.id as u64 })
+        }
+    }
+
+    pub(crate) fn is_local(&self) -> bool {
+        self.id < 0
+    }
+
+    pub(crate) fn is_final(&self) -> bool {
+        self.id >= 0
+    }
+}
+
+impl From<LocalId> for SessionSpaceId {
+    fn from(value: LocalId) -> Self {
+        SessionSpaceId { id: value.id }
+    }
+}
+
+impl From<FinalId> for SessionSpaceId {
+    fn from(value: FinalId) -> Self {
+        SessionSpaceId {
+            id: value.id as i64,
         }
     }
 }
@@ -39,6 +61,14 @@ impl LocalId {
 
     pub fn id(&self) -> i64 {
         self.id
+    }
+
+    pub fn to_generation_count(&self) -> u64 {
+        (-self.id) as u64
+    }
+
+    pub fn from_generation_count(generation_count: u64) -> Self {
+        LocalId::new(-(generation_count as i64))
     }
 }
 
