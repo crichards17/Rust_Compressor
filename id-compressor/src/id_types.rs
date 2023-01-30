@@ -22,7 +22,7 @@ pub struct OpSpaceId {
     pub(crate) id: i64,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct LocalId {
     id: i64,
 }

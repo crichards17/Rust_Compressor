@@ -3,7 +3,6 @@ pub mod id_types;
 
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     #[test]
     fn it_works() {
