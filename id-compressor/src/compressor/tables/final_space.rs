@@ -40,6 +40,8 @@ impl FinalSpace {
         cluster_ref == self.clusters[self.clusters.len() - 1]
     }
 
+    // Searches the Final table for a cluster whose capacity would include the given Final.
+    //   Does not guarantee that the Final has been allocated to the returned cluster.
     pub fn search<'a>(
         &self,
         target_final: FinalId,
@@ -49,7 +51,7 @@ impl FinalSpace {
             .binary_search_by(|current_cluster_ref| {
                 let current_cluster = sessions.deref_cluster(*current_cluster_ref);
                 let cluster_base_final_val = current_cluster.base_final_id.id;
-                let cluster_max_final_val = cluster_base_final_val + current_cluster.count - 1;
+                let cluster_max_final_val = cluster_base_final_val + current_cluster.capacity - 1;
                 let target_final_val = target_final.id;
                 if cluster_max_final_val < target_final_val {
                     return Ordering::Less;

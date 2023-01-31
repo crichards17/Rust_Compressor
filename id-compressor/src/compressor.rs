@@ -213,22 +213,48 @@ impl SessionSpaceId {
                     Some(containing_cluster) => {
                         let final_delta = final_id.id - containing_cluster.base_final_id.id;
                         let aligned_local = containing_cluster.base_local_id - final_delta;
+                        if final_delta > containing_cluster.count {
+                            // must be an id generated (allocated or finalized) by the local session, or a finalized id from a remote session
+                            if containing_cluster.session_creator == compressor.local_session {
+                                if compressor.session_space_normalizer.contains(aligned_local) {
+                                    return Err(DecompressionError::UnobtainableId);
+                                }
+                                if aligned_local.to_generation_count()
+                                    > compressor.generated_id_count
+                                {
+                                    return Err(DecompressionError::UngeneratedFinalId);
+                                }
+                            } else {
+                                return Err(DecompressionError::UnfinalizedId);
+                            }
+                        }
+
                         Ok(compressor
                             .sessions
                             .deref_session_space(containing_cluster.session_creator)
                             .session_id()
                             + aligned_local)
                     }
-                    None => Err(DecompressionError::UnknownFinalId),
+                    None => Err(DecompressionError::UnallocatedFinalId),
                 }
             }
-            CompressedId::Local(local_id) => Ok(compressor.session_id + local_id),
+            CompressedId::Local(local_id) => {
+                if !compressor.session_space_normalizer.contains(local_id) {
+                    return Err(DecompressionError::UnobtainableId);
+                }
+                Ok(compressor.session_id + local_id)
+            }
         }
     }
 }
 
+// TODO: comment each one about how it can happen
+#[derive(Debug)]
 pub enum DecompressionError {
-    UnknownFinalId,
+    UnfinalizedId,
+    UnallocatedFinalId,
+    UnobtainableId,
+    UngeneratedFinalId,
 }
 
 pub struct IdRange {
@@ -273,5 +299,47 @@ mod tests {
         // 6 and 7 are outside of initial cluster capacity
         assert!(session_space_id_6.is_local());
         assert!(session_space_id_7.is_local());
+
+        // Test decompress
+        assert_eq!(
+            session_space_id_1.decompress(&compressor).unwrap(),
+            compressor.session_id.into(),
+        );
+        assert_eq!(
+            session_space_id_2.decompress(&compressor).unwrap(),
+            StableId {
+                id: compressor.session_id.id() + 1
+            },
+        );
+        assert_eq!(
+            session_space_id_3.decompress(&compressor).unwrap(),
+            StableId {
+                id: compressor.session_id.id() + 2
+            },
+        );
+        assert_eq!(
+            session_space_id_4.decompress(&compressor).unwrap(),
+            StableId {
+                id: compressor.session_id.id() + 3
+            },
+        );
+        assert_eq!(
+            session_space_id_5.decompress(&compressor).unwrap(),
+            StableId {
+                id: compressor.session_id.id() + 4
+            },
+        );
+        assert_eq!(
+            session_space_id_6.decompress(&compressor).unwrap(),
+            StableId {
+                id: compressor.session_id.id() + 5
+            },
+        );
+        assert_eq!(
+            session_space_id_7.decompress(&compressor).unwrap(),
+            StableId {
+                id: compressor.session_id.id() + 6
+            },
+        );
     }
 }

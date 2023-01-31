@@ -133,7 +133,7 @@ impl std::ops::AddAssign<u64> for FinalId {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct StableId {
     pub(crate) id: u128,
 }
@@ -141,6 +141,12 @@ pub struct StableId {
 impl StableId {
     pub(crate) fn null() -> StableId {
         StableId { id: 0 }
+    }
+}
+
+impl From<SessionId> for StableId {
+    fn from(value: SessionId) -> Self {
+        StableId { id: value.id }
     }
 }
 
