@@ -1,8 +1,8 @@
-use std::ops::{RangeBounds, Sub};
+use std::ops::Sub;
 
 use uuid::Uuid;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct SessionSpaceId {
     pub(crate) id: i64,
 }
