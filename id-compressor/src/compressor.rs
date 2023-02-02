@@ -251,7 +251,43 @@ impl StableId {
     pub fn recompress(
         &self,
         compressor: &IdCompressor,
-    ) -> Result<SessionSpaceId, CompressionError> {
+    ) -> Result<SessionSpaceId, RecompressionError> {
+        match compressor.uuid_space.search(*self, &compressor.sessions) {
+            None => Err(RecompressionError::UnallocatedStableId),
+            Some((cluster, originator_local)) => {
+                if cluster.session_creator == compressor.local_session {
+                    // Local session
+                    if compressor
+                        .session_space_normalizer
+                        .contains(originator_local)
+                    {
+                        return Ok(SessionSpaceId::from(originator_local));
+                    } else if originator_local.to_generation_count()
+                        <= compressor.generated_id_count
+                    {
+                        // Id is an eager final
+                        Ok(cluster
+                            .get_allocated_final(originator_local)
+                            .unwrap()
+                            .into())
+                    } else {
+                        return Err(RecompressionError::UngeneratedStableId);
+                    }
+                } else {
+                    //Not the local session
+                    if originator_local.to_generation_count()
+                        < cluster.base_local_id.to_generation_count() + cluster.count
+                    {
+                        Ok(cluster
+                            .get_allocated_final(originator_local)
+                            .unwrap()
+                            .into())
+                    } else {
+                        Err(RecompressionError::UnfinalizedForeignId)
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -262,6 +298,13 @@ pub enum DecompressionError {
     UnallocatedFinalId,
     UnobtainableId,
     UngeneratedFinalId,
+}
+
+#[derive(Debug)]
+pub enum RecompressionError {
+    UnallocatedStableId,
+    UngeneratedStableId,
+    UnfinalizedForeignId,
 }
 
 pub struct IdRange {
