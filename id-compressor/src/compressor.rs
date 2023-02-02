@@ -25,8 +25,7 @@ normalize_to_op_space
 normalize_to_session_space
 
 // TODO:
-1. Review eager finals
-2. Write some decompression tests :)
+3. Bit twiddling UUID math
 
 */
 use super::id_types::*;
@@ -196,6 +195,14 @@ impl SessionSpaceId {
             }
             CompressedId::Local(local_id) => Ok(compressor.session_id + local_id),
         }
+    }
+}
+
+impl StableId {
+    pub fn recompress(
+        &self,
+        compressor: &IdCompressor,
+    ) -> Result<SessionSpaceId, CompressionError> {
     }
 }
 
