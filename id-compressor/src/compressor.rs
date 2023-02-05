@@ -25,8 +25,7 @@ normalize_to_op_space
 normalize_to_session_space
 
 // TODO:
-1. Review eager finals
-2. Write some decompression tests :)
+- Actually do uuid incrementing correctly :( :( :( maybe research UUID package for solution
 
 */
 use super::id_types::*;
