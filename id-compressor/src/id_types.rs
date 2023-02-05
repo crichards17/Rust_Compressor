@@ -2,7 +2,7 @@ use std::ops::Sub;
 
 use uuid::Uuid;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct SessionSpaceId {
     pub(crate) id: i64,
 }
@@ -109,9 +109,7 @@ impl PartialOrd<i64> for LocalId {
 impl Sub<u64> for LocalId {
     type Output = LocalId;
     fn sub(self, rhs: u64) -> Self::Output {
-        LocalId {
-            id: self.id - rhs as i64,
-        }
+        LocalId::new(self.id - rhs as i64)
     }
 }
 
@@ -142,6 +140,11 @@ impl StableId {
     pub(crate) fn null() -> StableId {
         StableId { id: 0 }
     }
+
+    // todo: UUID math
+    pub(crate) fn sub_unsafe(self, other: Self) -> u64 {
+        (self.id - other.id) as u64
+    }
 }
 
 impl From<SessionId> for StableId {
@@ -150,15 +153,26 @@ impl From<SessionId> for StableId {
     }
 }
 
+// todo: UUID math
+impl std::ops::Add<u64> for StableId {
+    type Output = StableId;
+    fn add(self, rhs: u64) -> Self::Output {
+        StableId {
+            id: self.id + rhs as u128,
+        }
+    }
+}
+
 #[derive(Eq, PartialEq, Hash, Copy, Clone)]
 pub struct SessionId {
     id: u128,
 }
 
+// todo: UUID math
 impl std::ops::Add<LocalId> for SessionId {
     type Output = StableId;
     fn add(self, rhs: LocalId) -> Self::Output {
-        let abs_local = (-rhs.id - 1) as u128;
+        let abs_local = (rhs.to_generation_count() - 1) as u128;
         let new_id = self.id + abs_local;
         StableId { id: new_id }
     }
