@@ -39,9 +39,41 @@ impl From<FinalId> for SessionSpaceId {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct OpSpaceId {
     pub(crate) id: i64,
+}
+
+impl OpSpaceId {
+    pub(crate) fn to_space(&self) -> CompressedId {
+        if self.is_local() {
+            return CompressedId::Local(LocalId { id: self.id });
+        } else {
+            CompressedId::Final(FinalId { id: self.id as u64 })
+        }
+    }
+
+    pub(crate) fn is_local(&self) -> bool {
+        self.id < 0
+    }
+
+    pub(crate) fn is_final(&self) -> bool {
+        self.id >= 0
+    }
+}
+
+impl From<FinalId> for OpSpaceId {
+    fn from(value: FinalId) -> Self {
+        OpSpaceId {
+            id: value.id as i64,
+        }
+    }
+}
+
+impl From<LocalId> for OpSpaceId {
+    fn from(value: LocalId) -> Self {
+        OpSpaceId { id: value.id() }
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
@@ -142,8 +174,8 @@ impl StableId {
     }
 
     // todo: UUID math
-    pub(crate) fn sub_unsafe(self, other: Self) -> u64 {
-        (self.id - other.id) as u64
+    pub(crate) fn sub_unsafe(self, other: Self) -> u128 {
+        (self.id - other.id) as u128
     }
 }
 

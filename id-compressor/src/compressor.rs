@@ -18,14 +18,15 @@ on id types:
 
 + decompress
 
-recompress
++ recompress
 
 normalize_to_op_space
 
 normalize_to_session_space
 
 // TODO:
-3. Bit twiddling UUID math
+- Bit twiddling UUID math
+- Revise id_types.rs
 
 */
 use super::id_types::*;
@@ -245,6 +246,29 @@ impl SessionSpaceId {
             }
         }
     }
+
+    pub fn normalize_to_op_space(
+        &self,
+        compressor: &IdCompressor,
+    ) -> Result<OpSpaceId, NormalizationError> {
+        // Return the most final version of the given StableId
+        match self.to_space() {
+            CompressedId::Final(final_id) => Ok(OpSpaceId::from(final_id)),
+            CompressedId::Local(local_id) => {
+                if !compressor.session_space_normalizer.contains(local_id) {
+                    return Err(NormalizationError::UnknownSessionSpaceId);
+                } else {
+                    let local_session_space = compressor
+                        .sessions
+                        .deref_session_space(compressor.local_session);
+                    match local_session_space.convert_to_final(local_id) {
+                        Some(converted_final) => Ok(OpSpaceId::from(converted_final)),
+                        None => Ok(OpSpaceId::from(local_id)),
+                    }
+                }
+            }
+        }
+    }
 }
 
 impl StableId {
@@ -253,7 +277,25 @@ impl StableId {
         compressor: &IdCompressor,
     ) -> Result<SessionSpaceId, RecompressionError> {
         match compressor.uuid_space.search(*self, &compressor.sessions) {
-            None => Err(RecompressionError::UnallocatedStableId),
+            None => {
+                let session_as_stable = StableId::from(compressor.session_id);
+                if self >= &session_as_stable {
+                    // TODO: WARN: UUID math
+                    let gen_count_equivalent = self.sub_unsafe(session_as_stable) + 1;
+                    if gen_count_equivalent <= compressor.generated_id_count as u128 {
+                        // Is a locally generated ID, with or without a finalized cluster
+                        let local_equivalent =
+                            LocalId::from_generation_count(gen_count_equivalent as u64);
+                        if compressor
+                            .session_space_normalizer
+                            .contains(local_equivalent)
+                        {
+                            return Ok(SessionSpaceId::from(local_equivalent));
+                        }
+                    }
+                }
+                Err(RecompressionError::UnallocatedStableId)
+            }
             Some((cluster, originator_local)) => {
                 if cluster.session_creator == compressor.local_session {
                     // Local session
@@ -307,6 +349,11 @@ pub enum RecompressionError {
     UnfinalizedForeignId,
 }
 
+#[derive(Debug)]
+pub enum NormalizationError {
+    UnknownSessionSpaceId,
+}
+
 pub struct IdRange {
     id: SessionId,
     // (First LocalID in the range, count)
@@ -350,7 +397,8 @@ mod tests {
         assert!(session_space_id_6.is_local());
         assert!(session_space_id_7.is_local());
 
-        let mut offset = 0;
+        let mut offset: usize = 0;
+        let op_space_ids = [0, 1, 2, 3, 4, -6, -7];
         for id in [
             session_space_id_1,
             session_space_id_2,
@@ -361,11 +409,27 @@ mod tests {
             session_space_id_7,
         ] {
             let stable_id = StableId {
-                id: compressor.session_id.id() + offset,
+                id: compressor.session_id.id() + offset as u128,
             };
             assert_eq!(id.decompress(&compressor).unwrap(), stable_id,);
             assert_eq!(stable_id.recompress(&compressor).unwrap(), id);
+
+            let op_space_id = id.normalize_to_op_space(&compressor).unwrap();
+            assert_eq!(op_space_id.id, op_space_ids[offset]);
             offset += 1;
         }
+    }
+
+    #[test]
+    fn test_decompress_recompress() {
+        let mut compressor = IdCompressor::new();
+
+        let session_space_id = compressor.generate_next_id();
+
+        let stable_id = StableId {
+            id: compressor.session_id.id(),
+        };
+        assert_eq!(session_space_id.decompress(&compressor).unwrap(), stable_id,);
+        assert_eq!(stable_id.recompress(&compressor).unwrap(), session_space_id);
     }
 }
