@@ -4,6 +4,7 @@ Effectively represents the cluster chain for a given session.
 */
 use crate::id_types::SessionId;
 use crate::id_types::*;
+use std::cmp::Ordering;
 use std::collections::HashMap;
 
 pub struct Sessions {
@@ -114,6 +115,27 @@ impl SessionSpace {
         ClusterRef {
             session_space_ref: self.self_ref,
             cluster_chain_index: tail_index,
+        }
+    }
+
+    pub fn convert_to_final(&self, search_local: LocalId) -> Option<FinalId> {
+        match self.cluster_chain.binary_search_by(|current_cluster| {
+            let cluster_last_local = current_cluster.base_local_id - (current_cluster.count - 1);
+            if cluster_last_local > search_local {
+                return Ordering::Less;
+            } else if current_cluster.base_local_id < search_local {
+                return Ordering::Greater;
+            } else {
+                Ordering::Equal
+            }
+        }) {
+            Ok(index) => {
+                let found_cluster = &self.cluster_chain[index];
+                let delta = found_cluster.base_local_id.id() - search_local.id();
+                debug_assert!(delta >= 0);
+                Some(found_cluster.base_final_id + delta as u64)
+            }
+            Err(_) => None,
         }
     }
 }
