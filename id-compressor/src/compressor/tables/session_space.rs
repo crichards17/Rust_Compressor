@@ -126,6 +126,21 @@ pub struct IdCluster {
     pub(crate) count: u64,
 }
 
+impl IdCluster {
+    pub fn get_allocated_final(&self, local_within: LocalId) -> Option<FinalId> {
+        let cluster_offset =
+            (local_within.to_generation_count() - self.base_local_id.to_generation_count()) as u64;
+        if cluster_offset < self.capacity {
+            Some(FinalId {
+                id: self.base_final_id.id + cluster_offset,
+            })
+        } else {
+            None
+        }
+    }
+}
+
+// Maps to an index in the session_list
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct SessionSpaceRef {
     index: usize,

@@ -28,7 +28,7 @@ impl SessionSpaceNormalizer {
             .binary_search_by(|(current_local, current_count)| {
                 if &query > current_local {
                     return Ordering::Greater;
-                } else if query < *current_local - *current_count {
+                } else if query < *current_local - (*current_count - 1) {
                     return Ordering::Less;
                 } else {
                     Ordering::Equal
@@ -63,7 +63,7 @@ mod tests {
         session_space_normalizer.add_local_range(LocalId::new(-6), 4);
         session_space_normalizer.add_local_range(LocalId::new(-15), 1);
         assert!(!session_space_normalizer.contains(LocalId::new(-11)));
-        assert!(!session_space_normalizer.contains(LocalId::new(-4)));
+        assert!(!session_space_normalizer.contains(LocalId::new(-3)));
         assert!(session_space_normalizer.contains(LocalId::new(-7)));
     }
 
@@ -76,7 +76,15 @@ mod tests {
         assert!(session_space_normalizer.contains(LocalId::new(-1)));
         assert!(session_space_normalizer.contains(LocalId::new(-4)));
         assert!(session_space_normalizer.contains(LocalId::new(-6)));
-        assert!(session_space_normalizer.contains(LocalId::new(-7)));
+        assert!(!session_space_normalizer.contains(LocalId::new(-7)));
         assert!(session_space_normalizer.contains(LocalId::new(-15)));
+    }
+
+    #[test]
+    fn test_contains() {
+        let mut session_space_normalizer = SessionSpaceNormalizer::new();
+        session_space_normalizer.add_local_range(LocalId::new(-1), 2);
+        session_space_normalizer.add_local_range(LocalId::new(-6), 2);
+        assert!(!session_space_normalizer.contains(LocalId::new(-3)));
     }
 }
