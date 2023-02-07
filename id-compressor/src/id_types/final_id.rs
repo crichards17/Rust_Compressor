@@ -4,7 +4,7 @@ pub struct FinalId {
 }
 
 impl FinalId {
-    pub(crate) fn id(&self) -> u64 {
+    pub(super) fn id(&self) -> u64 {
         self.id
     }
 

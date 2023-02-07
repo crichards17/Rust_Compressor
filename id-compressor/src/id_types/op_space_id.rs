@@ -1,12 +1,12 @@
 use super::*;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct OpSpaceId {
     id: i64,
 }
 
 impl OpSpaceId {
-    pub(crate) fn id(&self) -> i64 {
+    pub(super) fn id(&self) -> i64 {
         self.id
     }
 

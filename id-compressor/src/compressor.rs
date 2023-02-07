@@ -22,7 +22,7 @@ on id types:
 
 + normalize_to_op_space
 
-normalize_to_session_space
++ normalize_to_session_space
 
 // TODO:
 - Bit twiddling UUID math
@@ -478,7 +478,7 @@ mod tests {
             session_space_id_6,
             session_space_id_7,
         ] {
-            let stable_id = StableId::new(compressor.session_id.id() + offset as u128);
+            let stable_id = StableId::from(compressor.session_id) + offset as u64;
             assert_eq!(id.decompress(&compressor).unwrap(), stable_id,);
             assert_eq!(stable_id.recompress(&compressor).unwrap(), id);
 
@@ -489,7 +489,17 @@ mod tests {
                     .normalize_to_session_space(compressor.session_id, &compressor)
                     .unwrap()
             );
-            assert_eq!(op_space_id.id(), op_space_ids[offset]);
+            if op_space_ids[offset] < 0 {
+                assert_eq!(
+                    op_space_id,
+                    OpSpaceId::from(LocalId::new(op_space_ids[offset]))
+                );
+            } else {
+                assert_eq!(
+                    op_space_id,
+                    OpSpaceId::from(FinalId::new(op_space_ids[offset] as u64))
+                );
+            }
             offset += 1;
         }
     }
@@ -500,7 +510,7 @@ mod tests {
 
         let session_space_id = compressor.generate_next_id();
 
-        let stable_id = StableId::new(compressor.session_id.id());
+        let stable_id = StableId::from(compressor.session_id);
         assert_eq!(session_space_id.decompress(&compressor).unwrap(), stable_id,);
         assert_eq!(stable_id.recompress(&compressor).unwrap(), session_space_id);
     }

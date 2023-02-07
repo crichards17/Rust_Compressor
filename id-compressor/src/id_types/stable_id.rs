@@ -6,7 +6,7 @@ pub struct StableId {
 }
 
 impl StableId {
-    pub(crate) fn id_unsafe(&self) -> u128 {
+    pub(super) fn id_raw(&self) -> u128 {
         self.id
     }
 
@@ -26,7 +26,7 @@ impl StableId {
 
 impl From<SessionId> for StableId {
     fn from(value: SessionId) -> Self {
-        StableId { id: value.id() }
+        StableId { id: value.id_raw() }
     }
 }
 

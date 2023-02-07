@@ -23,7 +23,7 @@ impl SessionId {
         }
     }
 
-    pub(crate) fn id(&self) -> u128 {
+    pub(super) fn id_raw(&self) -> u128 {
         self.id
     }
 }
