@@ -231,7 +231,7 @@ impl SessionSpaceId {
                             .sessions
                             .deref_session_space(containing_cluster.session_creator)
                             .session_id()
-                            + aligned_local)
+                            .stable_from_local_offset(aligned_local))
                     }
                     None => Err(DecompressionError::UnallocatedFinalId),
                 }
@@ -240,7 +240,7 @@ impl SessionSpaceId {
                 if !compressor.session_space_normalizer.contains(local_id) {
                     return Err(DecompressionError::UnobtainableId);
                 }
-                Ok(compressor.session_id + local_id)
+                Ok(compressor.session_id.stable_from_local_offset(local_id))
             }
         }
     }

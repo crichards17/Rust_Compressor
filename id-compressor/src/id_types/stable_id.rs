@@ -10,7 +10,7 @@ impl StableId {
         self.id
     }
 
-    pub(crate) fn new(id: u128) -> Self {
+    pub(super) fn new(id: u128) -> Self {
         StableId { id }
     }
 
