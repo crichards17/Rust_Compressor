@@ -48,7 +48,7 @@ impl UuidSpace {
                     .session_id();
                 let cluster_min_stable =
                     result_session_id.stable_from_local_offset(cluster_match.base_local_id);
-                let cluster_max_stable = cluster_min_stable + cluster_match.capacity;
+                let cluster_max_stable = cluster_min_stable.offset_by(cluster_match.capacity);
                 if query >= cluster_min_stable && query <= cluster_max_stable {
                     let originator_local = LocalId::new(
                         -((query.sub_unsafe(StableId::from(result_session_id))) as i64) - 1,

@@ -5,6 +5,7 @@ pub struct StableId {
     id: u128,
 }
 
+// TODO: UUID math
 impl StableId {
     pub(super) fn id_raw(&self) -> u128 {
         self.id
@@ -18,7 +19,14 @@ impl StableId {
         StableId { id: 0 }
     }
 
-    // todo: UUID math
+    // TODO: UUID math
+    pub(crate) fn offset_by(&self, offset: u64) -> StableId {
+        StableId {
+            id: self.id + offset as u128,
+        }
+    }
+
+    // TODO: UUID math
     pub(crate) fn sub_unsafe(self, other: Self) -> u128 {
         (self.id - other.id) as u128
     }
@@ -27,15 +35,5 @@ impl StableId {
 impl From<SessionId> for StableId {
     fn from(value: SessionId) -> Self {
         StableId { id: value.id_raw() }
-    }
-}
-
-// todo: UUID math
-impl std::ops::Add<u64> for StableId {
-    type Output = StableId;
-    fn add(self, rhs: u64) -> Self::Output {
-        StableId {
-            id: self.id + rhs as u128,
-        }
     }
 }

@@ -478,7 +478,7 @@ mod tests {
             session_space_id_6,
             session_space_id_7,
         ] {
-            let stable_id = StableId::from(compressor.session_id) + offset as u64;
+            let stable_id = StableId::from(compressor.session_id).offset_by(offset as u64);
             assert_eq!(id.decompress(&compressor).unwrap(), stable_id,);
             assert_eq!(stable_id.recompress(&compressor).unwrap(), id);
 
