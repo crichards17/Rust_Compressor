@@ -145,7 +145,7 @@ impl Sub<u64> for LocalId {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord)]
+#[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Debug)]
 pub struct FinalId {
     pub(crate) id: u64,
 }
@@ -160,6 +160,14 @@ impl std::ops::Add<u64> for FinalId {
 impl std::ops::AddAssign<u64> for FinalId {
     fn add_assign(&mut self, rhs: u64) {
         self.id += rhs;
+    }
+}
+
+impl Sub<FinalId> for FinalId {
+    type Output = i64;
+    fn sub(self, rhs: FinalId) -> Self::Output {
+        debug_assert!(self.id >= rhs.id, "Final ID subtraction overflow");
+        self.id as i64 - rhs.id as i64
     }
 }
 

@@ -20,7 +20,7 @@ on id types:
 
 + recompress
 
-normalize_to_op_space
++ normalize_to_op_space
 
 normalize_to_session_space
 
@@ -33,7 +33,7 @@ use super::id_types::*;
 pub(crate) mod tables;
 pub(crate) mod utils;
 use self::tables::final_space::FinalSpace;
-use self::tables::session_space::{ClusterRef, SessionSpaceRef, Sessions};
+use self::tables::session_space::{ClusterRef, SessionSpace, SessionSpaceRef, Sessions};
 use self::tables::session_space_normalizer::SessionSpaceNormalizer;
 use self::tables::uuid_space::UuidSpace;
 
@@ -69,17 +69,17 @@ impl IdCompressor {
         }
     }
 
+    fn get_local_session_space(&self) -> &SessionSpace {
+        self.sessions.deref_session_space(self.local_session)
+    }
+
     pub fn set_cluster_capacity(&mut self, new_cluster_capacity: u64) {
         self.cluster_capacity = new_cluster_capacity;
     }
 
     pub fn generate_next_id(&mut self) -> SessionSpaceId {
         self.generated_id_count += 1;
-        let tail_cluster = match self
-            .sessions
-            .deref_session_space(self.local_session)
-            .get_tail_cluster()
-        {
+        let tail_cluster = match self.get_local_session_space().get_tail_cluster() {
             Some(tail_cluster_ref) => self.sessions.deref_cluster(tail_cluster_ref),
             None => {
                 // No cluster, return next local
@@ -211,9 +211,8 @@ impl SessionSpaceId {
                     .search(final_id, &compressor.sessions)
                 {
                     Some(containing_cluster) => {
-                        let final_delta = final_id.id - containing_cluster.base_final_id.id;
-                        let aligned_local = containing_cluster.base_local_id - final_delta;
-                        if final_delta > containing_cluster.count {
+                        let aligned_local = containing_cluster.get_aligned_local(final_id).unwrap();
+                        if aligned_local < containing_cluster.max_local() {
                             // must be an id generated (allocated or finalized) by the local session, or a finalized id from a remote session
                             if containing_cluster.session_creator == compressor.local_session {
                                 if compressor.session_space_normalizer.contains(aligned_local) {
@@ -261,9 +260,76 @@ impl SessionSpaceId {
                     let local_session_space = compressor
                         .sessions
                         .deref_session_space(compressor.local_session);
-                    match local_session_space.convert_to_final(local_id) {
+                    match local_session_space.try_convert_to_final(local_id) {
                         Some(converted_final) => Ok(OpSpaceId::from(converted_final)),
                         None => Ok(OpSpaceId::from(local_id)),
+                    }
+                }
+            }
+        }
+    }
+}
+
+impl OpSpaceId {
+    pub fn normalize_to_session_space(
+        &self,
+        originator: SessionId,
+        compressor: &IdCompressor,
+    ) -> Result<SessionSpaceId, NormalizationError> {
+        match self.to_space() {
+            CompressedId::Local(local_to_normalize) => {
+                if originator == compressor.session_id {
+                    Ok(SessionSpaceId::from(local_to_normalize))
+                } else {
+                    // LocalId from a foreign session
+                    let foreign_session_space = match compressor.sessions.get(originator) {
+                        Some(session_space) => session_space,
+                        None => {
+                            return Err(NormalizationError::UnknownSessionId);
+                        }
+                    };
+                    match foreign_session_space.try_convert_to_final(local_to_normalize) {
+                        Some(final_id) => Ok(SessionSpaceId::from(final_id)),
+                        None => Err(NormalizationError::UnfinalizedForeignLocal),
+                    }
+                }
+            }
+            CompressedId::Final(final_to_normalize) => {
+                match compressor
+                    .get_local_session_space()
+                    .get_cluster_by_allocated_final(final_to_normalize)
+                {
+                    // Exists in local cluster chain
+                    Some(containing_cluster) => {
+                        let aligned_local = containing_cluster
+                            .get_aligned_local(final_to_normalize)
+                            .unwrap();
+                        if compressor.session_space_normalizer.contains(aligned_local) {
+                            Ok(SessionSpaceId::from(aligned_local))
+                        } else {
+                            if aligned_local.to_generation_count() <= compressor.generated_id_count
+                            {
+                                Ok(SessionSpaceId::from(final_to_normalize))
+                            } else {
+                                Err(NormalizationError::UngeneratedId)
+                            }
+                        }
+                    }
+                    None => {
+                        // Does not exist in local cluster chain
+                        match compressor
+                            .final_space
+                            .get_tail_cluster(&compressor.sessions)
+                        {
+                            None => Err(NormalizationError::NoFinalizedRanges),
+                            Some(final_space_tail_cluster) => {
+                                if final_to_normalize <= final_space_tail_cluster.max_final() {
+                                    Ok(SessionSpaceId::from(final_to_normalize))
+                                } else {
+                                    Err(NormalizationError::UnFinalizedForeignFinal)
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -352,6 +418,11 @@ pub enum RecompressionError {
 #[derive(Debug)]
 pub enum NormalizationError {
     UnknownSessionSpaceId,
+    UnknownSessionId,
+    UngeneratedId,
+    UnfinalizedForeignLocal,
+    UnFinalizedForeignFinal,
+    NoFinalizedRanges,
 }
 
 pub struct IdRange {
@@ -415,6 +486,12 @@ mod tests {
             assert_eq!(stable_id.recompress(&compressor).unwrap(), id);
 
             let op_space_id = id.normalize_to_op_space(&compressor).unwrap();
+            assert_eq!(
+                id,
+                op_space_id
+                    .normalize_to_session_space(compressor.session_id, &compressor)
+                    .unwrap()
+            );
             assert_eq!(op_space_id.id, op_space_ids[offset]);
             offset += 1;
         }
