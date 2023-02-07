@@ -50,12 +50,11 @@ impl FinalSpace {
         self.clusters
             .binary_search_by(|current_cluster_ref| {
                 let current_cluster = sessions.deref_cluster(*current_cluster_ref);
-                let cluster_base_final_val = current_cluster.base_final_id.id;
-                let cluster_max_final_val = cluster_base_final_val + current_cluster.capacity - 1;
-                let target_final_val = target_final.id;
-                if cluster_max_final_val < target_final_val {
+                let cluster_base_final = current_cluster.base_final_id;
+                let cluster_max_final = cluster_base_final + (current_cluster.capacity - 1);
+                if cluster_max_final < target_final {
                     return Ordering::Less;
-                } else if cluster_base_final_val > target_final_val {
+                } else if cluster_base_final > target_final {
                     return Ordering::Greater;
                 } else {
                     Ordering::Equal
@@ -63,5 +62,12 @@ impl FinalSpace {
             })
             .ok()
             .map(|index| sessions.deref_cluster(self.clusters[index]))
+    }
+
+    pub fn get_tail_cluster<'a>(&self, sessions: &'a Sessions) -> Option<&'a IdCluster> {
+        if self.clusters.is_empty() {
+            return None;
+        }
+        Some(sessions.deref_cluster(self.clusters[self.clusters.len() - 1]))
     }
 }

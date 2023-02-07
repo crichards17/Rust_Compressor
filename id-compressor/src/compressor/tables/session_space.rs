@@ -36,7 +36,14 @@ impl Sessions {
         }
     }
 
-    pub fn get(&mut self, session_id: SessionId) -> Option<&SessionSpace> {
+    pub fn get(&self, session_id: SessionId) -> Option<&SessionSpace> {
+        match self.session_map.get(&session_id) {
+            None => None,
+            Some(session_space_ref) => Some(self.deref_session_space(*session_space_ref)),
+        }
+    }
+
+    pub fn get_mut(&mut self, session_id: SessionId) -> Option<&mut SessionSpace> {
         match self.session_map.get(&session_id) {
             None => None,
             Some(session_space_ref) => Some(self.deref_session_space_mut(*session_space_ref)),
@@ -118,7 +125,7 @@ impl SessionSpace {
         }
     }
 
-    pub fn convert_to_final(&self, search_local: LocalId) -> Option<FinalId> {
+    pub fn try_convert_to_final(&self, search_local: LocalId) -> Option<FinalId> {
         match self.cluster_chain.binary_search_by(|current_cluster| {
             let cluster_last_local = current_cluster.base_local_id - (current_cluster.count - 1);
             if cluster_last_local > search_local {
@@ -131,10 +138,26 @@ impl SessionSpace {
         }) {
             Ok(index) => {
                 let found_cluster = &self.cluster_chain[index];
-                let delta = found_cluster.base_local_id.id() - search_local.id();
-                debug_assert!(delta >= 0);
-                Some(found_cluster.base_final_id + delta as u64)
+                Some(found_cluster.get_allocated_final(search_local).unwrap())
             }
+            Err(_) => None,
+        }
+    }
+
+    // TODO: include contract about allocated not finalized
+    pub fn get_cluster_by_allocated_final(&self, search_final: FinalId) -> Option<&IdCluster> {
+        match self.cluster_chain.binary_search_by(|current_cluster| {
+            let cluster_base_final = current_cluster.base_final_id;
+            let cluster_last_final = cluster_base_final + (current_cluster.capacity - 1);
+            if cluster_last_final < search_final {
+                return Ordering::Less;
+            } else if cluster_base_final > search_final {
+                return Ordering::Greater;
+            } else {
+                Ordering::Equal
+            }
+        }) {
+            Ok(found_cluster_index) => Some(&self.cluster_chain[found_cluster_index]),
             Err(_) => None,
         }
     }
@@ -159,6 +182,26 @@ impl IdCluster {
         } else {
             None
         }
+    }
+
+    pub fn get_aligned_local(&self, contained_final: FinalId) -> Option<LocalId> {
+        if contained_final < self.base_final_id || contained_final > self.max_allocated_final() {
+            return None;
+        }
+        let final_delta = contained_final - self.base_final_id;
+        Some(self.base_local_id - final_delta as u64)
+    }
+
+    pub fn max_final(&self) -> FinalId {
+        self.base_final_id + (self.count - 1)
+    }
+
+    pub fn max_allocated_final(&self) -> FinalId {
+        self.base_final_id + (self.capacity - 1)
+    }
+
+    pub fn max_local(&self) -> LocalId {
+        self.base_local_id - (self.count - 1)
     }
 }
 
