@@ -29,13 +29,12 @@ normalize_to_session_space
 - Revise id_types.rs
 
 */
-use super::id_types::*;
 pub(crate) mod tables;
-pub(crate) mod utils;
 use self::tables::final_space::FinalSpace;
 use self::tables::session_space::{ClusterRef, SessionSpace, SessionSpaceRef, Sessions};
 use self::tables::session_space_normalizer::SessionSpaceNormalizer;
 use self::tables::uuid_space::UuidSpace;
+use super::id_types::*;
 
 const DEFAULT_CLUSTER_CAPACITY: u64 = 512;
 pub struct IdCompressor {
@@ -65,7 +64,7 @@ impl IdCompressor {
             uuid_space: UuidSpace::new(),
             session_space_normalizer: SessionSpaceNormalizer::new(),
             cluster_capacity: DEFAULT_CLUSTER_CAPACITY,
-            cluster_next_base_final_id: FinalId { id: (0) },
+            cluster_next_base_final_id: FinalId::new(0),
         }
     }
 
@@ -479,9 +478,7 @@ mod tests {
             session_space_id_6,
             session_space_id_7,
         ] {
-            let stable_id = StableId {
-                id: compressor.session_id.id() + offset as u128,
-            };
+            let stable_id = StableId::new(compressor.session_id.id() + offset as u128);
             assert_eq!(id.decompress(&compressor).unwrap(), stable_id,);
             assert_eq!(stable_id.recompress(&compressor).unwrap(), id);
 
@@ -492,7 +489,7 @@ mod tests {
                     .normalize_to_session_space(compressor.session_id, &compressor)
                     .unwrap()
             );
-            assert_eq!(op_space_id.id, op_space_ids[offset]);
+            assert_eq!(op_space_id.id(), op_space_ids[offset]);
             offset += 1;
         }
     }
@@ -503,9 +500,7 @@ mod tests {
 
         let session_space_id = compressor.generate_next_id();
 
-        let stable_id = StableId {
-            id: compressor.session_id.id(),
-        };
+        let stable_id = StableId::new(compressor.session_id.id());
         assert_eq!(session_space_id.decompress(&compressor).unwrap(), stable_id,);
         assert_eq!(stable_id.recompress(&compressor).unwrap(), session_space_id);
     }
