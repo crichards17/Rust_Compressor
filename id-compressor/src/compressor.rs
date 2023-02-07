@@ -22,20 +22,19 @@ on id types:
 
 + normalize_to_op_space
 
-normalize_to_session_space
++ normalize_to_session_space
 
 // TODO:
 - Bit twiddling UUID math
 - Revise id_types.rs
 
 */
-use super::id_types::*;
 pub(crate) mod tables;
-pub(crate) mod utils;
 use self::tables::final_space::FinalSpace;
 use self::tables::session_space::{ClusterRef, SessionSpace, SessionSpaceRef, Sessions};
 use self::tables::session_space_normalizer::SessionSpaceNormalizer;
 use self::tables::uuid_space::UuidSpace;
+use super::id_types::*;
 
 const DEFAULT_CLUSTER_CAPACITY: u64 = 512;
 pub struct IdCompressor {
@@ -65,7 +64,7 @@ impl IdCompressor {
             uuid_space: UuidSpace::new(),
             session_space_normalizer: SessionSpaceNormalizer::new(),
             cluster_capacity: DEFAULT_CLUSTER_CAPACITY,
-            cluster_next_base_final_id: FinalId { id: (0) },
+            cluster_next_base_final_id: FinalId::new(0),
         }
     }
 
@@ -232,7 +231,7 @@ impl SessionSpaceId {
                             .sessions
                             .deref_session_space(containing_cluster.session_creator)
                             .session_id()
-                            + aligned_local)
+                            .stable_from_local_offset(aligned_local))
                     }
                     None => Err(DecompressionError::UnallocatedFinalId),
                 }
@@ -241,7 +240,7 @@ impl SessionSpaceId {
                 if !compressor.session_space_normalizer.contains(local_id) {
                     return Err(DecompressionError::UnobtainableId);
                 }
-                Ok(compressor.session_id + local_id)
+                Ok(compressor.session_id.stable_from_local_offset(local_id))
             }
         }
     }
@@ -479,9 +478,7 @@ mod tests {
             session_space_id_6,
             session_space_id_7,
         ] {
-            let stable_id = StableId {
-                id: compressor.session_id.id() + offset as u128,
-            };
+            let stable_id = StableId::from(compressor.session_id).offset_by(offset as u64);
             assert_eq!(id.decompress(&compressor).unwrap(), stable_id,);
             assert_eq!(stable_id.recompress(&compressor).unwrap(), id);
 
@@ -492,7 +489,17 @@ mod tests {
                     .normalize_to_session_space(compressor.session_id, &compressor)
                     .unwrap()
             );
-            assert_eq!(op_space_id.id, op_space_ids[offset]);
+            if op_space_ids[offset] < 0 {
+                assert_eq!(
+                    op_space_id,
+                    OpSpaceId::from(LocalId::new(op_space_ids[offset]))
+                );
+            } else {
+                assert_eq!(
+                    op_space_id,
+                    OpSpaceId::from(FinalId::new(op_space_ids[offset] as u64))
+                );
+            }
             offset += 1;
         }
     }
@@ -503,9 +510,7 @@ mod tests {
 
         let session_space_id = compressor.generate_next_id();
 
-        let stable_id = StableId {
-            id: compressor.session_id.id(),
-        };
+        let stable_id = StableId::from(compressor.session_id);
         assert_eq!(session_space_id.decompress(&compressor).unwrap(), stable_id,);
         assert_eq!(stable_id.recompress(&compressor).unwrap(), session_space_id);
     }

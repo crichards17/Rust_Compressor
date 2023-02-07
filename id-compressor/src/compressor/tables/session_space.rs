@@ -176,9 +176,7 @@ impl IdCluster {
         let cluster_offset =
             (local_within.to_generation_count() - self.base_local_id.to_generation_count()) as u64;
         if cluster_offset < self.capacity {
-            Some(FinalId {
-                id: self.base_final_id.id + cluster_offset,
-            })
+            Some(self.base_final_id + cluster_offset)
         } else {
             None
         }
