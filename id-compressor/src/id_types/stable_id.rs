@@ -6,7 +6,6 @@ pub struct StableId {
     id: u128,
 }
 
-// TODO: reimplement arithmetic (internal IDs are safe)
 impl StableId {
     pub(super) fn id(&self) -> u128 {
         self.id
@@ -19,13 +18,6 @@ impl StableId {
     pub(crate) fn null() -> StableId {
         StableId { id: 0 }
     }
-
-    // TODO: Replace usage with arithmetic ops
-    // pub(crate) fn offset_by(&self, offset: i64) -> StableId {
-    //     StableId {
-    //         id: self.id + offset as u128,
-    //     }
-    // }
 
     const VERSION_MASK: u128 = 0x4 << (19 * 4); // Version 4
     const VARIANT_MASK: u128 = 0x8 << (15 * 4); // Variant RFC4122 (1 0 x x)
