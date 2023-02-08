@@ -21,7 +21,7 @@ impl SessionId {
     }
 
     pub(super) fn from_uuid(uuid: uuid::Uuid) -> SessionId {
-        dbg!(uuid.to_string());
+        // dbg!(uuid.to_string());
         let as_u128 = uuid.as_u128();
         let upper_masked = as_u128 & SessionId::UPPER_MASK;
         let middie_bitties_masked = as_u128 & SessionId::MIDDIE_BITTIES_MASK;
