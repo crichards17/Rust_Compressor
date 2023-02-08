@@ -5,9 +5,10 @@ pub struct StableId {
     id: u128,
 }
 
-// TODO: UUID math
+// TODO: to_string uuid math
+// TODO: reimplement arithmetic (internal IDs are safe)
 impl StableId {
-    pub(super) fn id_raw(&self) -> u128 {
+    pub(super) fn id(&self) -> u128 {
         self.id
     }
 
@@ -19,21 +20,21 @@ impl StableId {
         StableId { id: 0 }
     }
 
-    // TODO: UUID math
-    pub(crate) fn offset_by(&self, offset: u64) -> StableId {
+    pub(crate) fn offset_by(&self, offset: i64) -> StableId {
         StableId {
             id: self.id + offset as u128,
         }
     }
 
-    // TODO: UUID math
-    pub(crate) fn sub_unsafe(self, other: Self) -> u128 {
+    pub(crate) fn sub(self, other: Self) -> u128 {
         (self.id - other.id) as u128
     }
+
+    // TODO: to_uuid_string() to reverse transform
 }
 
 impl From<SessionId> for StableId {
     fn from(value: SessionId) -> Self {
-        StableId { id: value.id_raw() }
+        StableId { id: value.id() }
     }
 }
