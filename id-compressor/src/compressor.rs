@@ -347,7 +347,7 @@ impl StableId {
                 let session_as_stable = StableId::from(compressor.session_id);
                 if self >= &session_as_stable {
                     // TODO: WARN: UUID math
-                    let gen_count_equivalent = self.sub(session_as_stable) + 1;
+                    let gen_count_equivalent = *self - session_as_stable + 1;
                     if gen_count_equivalent <= compressor.generated_id_count as u128 {
                         // Is a locally generated ID, with or without a finalized cluster
                         let local_equivalent =
@@ -479,7 +479,7 @@ mod tests {
             session_space_id_6,
             session_space_id_7,
         ] {
-            let stable_id = StableId::from(compressor.session_id).offset_by(offset as i64);
+            let stable_id = StableId::from(compressor.session_id) + offset as u64;
             assert_eq!(id.decompress(&compressor).unwrap(), stable_id,);
             assert_eq!(stable_id.recompress(&compressor).unwrap(), id);
 
