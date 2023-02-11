@@ -11,7 +11,7 @@ impl SessionId {
     // xxxxxxxx-xxxx-Mxxx-Nxxx-xxxxxxxxxxxx
     const UPPER_MASK: u128 = 0xFFFFFFFFFFFF << (20 * 4);
     const MIDDIE_BITTIES_MASK: u128 = 0xFFF << (16 * 4);
-    // Note: leading character should be 3 to mask at 0011 (was 2 -> 0010)
+    // Note: leading character should be 3 to mask at 0011
     // Verified: The more-significant half of the N nibble is used to denote the variant (10xx)
     const LOWER_MASK: u128 = 0x3FFFFFFFFFFFFFFF;
 
@@ -42,16 +42,5 @@ impl SessionId {
     pub(crate) fn stable_from_local_offset(&self, offset_local: LocalId) -> StableId {
         let new_id = self.id + (offset_local.to_generation_count() - 1) as u128;
         StableId::new(new_id)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_uuid_creation() {
-        let uuid = Uuid::new_v4();
-        dbg!(uuid.to_string());
     }
 }

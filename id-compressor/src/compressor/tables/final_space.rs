@@ -20,6 +20,10 @@ impl FinalSpace {
         }
     }
 
+    pub fn cluster_count(&self) -> usize {
+        self.clusters.len()
+    }
+
     pub fn add_cluster(&mut self, new_cluster_ref: ClusterRef, sessions: &Sessions) {
         #[cfg(debug_assertions)]
         if self.clusters.len() != 0 {
@@ -69,5 +73,14 @@ impl FinalSpace {
             return None;
         }
         Some(sessions.deref_cluster(self.clusters[self.clusters.len() - 1]))
+    }
+
+    pub fn get_clusters<'a>(
+        &'a self,
+        sessions: &'a Sessions,
+    ) -> impl Iterator<Item = &'a IdCluster> {
+        self.clusters
+            .iter()
+            .map(|cluster_ref| sessions.deref_cluster(*cluster_ref))
     }
 }

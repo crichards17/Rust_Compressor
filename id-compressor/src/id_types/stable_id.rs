@@ -26,6 +26,15 @@ impl StableId {
     const LOWER_MASK: u128 = 0x3FFFFFFFFFFFFFFF;
 
     fn to_uuid(&self) -> Uuid {
+        let uuid = uuid::Builder::from_u128(self.to_uuid_u128()).into_uuid();
+        return uuid;
+    }
+
+    pub(crate) fn to_uuid_string(&self) -> String {
+        self.to_uuid().to_string()
+    }
+
+    pub(crate) fn to_uuid_u128(&self) -> u128 {
         // bitwise reverse transform
         let upper_masked = (self.id & StableId::UPPER_MASK) << 6;
         let middie_bitties_masked = (self.id & StableId::MIDDIE_BITTIES_MASK) << 2;
@@ -35,13 +44,7 @@ impl StableId {
             | middie_bitties_masked
             | StableId::VARIANT_MASK
             | lower_masked;
-
-        let uuid = uuid::Builder::from_u128(transformed_id).into_uuid();
-        return uuid;
-    }
-
-    fn to_uuid_string(&self) -> String {
-        self.to_uuid().to_string()
+        transformed_id
     }
 }
 

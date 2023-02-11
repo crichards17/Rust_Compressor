@@ -9,7 +9,7 @@ on compressor:
 
 + setClusterSize
 
-serialize
++ serialize
 
 deserialize
 
@@ -25,19 +25,19 @@ on id types:
 + normalize_to_session_space
 
 // TODO:
-- Bit twiddling UUID math
++ Bit twiddling UUID math
 
 + Revise id_types.rs
 
 */
-pub(crate) mod tables;
+mod persistence;
+mod tables;
 use self::tables::final_space::FinalSpace;
 use self::tables::session_space::{ClusterRef, SessionSpace, SessionSpaceRef, Sessions};
 use self::tables::session_space_normalizer::SessionSpaceNormalizer;
 use self::tables::uuid_space::UuidSpace;
 use super::id_types::*;
 
-const DEFAULT_CLUSTER_CAPACITY: u64 = 512;
 pub struct IdCompressor {
     session_id: SessionId,
     local_session: SessionSpaceRef,
@@ -64,7 +64,8 @@ impl IdCompressor {
             final_space: FinalSpace::new(),
             uuid_space: UuidSpace::new(),
             session_space_normalizer: SessionSpaceNormalizer::new(),
-            cluster_capacity: DEFAULT_CLUSTER_CAPACITY,
+            // TODO: Refactor to consumer-passed cluster_capacity value
+            cluster_capacity: persistence::DEFAULT_CLUSTER_CAPACITY,
             cluster_next_base_final_id: FinalId::new(0),
         }
     }
@@ -199,6 +200,29 @@ impl IdCompressor {
         self.uuid_space
             .add_cluster(session_id, new_cluster_ref, &self.sessions);
         new_cluster_ref
+    }
+
+    pub fn serialize(&self) -> Vec<u8> {
+        let session_space_ids = self
+            .sessions
+            .get_session_spaces()
+            .map(|session_space| session_space.session_id());
+
+        let clusters = self
+            .final_space
+            .get_clusters(&self.sessions)
+            .map(|id_cluster| persistence::v1::ClusterData {
+                session_index: id_cluster.session_creator.get_index() as u64,
+                capacity: id_cluster.capacity,
+                count: id_cluster.count,
+            });
+
+        persistence::v1::serialize(
+            session_space_ids,
+            self.sessions.sessions_count(),
+            clusters,
+            self.final_space.cluster_count(),
+        )
     }
 }
 

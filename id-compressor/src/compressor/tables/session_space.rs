@@ -20,6 +20,10 @@ impl Sessions {
         }
     }
 
+    pub fn sessions_count(&self) -> usize {
+        self.session_list.len()
+    }
+
     pub fn get_or_create(&mut self, session_id: SessionId) -> SessionSpaceRef {
         match self.session_map.get(&session_id) {
             None => {
@@ -71,6 +75,10 @@ impl Sessions {
         &self
             .deref_session_space(cluster_ref.session_space_ref)
             .cluster_chain[cluster_ref.cluster_chain_index]
+    }
+
+    pub fn get_session_spaces(&self) -> impl Iterator<Item = &SessionSpace> {
+        self.session_list.iter()
     }
 }
 
@@ -207,6 +215,12 @@ impl IdCluster {
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct SessionSpaceRef {
     index: usize,
+}
+
+impl SessionSpaceRef {
+    pub fn get_index(&self) -> usize {
+        self.index
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
