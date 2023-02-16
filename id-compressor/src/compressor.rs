@@ -29,6 +29,8 @@ on id types:
 
 + Revise id_types.rs
 
+- macro for number serialization
+
 */
 mod persistence;
 mod tables;
@@ -202,7 +204,7 @@ impl IdCompressor {
         new_cluster_ref
     }
 
-    pub fn serialize(&self) -> Vec<u8> {
+    pub fn serialize(&self, include_local_state: bool) -> Vec<u8> {
         let session_space_ids = self
             .sessions
             .get_session_spaces()
@@ -217,12 +219,22 @@ impl IdCompressor {
                 count: id_cluster.count,
             });
 
-        persistence::v1::serialize(
-            session_space_ids,
-            self.sessions.sessions_count(),
-            clusters,
-            self.final_space.cluster_count(),
-        )
+        if include_local_state {
+            persistence::v1::serialize_finalized(
+                session_space_ids,
+                self.sessions.sessions_count(),
+                clusters,
+                self.final_space.cluster_count(),
+            )
+        } else {
+            persistence::v1::serialize_with_local(
+                session_space_ids,
+                self.sessions.sessions_count(),
+                clusters,
+                self.final_space.cluster_count(),
+                &self.session_space_normalizer,
+            )
+        }
     }
 }
 

@@ -6,7 +6,11 @@ enum Version {
 
 pub(crate) mod v1 {
 
-    use crate::id_types::{SessionId, StableId};
+    use crate::{
+        compressor::tables::session_space_normalizer::SessionSpaceNormalizer,
+        compressor::tables::{session_space, session_space_normalizer},
+        id_types::{SessionId, StableId},
+    };
 
     enum Variant {
         Finalized = 1,
@@ -40,17 +44,18 @@ pub(crate) mod v1 {
         }
     }
 
-    pub(crate) fn serialize(
+    fn serialize(
         sessions: impl Iterator<Item = SessionId>,
         sessions_count: usize,
         clusters: impl Iterator<Item = ClusterData>,
         clusters_count: usize,
+        variant: Variant,
     ) -> Vec<u8> {
         let mut buffer: Vec<u8> = Vec::new();
         // 4 bytes: version number
         write_u32_to_vec(&mut buffer, super::Version::V1 as u32);
         // 1 byte: Variant (finalized, with_local)
-        buffer.push(Variant::Finalized as u8);
+        buffer.push(variant as u8);
         // 8 bytes: Sessions table count (usize)
         write_u64_to_vec(&mut buffer, sessions_count as u64);
         // n x 16 bytes: Sessions table
@@ -81,5 +86,42 @@ pub(crate) mod v1 {
             "Bad clusters count"
         );
         buffer
+    }
+
+    pub(crate) fn serialize_finalized(
+        sessions: impl Iterator<Item = SessionId>,
+        sessions_count: usize,
+        clusters: impl Iterator<Item = ClusterData>,
+        clusters_count: usize,
+    ) -> Vec<u8> {
+        serialize(
+            sessions,
+            sessions_count,
+            clusters,
+            clusters_count,
+            Variant::Finalized,
+        )
+    }
+
+    pub(crate) fn serialize_with_local(
+        sessions: impl Iterator<Item = SessionId>,
+        sessions_count: usize,
+        clusters: impl Iterator<Item = ClusterData>,
+        clusters_count: usize,
+        session_space_normalizer: &SessionSpaceNormalizer,
+    ) -> Vec<u8> {
+        let mut out_bytes = serialize(
+            sessions,
+            sessions_count,
+            clusters,
+            clusters_count,
+            Variant::WithLocal,
+        );
+        let mut normalizer_serialized =
+            session_space_normalizer::persistence::v1::serialize(session_space_normalizer);
+        // Prepends session_space_normalizer serialized length in byte count
+        write_u64_to_vec(&mut out_bytes, normalizer_serialized.len() as u64);
+        out_bytes.append(&mut normalizer_serialized);
+        out_bytes
     }
 }
