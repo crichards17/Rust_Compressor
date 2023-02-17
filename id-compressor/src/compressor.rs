@@ -11,7 +11,7 @@ on compressor:
 
 + serialize
 
-deserialize
++ deserialize
 
 ----------------------
 on id types:
@@ -29,9 +29,14 @@ on id types:
 
 + Revise id_types.rs
 
+- Macro for number serialization
+
+- Investigate using Serde
+
 */
-mod persistence;
-mod tables;
+pub(crate) mod persistence;
+pub(crate) mod persistence_utils;
+pub(crate) mod tables;
 use self::tables::final_space::FinalSpace;
 use self::tables::session_space::{ClusterRef, SessionSpace, SessionSpaceRef, Sessions};
 use self::tables::session_space_normalizer::SessionSpaceNormalizer;
@@ -53,11 +58,15 @@ pub struct IdCompressor {
 
 impl IdCompressor {
     pub fn new() -> Self {
-        let mut sessions = Sessions::new();
         let session_id = SessionId::new();
+        IdCompressor::new_with_session_id(session_id)
+    }
+
+    pub(crate) fn new_with_session_id(session_id: SessionId) -> Self {
+        let mut sessions = Sessions::new();
         IdCompressor {
             session_id,
-            local_session: sessions.get_or_create(session_id),
+            local_session: sessions.create(session_id),
             generated_id_count: 0,
             next_range_base: LocalId::new(-1),
             sessions,
@@ -193,7 +202,7 @@ impl IdCompressor {
     ) -> ClusterRef {
         let session_space = self.sessions.deref_session_space_mut(session_space_ref);
         let new_cluster_ref =
-            session_space.add_cluster(self.cluster_next_base_final_id, base_local, capacity);
+            session_space.add_empty_cluster(self.cluster_next_base_final_id, base_local, capacity);
         self.cluster_next_base_final_id += capacity;
         self.final_space
             .add_cluster(new_cluster_ref, &self.sessions);
@@ -202,27 +211,16 @@ impl IdCompressor {
         new_cluster_ref
     }
 
-    pub fn serialize(&self) -> Vec<u8> {
-        let session_space_ids = self
-            .sessions
-            .get_session_spaces()
-            .map(|session_space| session_space.session_id());
+    pub fn serialize(&self, include_local_state: bool) -> Vec<u8> {
+        if include_local_state {
+            persistence::v1::serialize(&self)
+        } else {
+            persistence::v1::serialize_with_local(&self)
+        }
+    }
 
-        let clusters = self
-            .final_space
-            .get_clusters(&self.sessions)
-            .map(|id_cluster| persistence::v1::ClusterData {
-                session_index: id_cluster.session_creator.get_index() as u64,
-                capacity: id_cluster.capacity,
-                count: id_cluster.count,
-            });
-
-        persistence::v1::serialize(
-            session_space_ids,
-            self.sessions.sessions_count(),
-            clusters,
-            self.final_space.cluster_count(),
-        )
+    pub fn deserialize(bytes: &[u8]) -> IdCompressor {
+        persistence::deserialize(bytes)
     }
 }
 

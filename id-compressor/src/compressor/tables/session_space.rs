@@ -26,18 +26,20 @@ impl Sessions {
 
     pub fn get_or_create(&mut self, session_id: SessionId) -> SessionSpaceRef {
         match self.session_map.get(&session_id) {
-            None => {
-                let new_session_space_index = self.session_list.len();
-                let new_session_space_ref = SessionSpaceRef {
-                    index: new_session_space_index,
-                };
-                let new_session_space = SessionSpace::new(session_id, new_session_space_ref);
-                self.session_list.push(new_session_space);
-                self.session_map.insert(session_id, new_session_space_ref);
-                new_session_space_ref
-            }
+            None => self.create(session_id),
             Some(session_ref) => *session_ref,
         }
+    }
+
+    pub(crate) fn create(&mut self, session_id: SessionId) -> SessionSpaceRef {
+        let new_session_space_index = self.session_list.len();
+        let new_session_space_ref = SessionSpaceRef {
+            index: new_session_space_index,
+        };
+        let new_session_space = SessionSpace::new(session_id, new_session_space_ref);
+        self.session_list.push(new_session_space);
+        self.session_map.insert(session_id, new_session_space_ref);
+        new_session_space_ref
     }
 
     pub fn get(&self, session_id: SessionId) -> Option<&SessionSpace> {
@@ -112,7 +114,7 @@ impl SessionSpace {
         })
     }
 
-    pub fn add_cluster(
+    pub fn add_empty_cluster(
         &mut self,
         base_final_id: FinalId,
         base_local_id: LocalId,
@@ -125,6 +127,10 @@ impl SessionSpace {
             capacity,
             count: 0,
         };
+        self.add_cluster(new_cluster)
+    }
+
+    pub fn add_cluster(&mut self, new_cluster: IdCluster) -> ClusterRef {
         self.cluster_chain.push(new_cluster);
         let tail_index = self.cluster_chain.len() - 1;
         ClusterRef {
@@ -220,6 +226,10 @@ pub struct SessionSpaceRef {
 impl SessionSpaceRef {
     pub fn get_index(&self) -> usize {
         self.index
+    }
+
+    pub fn create_from_index(index: usize) -> SessionSpaceRef {
+        SessionSpaceRef { index }
     }
 }
 

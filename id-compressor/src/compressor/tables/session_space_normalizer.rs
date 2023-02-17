@@ -1,5 +1,6 @@
 use crate::id_types::LocalId;
 use std::cmp::Ordering;
+pub(crate) mod persistence;
 
 #[derive(Debug)]
 pub struct SessionSpaceNormalizer {
