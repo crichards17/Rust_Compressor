@@ -7,6 +7,7 @@ use crate::id_types::*;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 
+#[derive(PartialEq, Eq, Debug)]
 pub struct Sessions {
     session_map: HashMap<SessionId, SessionSpaceRef>,
     session_list: Vec<SessionSpace>,
@@ -84,6 +85,7 @@ impl Sessions {
     }
 }
 
+#[derive(PartialEq, Eq, Debug)]
 pub struct SessionSpace {
     session_id: SessionId,
     self_ref: SessionSpaceRef,
@@ -177,6 +179,7 @@ impl SessionSpace {
     }
 }
 
+#[derive(PartialEq, Eq, Debug)]
 pub struct IdCluster {
     pub(crate) session_creator: SessionSpaceRef,
     pub(crate) base_final_id: FinalId,
@@ -218,7 +221,7 @@ impl IdCluster {
 }
 
 // Maps to an index in the session_list
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct SessionSpaceRef {
     index: usize,
 }
@@ -233,7 +236,7 @@ impl SessionSpaceRef {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct ClusterRef {
     session_space_ref: SessionSpaceRef,
     cluster_chain_index: usize,

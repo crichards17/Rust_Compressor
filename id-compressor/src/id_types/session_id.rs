@@ -1,7 +1,7 @@
 use super::{LocalId, StableId};
 use uuid::Uuid;
 
-#[derive(Eq, PartialEq, Hash, Copy, Clone)]
+#[derive(Eq, PartialEq, Hash, Copy, Clone, Debug)]
 pub struct SessionId {
     // doc as not a uuid
     id: u128,

@@ -8,6 +8,7 @@ Vec will contain references to cluster chains
 use super::session_space::{ClusterRef, IdCluster, Sessions};
 use std::cmp::Ordering;
 
+#[derive(PartialEq, Eq, Debug)]
 pub struct FinalSpace {
     // Sorted on final ID. Stores references to clusters held in some session space table.
     clusters: Vec<ClusterRef>,

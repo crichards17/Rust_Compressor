@@ -2,7 +2,7 @@ use crate::id_types::LocalId;
 use std::cmp::Ordering;
 pub(crate) mod persistence;
 
-#[derive(Debug)]
+#[derive(PartialEq, Eq, Debug)]
 pub struct SessionSpaceNormalizer {
     leading_locals: Vec<(LocalId, u64)>,
 }

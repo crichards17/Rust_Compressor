@@ -7,6 +7,7 @@ use crate::id_types::{LocalId, SessionId, StableId};
 use std::collections::BTreeMap;
 use std::ops::Bound;
 
+#[derive(PartialEq, Eq, Debug)]
 pub struct UuidSpace {
     uuid_to_cluster: BTreeMap<StableId, ClusterRef>,
 }

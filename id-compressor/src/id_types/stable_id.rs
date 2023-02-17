@@ -75,7 +75,7 @@ impl std::ops::Sub<u64> for StableId {
 impl std::ops::Sub<StableId> for StableId {
     type Output = u128;
     fn sub(self, rhs: StableId) -> Self::Output {
-        debug_assert!(self > rhs);
+        debug_assert!(self >= rhs);
         self.id - rhs.id
     }
 }

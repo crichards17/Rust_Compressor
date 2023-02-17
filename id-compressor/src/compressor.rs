@@ -43,6 +43,7 @@ use self::tables::session_space_normalizer::SessionSpaceNormalizer;
 use self::tables::uuid_space::UuidSpace;
 use super::id_types::*;
 
+#[derive(PartialEq, Eq, Debug)]
 pub struct IdCompressor {
     session_id: SessionId,
     local_session: SessionSpaceRef,
@@ -525,6 +526,9 @@ mod tests {
             }
             offset += 1;
         }
+        // Serialize Deserialize
+        // let serialized = compressor.serialize(true);
+        // assert_eq!(compressor, IdCompressor::deserialize(&serialized));
     }
 
     #[test]
