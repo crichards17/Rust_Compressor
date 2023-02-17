@@ -38,8 +38,10 @@ impl Sessions {
             index: new_session_space_index,
         };
         let new_session_space = SessionSpace::new(session_id, new_session_space_ref);
+        if let Some(_) = self.session_map.insert(session_id, new_session_space_ref) {
+            panic!("Duplicated session create()");
+        };
         self.session_list.push(new_session_space);
-        self.session_map.insert(session_id, new_session_space_ref);
         new_session_space_ref
     }
 

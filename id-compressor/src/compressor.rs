@@ -33,6 +33,12 @@ on id types:
 
 - Investigate using Serde
 
+- Cleanup DBG usage
+
+- Unit tests
+
+- TS wrapper for wasm interop
+
 */
 pub(crate) mod persistence;
 pub(crate) mod persistence_utils;
@@ -54,7 +60,6 @@ pub struct IdCompressor {
     uuid_space: UuidSpace,
     session_space_normalizer: SessionSpaceNormalizer,
     cluster_capacity: u64,
-    cluster_next_base_final_id: FinalId,
 }
 
 impl IdCompressor {
@@ -76,7 +81,6 @@ impl IdCompressor {
             session_space_normalizer: SessionSpaceNormalizer::new(),
             // TODO: Refactor to consumer-passed cluster_capacity value
             cluster_capacity: persistence::DEFAULT_CLUSTER_CAPACITY,
-            cluster_next_base_final_id: FinalId::new(0),
         }
     }
 
@@ -177,7 +181,6 @@ impl IdCompressor {
             let new_claimed_final_count = overflow + self.cluster_capacity;
             if self.final_space.is_last(tail_cluster_ref) {
                 // Tail_cluster is the last cluster, and so can be expanded.
-                self.cluster_next_base_final_id += new_claimed_final_count;
                 tail_cluster.capacity += new_claimed_final_count;
                 tail_cluster.count += range_len;
             } else {
@@ -201,10 +204,13 @@ impl IdCompressor {
         session_id: SessionId,
         capacity: u64,
     ) -> ClusterRef {
+        let next_base_final = match self.final_space.get_tail_cluster(&self.sessions) {
+            Some(cluster) => cluster.base_final_id + cluster.capacity,
+            None => FinalId::new(0),
+        };
         let session_space = self.sessions.deref_session_space_mut(session_space_ref);
         let new_cluster_ref =
-            session_space.add_empty_cluster(self.cluster_next_base_final_id, base_local, capacity);
-        self.cluster_next_base_final_id += capacity;
+            session_space.add_empty_cluster(next_base_final, base_local, capacity);
         self.final_space
             .add_cluster(new_cluster_ref, &self.sessions);
         self.uuid_space
@@ -213,7 +219,7 @@ impl IdCompressor {
     }
 
     pub fn serialize(&self, include_local_state: bool) -> Vec<u8> {
-        if include_local_state {
+        if !include_local_state {
             persistence::v1::serialize(&self)
         } else {
             persistence::v1::serialize_with_local(&self)
@@ -527,8 +533,8 @@ mod tests {
             offset += 1;
         }
         // Serialize Deserialize
-        // let serialized = compressor.serialize(true);
-        // assert_eq!(compressor, IdCompressor::deserialize(&serialized));
+        let serialized = compressor.serialize(true);
+        assert_eq!(compressor, IdCompressor::deserialize(&serialized));
     }
 
     #[test]

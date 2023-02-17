@@ -85,25 +85,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_to_uuid() {
-        let stable_id = StableId::from(SessionId::new());
-        dbg!(stable_id.to_uuid().to_string());
-    }
-
-    #[test]
-    fn test_uuid_increment() {
-        let mut stable_id = StableId::from(SessionId::new());
-        stable_id = stable_id + 1;
-        dbg!(stable_id.to_uuid_string());
-    }
-
-    #[test]
     fn test_uuid_increment_spillover() {
         let uuid = Uuid::from_u128(0xe507602db1504fccBfffffffffffffff);
         let mut stable_id = StableId::from(SessionId::from_uuid(uuid));
+        assert_eq!(stable_id.to_uuid_u128(), 0xe507602db1504fccBfffffffffffffff);
         stable_id = stable_id + 1;
         let uuid = stable_id.to_uuid();
-        dbg!(stable_id.to_uuid_string());
         assert_eq!(uuid.get_variant(), uuid::Variant::RFC4122);
         assert_eq!(uuid.get_version_num(), 4);
     }

@@ -145,10 +145,9 @@ pub(crate) mod v1 {
         } */
         let mut clusters_count_actual = 0;
         for cluster_data in clusters {
+            write_u64_to_vec(bytes, cluster_data.session_index);
             write_u64_to_vec(bytes, cluster_data.capacity);
             write_u64_to_vec(bytes, cluster_data.count);
-            write_u64_to_vec(bytes, cluster_data.session_index);
-
             clusters_count_actual += 1;
         }
         debug_assert!(
@@ -187,7 +186,7 @@ pub(crate) mod v1 {
             let session_id_u128 = deserializer.consume_u128();
             compressor
                 .sessions
-                .create(SessionId::from_uuid_u128(session_id_u128));
+                .get_or_create(SessionId::from_uuid_u128(session_id_u128));
         }
         let final_space_table_count = deserializer.consume_u64();
         // n x 24 bytes: Final Space table as ID Clusters:
