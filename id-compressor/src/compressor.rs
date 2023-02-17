@@ -25,6 +25,8 @@ on id types:
 + normalize_to_session_space
 
 // TODO:
+- Docs
+
 + Bit twiddling UUID math
 
 + Revise id_types.rs
@@ -37,7 +39,11 @@ on id types:
 
 - Unit tests
 
+- Uint8Array JS --> summary
+---No need to Lz4 or base64. Can deliver the Vec<u8> to interop boundary.
+
 - TS wrapper for wasm interop
+    - Rust compressor crate (rust normal compressor interface) -> wasm_pack(rust_translator) -> TS wrapper (re-expose normal compressor interface)
 
 */
 pub(crate) mod persistence;
