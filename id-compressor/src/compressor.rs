@@ -33,21 +33,22 @@ on id types:
 
 - Macro for number serialization
 
-- Investigate using Serde
++ Investigate using Serde
 
 - Cleanup DBG usage
 
+- Audit unwrap() calls
+
 - Unit tests
 
-- Uint8Array JS --> summary
----No need to Lz4 or base64. Can deliver the Vec<u8> to interop boundary.
-
 - TS wrapper for wasm interop
+    - Uint8Array JS --> summary
+        ---No need to Lz4 or base64.
     - Rust compressor crate (rust normal compressor interface) -> wasm_pack(rust_translator) -> TS wrapper (re-expose normal compressor interface)
 
+- Perf benchmarking
 */
 pub(crate) mod persistence;
-pub(crate) mod persistence_utils;
 pub(crate) mod tables;
 use self::tables::final_space::FinalSpace;
 use self::tables::session_space::{ClusterRef, SessionSpace, SessionSpaceRef, Sessions};
