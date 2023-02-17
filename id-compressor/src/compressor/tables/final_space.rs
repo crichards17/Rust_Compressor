@@ -21,10 +21,6 @@ impl FinalSpace {
         }
     }
 
-    pub fn cluster_count(&self) -> usize {
-        self.clusters.len()
-    }
-
     pub fn add_cluster(&mut self, new_cluster_ref: ClusterRef, sessions: &Sessions) {
         #[cfg(debug_assertions)]
         if self.clusters.len() != 0 {

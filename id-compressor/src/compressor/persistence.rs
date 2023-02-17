@@ -4,19 +4,28 @@ use serde::{Deserialize, Serialize};
 
 pub(super) const DEFAULT_CLUSTER_CAPACITY: u64 = 512;
 
-pub(crate) fn deserialize(bytes: &[u8]) -> IdCompressor {
-    let versioned_persistent_compressor: VersionedPersistentCompressor = from_bytes(bytes).unwrap();
+pub(crate) fn deserialize(bytes: &[u8]) -> Result<IdCompressor, DeserializationError> {
+    let versioned_persistent_compressor: VersionedPersistentCompressor = match from_bytes(bytes) {
+        Ok(result) => result,
+        Err(e) => return Err(DeserializationError::PostcardError(e)),
+    };
     match versioned_persistent_compressor {
         VersionedPersistentCompressor::V1(persistent_compressor) => {
-            v1::deserialize(persistent_compressor)
+            Ok(v1::deserialize(persistent_compressor))
         }
-        _ => panic!("Unknown serialized compressor version found"),
+        _ => return Err(DeserializationError::UnknownError),
     }
 }
 
 #[derive(Deserialize, Serialize)]
 enum VersionedPersistentCompressor {
     V1(v1::PersistentCompressor),
+}
+
+#[derive(Debug)]
+pub enum DeserializationError {
+    PostcardError(postcard::Error),
+    UnknownError,
 }
 
 pub(crate) mod v1 {
