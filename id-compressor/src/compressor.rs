@@ -25,24 +25,38 @@ on id types:
 + normalize_to_session_space
 
 // TODO:
+
 + Bit twiddling UUID math
 
 + Revise id_types.rs
 
-- Macro for number serialization
++ Investigate using Serde
 
-- Investigate using Serde
++ Audit unwrap() / panic!() calls
 
+- Unit tests
+
+- TS wrapper for wasm interop
+    - Uint8Array JS --> summary
+        ---No need to Lz4 or base64.
+    - Rust compressor crate (rust normal compressor interface) -> wasm_pack(rust_translator) -> TS wrapper (re-expose normal compressor interface)
+
+- Perf benchmarking
+
+- Cleanup DBG usage
+
+- Docs
 */
 pub(crate) mod persistence;
-pub(crate) mod persistence_utils;
 pub(crate) mod tables;
+use self::persistence::DeserializationError;
 use self::tables::final_space::FinalSpace;
 use self::tables::session_space::{ClusterRef, SessionSpace, SessionSpaceRef, Sessions};
 use self::tables::session_space_normalizer::SessionSpaceNormalizer;
 use self::tables::uuid_space::UuidSpace;
 use super::id_types::*;
 
+#[derive(PartialEq, Eq, Debug)]
 pub struct IdCompressor {
     session_id: SessionId,
     local_session: SessionSpaceRef,
@@ -53,7 +67,6 @@ pub struct IdCompressor {
     uuid_space: UuidSpace,
     session_space_normalizer: SessionSpaceNormalizer,
     cluster_capacity: u64,
-    cluster_next_base_final_id: FinalId,
 }
 
 impl IdCompressor {
@@ -66,7 +79,7 @@ impl IdCompressor {
         let mut sessions = Sessions::new();
         IdCompressor {
             session_id,
-            local_session: sessions.create(session_id),
+            local_session: sessions.get_or_create(session_id),
             generated_id_count: 0,
             next_range_base: LocalId::new(-1),
             sessions,
@@ -75,7 +88,6 @@ impl IdCompressor {
             session_space_normalizer: SessionSpaceNormalizer::new(),
             // TODO: Refactor to consumer-passed cluster_capacity value
             cluster_capacity: persistence::DEFAULT_CLUSTER_CAPACITY,
-            cluster_next_base_final_id: FinalId::new(0),
         }
     }
 
@@ -176,7 +188,6 @@ impl IdCompressor {
             let new_claimed_final_count = overflow + self.cluster_capacity;
             if self.final_space.is_last(tail_cluster_ref) {
                 // Tail_cluster is the last cluster, and so can be expanded.
-                self.cluster_next_base_final_id += new_claimed_final_count;
                 tail_cluster.capacity += new_claimed_final_count;
                 tail_cluster.count += range_len;
             } else {
@@ -200,10 +211,13 @@ impl IdCompressor {
         session_id: SessionId,
         capacity: u64,
     ) -> ClusterRef {
+        let next_base_final = match self.final_space.get_tail_cluster(&self.sessions) {
+            Some(cluster) => cluster.base_final_id + cluster.capacity,
+            None => FinalId::new(0),
+        };
         let session_space = self.sessions.deref_session_space_mut(session_space_ref);
         let new_cluster_ref =
-            session_space.add_empty_cluster(self.cluster_next_base_final_id, base_local, capacity);
-        self.cluster_next_base_final_id += capacity;
+            session_space.add_empty_cluster(next_base_final, base_local, capacity);
         self.final_space
             .add_cluster(new_cluster_ref, &self.sessions);
         self.uuid_space
@@ -212,14 +226,14 @@ impl IdCompressor {
     }
 
     pub fn serialize(&self, include_local_state: bool) -> Vec<u8> {
-        if include_local_state {
+        if !include_local_state {
             persistence::v1::serialize(&self)
         } else {
             persistence::v1::serialize_with_local(&self)
         }
     }
 
-    pub fn deserialize(bytes: &[u8]) -> IdCompressor {
+    pub fn deserialize(bytes: &[u8]) -> Result<IdCompressor, DeserializationError> {
         persistence::deserialize(bytes)
     }
 }
@@ -233,7 +247,10 @@ impl SessionSpaceId {
                     .search(final_id, &compressor.sessions)
                 {
                     Some(containing_cluster) => {
-                        let aligned_local = containing_cluster.get_aligned_local(final_id).unwrap();
+                        let aligned_local = match containing_cluster.get_aligned_local(final_id) {
+                            None => return Err(DecompressionError::NoAlignedLocal),
+                            Some(aligned_local) => aligned_local,
+                        };
                         if aligned_local < containing_cluster.max_local() {
                             // must be an id generated (allocated or finalized) by the local session, or a finalized id from a remote session
                             if containing_cluster.session_creator == compressor.local_session {
@@ -323,9 +340,11 @@ impl OpSpaceId {
                 {
                     // Exists in local cluster chain
                     Some(containing_cluster) => {
-                        let aligned_local = containing_cluster
-                            .get_aligned_local(final_to_normalize)
-                            .unwrap();
+                        let aligned_local =
+                            match containing_cluster.get_aligned_local(final_to_normalize) {
+                                None => return Err(NormalizationError::NoAlignedLocal),
+                                Some(aligned_local) => aligned_local,
+                            };
                         if compressor.session_space_normalizer.contains(aligned_local) {
                             Ok(SessionSpaceId::from(aligned_local))
                         } else {
@@ -396,10 +415,10 @@ impl StableId {
                         <= compressor.generated_id_count
                     {
                         // Id is an eager final
-                        Ok(cluster
-                            .get_allocated_final(originator_local)
-                            .unwrap()
-                            .into())
+                        match cluster.get_allocated_final(originator_local) {
+                            None => return Err(RecompressionError::NoAllocatedFinal),
+                            Some(allocated_final) => Ok(allocated_final.into()),
+                        }
                     } else {
                         return Err(RecompressionError::UngeneratedStableId);
                     }
@@ -408,10 +427,10 @@ impl StableId {
                     if originator_local.to_generation_count()
                         < cluster.base_local_id.to_generation_count() + cluster.count
                     {
-                        Ok(cluster
-                            .get_allocated_final(originator_local)
-                            .unwrap()
-                            .into())
+                        match cluster.get_allocated_final(originator_local) {
+                            None => return Err(RecompressionError::NoAllocatedFinal),
+                            Some(allocated_final) => Ok(allocated_final.into()),
+                        }
                     } else {
                         Err(RecompressionError::UnfinalizedForeignId)
                     }
@@ -428,6 +447,7 @@ pub enum DecompressionError {
     UnallocatedFinalId,
     UnobtainableId,
     UngeneratedFinalId,
+    NoAlignedLocal,
 }
 
 #[derive(Debug)]
@@ -435,6 +455,7 @@ pub enum RecompressionError {
     UnallocatedStableId,
     UngeneratedStableId,
     UnfinalizedForeignId,
+    NoAllocatedFinal,
 }
 
 #[derive(Debug)]
@@ -445,6 +466,7 @@ pub enum NormalizationError {
     UnfinalizedForeignLocal,
     UnFinalizedForeignFinal,
     NoFinalizedRanges,
+    NoAlignedLocal,
 }
 
 pub struct IdRange {
@@ -525,6 +547,9 @@ mod tests {
             }
             offset += 1;
         }
+        // Serialize Deserialize
+        let serialized = compressor.serialize(true);
+        assert_eq!(compressor, IdCompressor::deserialize(&serialized).unwrap());
     }
 
     #[test]

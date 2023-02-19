@@ -7,6 +7,7 @@ use crate::id_types::*;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 
+#[derive(PartialEq, Eq, Debug)]
 pub struct Sessions {
     session_map: HashMap<SessionId, SessionSpaceRef>,
     session_list: Vec<SessionSpace>,
@@ -20,26 +21,20 @@ impl Sessions {
         }
     }
 
-    pub fn sessions_count(&self) -> usize {
-        self.session_list.len()
-    }
-
     pub fn get_or_create(&mut self, session_id: SessionId) -> SessionSpaceRef {
         match self.session_map.get(&session_id) {
-            None => self.create(session_id),
+            None => {
+                let new_session_space_index = self.session_list.len();
+                let new_session_space_ref = SessionSpaceRef {
+                    index: new_session_space_index,
+                };
+                let new_session_space = SessionSpace::new(session_id, new_session_space_ref);
+                self.session_map.insert(session_id, new_session_space_ref);
+                self.session_list.push(new_session_space);
+                new_session_space_ref
+            }
             Some(session_ref) => *session_ref,
         }
-    }
-
-    pub(crate) fn create(&mut self, session_id: SessionId) -> SessionSpaceRef {
-        let new_session_space_index = self.session_list.len();
-        let new_session_space_ref = SessionSpaceRef {
-            index: new_session_space_index,
-        };
-        let new_session_space = SessionSpace::new(session_id, new_session_space_ref);
-        self.session_list.push(new_session_space);
-        self.session_map.insert(session_id, new_session_space_ref);
-        new_session_space_ref
     }
 
     pub fn get(&self, session_id: SessionId) -> Option<&SessionSpace> {
@@ -84,6 +79,7 @@ impl Sessions {
     }
 }
 
+#[derive(PartialEq, Eq, Debug)]
 pub struct SessionSpace {
     session_id: SessionId,
     self_ref: SessionSpaceRef,
@@ -177,6 +173,7 @@ impl SessionSpace {
     }
 }
 
+#[derive(PartialEq, Eq, Debug)]
 pub struct IdCluster {
     pub(crate) session_creator: SessionSpaceRef,
     pub(crate) base_final_id: FinalId,
@@ -218,7 +215,7 @@ impl IdCluster {
 }
 
 // Maps to an index in the session_list
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct SessionSpaceRef {
     index: usize,
 }
@@ -233,7 +230,7 @@ impl SessionSpaceRef {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct ClusterRef {
     session_space_ref: SessionSpaceRef,
     cluster_chain_index: usize,

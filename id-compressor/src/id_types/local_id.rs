@@ -1,6 +1,7 @@
+use serde::{Deserialize, Serialize};
 use std::ops::Sub;
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Serialize, Deserialize)]
 pub struct LocalId {
     id: i64,
 }
@@ -15,7 +16,7 @@ impl LocalId {
         LocalId { id }
     }
 
-    pub(super) fn id(&self) -> i64 {
+    pub(crate) fn id(&self) -> i64 {
         self.id
     }
 
