@@ -26,6 +26,12 @@ on id types:
 
 // TODO:
 
+- Repo-level Readme
+
+- Package-level Readmes
+
+- Unit tests
+
 + Bit twiddling UUID math
 
 + Revise id_types.rs
@@ -34,9 +40,8 @@ on id types:
 
 + Audit unwrap() / panic!() calls
 
-- Unit tests
-
 - TS wrapper for wasm interop
+    + Scaffolding
     - Uint8Array JS --> summary
         ---No need to Lz4 or base64.
     - Rust compressor crate (rust normal compressor interface) -> wasm_pack(rust_translator) -> TS wrapper (re-expose normal compressor interface)
