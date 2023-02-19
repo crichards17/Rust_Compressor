@@ -1,0 +1,15 @@
+{
+    "scripts": {
+        "build": "npm run build:wasm && npm i && tsc --project \"tsconfig.json\"",
+        "build:wasm": "wasm-pack build --target nodejs --out-dir ../../typescript-id-allocator/dist/wasm ../rust-wasm-id-allocator/wasm-id-allocator",
+        "clean": "rimraf ./dist"
+    },
+    "devDependencies": {
+        "rimraf": "^3.0.2",
+        "typescript": "^4.8.3",
+        "wasm-pack": "^0.10.3"
+    },
+    "dependencies": {
+        "wasm-id-allocator": "file:./dist/wasm/"
+    }
+}
