@@ -1,3 +1,5 @@
 import { add } from "wasm-id-allocator";
 
-console.log(add(1, 2));
+export function addTs(left: number, right: number): number {
+    return add(left, right);
+};

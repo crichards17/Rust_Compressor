@@ -1,0 +1,10 @@
+{
+    "folders": [
+        {
+            "path": "rust-wasm-id-allocator"
+        },
+        {
+            "path": "typescript-id-allocator"
+        },
+    ]
+}
