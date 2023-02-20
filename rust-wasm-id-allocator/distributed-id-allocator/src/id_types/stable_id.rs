@@ -30,7 +30,7 @@ impl StableId {
         return uuid;
     }
 
-    pub(crate) fn to_uuid_string(&self) -> String {
+    pub fn to_uuid_string(&self) -> String {
         self.to_uuid().to_string()
     }
 
