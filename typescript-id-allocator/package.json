@@ -1,6 +1,6 @@
 {
     "scripts": {
-        "build": "npm run build:wasm && npm i && tsc --project \"tsconfig.json\"",
+        "build": "npm i --only=dev && npm run build:wasm && npm i && tsc --project \"tsconfig.json\"",
         "build:wasm": "wasm-pack build --target nodejs --out-dir ../../typescript-id-allocator/dist/wasm ../rust-wasm-id-allocator/wasm-id-allocator",
         "clean": "rimraf ./dist",
         "test": "mocha ./dist/javascript/test/**/*.js --recursive"

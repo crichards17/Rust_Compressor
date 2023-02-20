@@ -1,5 +1,5 @@
-import { add } from "wasm-id-allocator";
+import { add, IdCompressorWrapper } from "wasm-id-allocator";
 
-export function addTs(left: number, right: number): number {
-    return add(left, right);
+export function makeCompressor(): IdCompressorWrapper {
+    return add();
 };
