@@ -6,8 +6,14 @@ pub struct SessionSpaceId {
 }
 
 impl SessionSpaceId {
-    pub(super) fn id(&self) -> i64 {
+    // TODO: don't export out of crate
+    pub fn id(&self) -> i64 {
         self.id
+    }
+
+    // TODO: don't export out of crate
+    pub fn from_id(id: i64) -> SessionSpaceId {
+        Self { id }
     }
 
     pub(crate) fn to_space(&self) -> CompressedId {

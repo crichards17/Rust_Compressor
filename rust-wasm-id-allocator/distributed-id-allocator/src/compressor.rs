@@ -26,11 +26,20 @@ on id types:
 
 // TODO:
 
+- Move code comments to GitHub issues
+
+- Reduce WASM bundle size
+
+- Replace WASMPack with BindGen + WASMOpt
+
 - Repo-level Readme
 
 - Package-level Readmes
 
-- Unit tests
+- Unit test for:
+    - rust core crate
+    - wasm wrapper crate
+    - TS wrapper compressor
 
 + Bit twiddling UUID math
 
@@ -46,9 +55,15 @@ on id types:
         ---No need to Lz4 or base64.
     - Rust compressor crate (rust normal compressor interface) -> wasm_pack(rust_translator) -> TS wrapper (re-expose normal compressor interface)
 
+- Confirm float casts for interop
+
 - Perf benchmarking
 
 - Cleanup DBG usage
+
+- Better error strings for error enums
+
+- ID Types getter / setter exposures (e.g. session_space_id)
 
 - Docs
 */
@@ -453,6 +468,18 @@ pub enum DecompressionError {
     UnobtainableId,
     UngeneratedFinalId,
     NoAlignedLocal,
+}
+
+impl DecompressionError {
+    pub fn get_error_string(&self) -> &'static str {
+        match self {
+            DecompressionError::UnfinalizedId => "UnfinalizedId",
+            DecompressionError::UnallocatedFinalId => "UnallocatedFinalId",
+            DecompressionError::UnobtainableId => "UnobtainableId",
+            DecompressionError::UngeneratedFinalId => "UngeneratedFinalId",
+            DecompressionError::NoAlignedLocal => "NoAlignedLocal",
+        }
+    }
 }
 
 #[derive(Debug)]

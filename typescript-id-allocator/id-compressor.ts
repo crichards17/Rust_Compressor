@@ -1,5 +1,10 @@
-import { add, IdCompressorWrapper } from "wasm-id-allocator";
+import { make_compressor, IdCompressor } from "wasm-id-allocator";
 
-export function makeCompressor(): IdCompressorWrapper {
-    return add();
+/* 
+TODO: 
+- Write wrapper IdCompressor class exposing the same interface as existing (FF) ID Compressor
+*/
+
+export function makeCompressor(): IdCompressor {
+    return make_compressor();
 };
