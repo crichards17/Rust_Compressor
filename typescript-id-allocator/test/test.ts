@@ -1,9 +1,8 @@
-import { addTs } from "../id-compressor";
-import { expect } from "chai";
+import { makeCompressor } from "../id-compressor";
 
 describe('Add function', () => {
     it('should add numbers correctly', () => {
-        const result = addTs(1, 2);
-        expect(result).to.equal(3);
+        const result = makeCompressor();
+        result.free();
     });
 });

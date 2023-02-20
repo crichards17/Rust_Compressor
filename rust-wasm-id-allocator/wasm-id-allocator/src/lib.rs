@@ -1,6 +1,14 @@
+use distributed_id_allocator::compressor::IdCompressor;
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
-pub fn add(left: f64, right: f64) -> f64 {
-    left + right
+pub struct IdCompressorWrapper {
+    compressor: IdCompressor,
+}
+
+#[wasm_bindgen]
+pub fn add() -> IdCompressorWrapper {
+    IdCompressorWrapper {
+        compressor: IdCompressor::new(),
+    }
 }
