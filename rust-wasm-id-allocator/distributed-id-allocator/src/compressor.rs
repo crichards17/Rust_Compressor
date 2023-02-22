@@ -109,12 +109,14 @@ impl IdCompressor {
             id: session_id,
             range,
         }: &IdRange,
-    ) {
+    ) -> Option<FinalizationError> {
         // Check if the block has IDs
         let (range_base_local, range_len) = match range {
-            None => return,
+            None => {
+                return Some(FinalizationError::InvalidRange);
+            }
             Some((_, 0)) => {
-                return;
+                return Some(FinalizationError::InvalidRange);
             }
             Some(range) => range,
         };
@@ -139,6 +141,9 @@ impl IdCompressor {
         };
         let tail_cluster = self.sessions.deref_cluster_mut(tail_cluster_ref);
         let remaining_capacity = tail_cluster.capacity - tail_cluster.count;
+        if tail_cluster.base_local_id - tail_cluster.count != range_base_local {
+            return Some(FinalizationError::RangeFinalizedOutOfOrder);
+        }
         if remaining_capacity >= range_len {
             // The current IdBlock range fits in the existing cluster
             tail_cluster.count += range_len;
@@ -161,6 +166,7 @@ impl IdCompressor {
                 self.sessions.deref_cluster_mut(new_cluster_ref).count += overflow;
             }
         }
+        None
     }
 
     fn add_empty_cluster(
@@ -421,6 +427,12 @@ impl DecompressionError {
     }
 }
 
+#[derive(Debug)]
+pub enum FinalizationError {
+    RangeFinalizedOutOfOrder,
+    InvalidRange,
+}
+
 #[derive(Debug, PartialEq)]
 pub enum ClusterCapacityError {
     InvalidClusterCapacity,
@@ -491,7 +503,7 @@ mod tests {
         let out_range = compressor.take_next_range();
 
         // Finalize initial range
-        compressor.finalize_range(&out_range);
+        assert!(compressor.finalize_range(&out_range).is_none());
 
         let session_space_id_3 = compressor.generate_next_id();
         let session_space_id_4 = compressor.generate_next_id();
@@ -585,5 +597,18 @@ mod tests {
     }
 
     #[test]
-    fn test_finalize_range_twice() {}
+    fn test_finalize_range_twice() {
+        let mut compressor = IdCompressor::new();
+        compressor.set_cluster_capacity(3);
+
+        let session_space_id_1 = compressor.generate_next_id();
+        let session_space_id_2 = compressor.generate_next_id();
+        assert!(session_space_id_1.is_local());
+        assert!(session_space_id_2.is_local());
+
+        let out_range = compressor.take_next_range();
+
+        assert!(compressor.finalize_range(&out_range).is_none());
+        assert!(compressor.finalize_range(&out_range).is_some());
+    }
 }
