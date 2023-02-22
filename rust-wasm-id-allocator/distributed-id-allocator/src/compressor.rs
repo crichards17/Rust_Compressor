@@ -49,12 +49,12 @@ impl IdCompressor {
     pub fn set_cluster_capacity(
         &mut self,
         new_cluster_capacity: u64,
-    ) -> Option<ClusterCapacityError> {
+    ) -> Result<(), ClusterCapacityError> {
         if new_cluster_capacity < 1 {
-            Some(ClusterCapacityError::InvalidClusterCapacity)
+            Err(ClusterCapacityError::InvalidClusterCapacity)
         } else {
             self.cluster_capacity = new_cluster_capacity;
-            None
+            Ok(())
         }
     }
 
@@ -109,14 +109,14 @@ impl IdCompressor {
             id: session_id,
             range,
         }: &IdRange,
-    ) -> Option<FinalizationError> {
+    ) -> Result<(), FinalizationError> {
         // Check if the block has IDs
         let (range_base_local, range_len) = match range {
             None => {
-                return Some(FinalizationError::InvalidRange);
+                return Err(FinalizationError::InvalidRange);
             }
             Some((_, 0)) => {
-                return Some(FinalizationError::InvalidRange);
+                return Err(FinalizationError::InvalidRange);
             }
             Some(range) => range,
         };
@@ -130,7 +130,9 @@ impl IdCompressor {
             Some(tail_cluster) => tail_cluster,
             None => {
                 // This is the first cluster in the session
-                debug_assert!(range_base_local == -1);
+                if range_base_local != -1 {
+                    return Err(FinalizationError::RangeFinalizedOutOfOrder);
+                }
                 self.add_empty_cluster(
                     session_space_ref,
                     range_base_local,
@@ -142,7 +144,7 @@ impl IdCompressor {
         let tail_cluster = self.sessions.deref_cluster_mut(tail_cluster_ref);
         let remaining_capacity = tail_cluster.capacity - tail_cluster.count;
         if tail_cluster.base_local_id - tail_cluster.count != range_base_local {
-            return Some(FinalizationError::RangeFinalizedOutOfOrder);
+            return Err(FinalizationError::RangeFinalizedOutOfOrder);
         }
         if remaining_capacity >= range_len {
             // The current IdBlock range fits in the existing cluster
@@ -166,7 +168,7 @@ impl IdCompressor {
                 self.sessions.deref_cluster_mut(new_cluster_ref).count += overflow;
             }
         }
-        None
+        Ok(())
     }
 
     fn add_empty_cluster(
@@ -465,10 +467,6 @@ pub struct IdRange {
 
 #[cfg(test)]
 mod tests {
-    use std::any::type_name;
-
-    use uuid::Uuid;
-
     use super::*;
 
     const STABLE_IDS: &[&str] = &[
@@ -503,7 +501,7 @@ mod tests {
         let out_range = compressor.take_next_range();
 
         // Finalize initial range
-        assert!(compressor.finalize_range(&out_range).is_none());
+        assert!(compressor.finalize_range(&out_range).is_ok());
 
         let session_space_id_3 = compressor.generate_next_id();
         let session_space_id_4 = compressor.generate_next_id();
@@ -570,12 +568,9 @@ mod tests {
     #[test]
     fn test_cluster_capacity_validation() {
         let mut compressor = IdCompressor::new();
-        assert_eq!(
-            compressor.set_cluster_capacity(0).unwrap(),
-            ClusterCapacityError::InvalidClusterCapacity
-        );
-        assert!(compressor.set_cluster_capacity(1).is_none());
-        assert!(compressor.set_cluster_capacity(u64::MAX).is_none())
+        assert!(compressor.set_cluster_capacity(0).is_err());
+        assert!(compressor.set_cluster_capacity(1).is_ok());
+        assert!(compressor.set_cluster_capacity(u64::MAX).is_ok())
     }
 
     #[test]
@@ -597,18 +592,30 @@ mod tests {
     }
 
     #[test]
-    fn test_finalize_range_twice() {
+    fn test_finalize_range_ordering() {
         let mut compressor = IdCompressor::new();
-        compressor.set_cluster_capacity(3);
+        _ = compressor.set_cluster_capacity(3);
 
-        let session_space_id_1 = compressor.generate_next_id();
-        let session_space_id_2 = compressor.generate_next_id();
-        assert!(session_space_id_1.is_local());
-        assert!(session_space_id_2.is_local());
-
+        let _ = compressor.generate_next_id();
+        let _ = compressor.generate_next_id();
         let out_range = compressor.take_next_range();
 
-        assert!(compressor.finalize_range(&out_range).is_none());
-        assert!(compressor.finalize_range(&out_range).is_some());
+        // Finalize the same range twice
+        assert!(compressor.finalize_range(&out_range).is_ok());
+        assert!(compressor.finalize_range(&out_range).is_err());
+
+        let mut compressor = IdCompressor::new();
+        _ = compressor.set_cluster_capacity(3);
+
+        let _ = compressor.generate_next_id();
+        let _ = compressor.generate_next_id();
+        let out_range_1 = compressor.take_next_range();
+        let _ = compressor.generate_next_id();
+        let _ = compressor.generate_next_id();
+        let out_range_2 = compressor.take_next_range();
+
+        // Finalize ranges out of order
+        assert!(compressor.finalize_range(&out_range_2).is_err());
+        assert!(compressor.finalize_range(&out_range_1).is_ok());
     }
 }
