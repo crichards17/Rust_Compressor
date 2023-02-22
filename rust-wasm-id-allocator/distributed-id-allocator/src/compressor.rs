@@ -46,8 +46,16 @@ impl IdCompressor {
         self.sessions.deref_session_space(self.local_session)
     }
 
-    pub fn set_cluster_capacity(&mut self, new_cluster_capacity: u64) {
-        self.cluster_capacity = new_cluster_capacity;
+    pub fn set_cluster_capacity(
+        &mut self,
+        new_cluster_capacity: u64,
+    ) -> Option<ClusterCapacityError> {
+        if new_cluster_capacity < 1 {
+            Some(ClusterCapacityError::InvalidClusterCapacity)
+        } else {
+            self.cluster_capacity = new_cluster_capacity;
+            None
+        }
     }
 
     pub fn generate_next_id(&mut self) -> SessionSpaceId {
@@ -413,6 +421,11 @@ impl DecompressionError {
     }
 }
 
+#[derive(Debug, PartialEq)]
+pub enum ClusterCapacityError {
+    InvalidClusterCapacity,
+}
+
 #[derive(Debug)]
 pub enum RecompressionError {
     UnallocatedStableId,
@@ -440,7 +453,27 @@ pub struct IdRange {
 
 #[cfg(test)]
 mod tests {
+    use std::any::type_name;
+
+    use uuid::Uuid;
+
     use super::*;
+
+    const STABLE_IDS: &[&str] = &[
+        "748540ca-b7c5-4c99-83ff-c1b8e02c09d6",
+        "748540ca-b7c5-4c99-83ef-c1b8e02c09d6",
+        "748540ca-b7c5-4c99-831f-c1b8e02c09d6",
+        "0002c79e-b536-4776-b000-000266c252d5",
+        "082533b9-6d05-4068-a008-fe2cc43543f7",
+        "2c9fa1f8-48d5-4554-a466-000000000000",
+        "2c9fa1f8-48d5-4000-a000-000000000000",
+        "10000000-0000-4000-b000-000000000000",
+        "10000000-0000-4000-b020-000000000000", // 2^52
+        "10000000-0000-4000-b00f-ffffffffffff",
+        "10000000-0000-4000-b040-000000000000",
+        "f0000000-0000-4000-8000-000000000000",
+        "efffffff-ffff-4fff-bfff-ffffffffffff",
+    ];
 
     #[test]
     fn test_complex() {
@@ -516,6 +549,24 @@ mod tests {
     }
 
     #[test]
+    fn test_new_with_session_id() {
+        let session_id = SessionId::new();
+        let compressor = IdCompressor::new_with_session_id(session_id);
+        assert_eq!(session_id, compressor.session_id);
+    }
+
+    #[test]
+    fn test_cluster_capacity_validation() {
+        let mut compressor = IdCompressor::new();
+        assert_eq!(
+            compressor.set_cluster_capacity(0).unwrap(),
+            ClusterCapacityError::InvalidClusterCapacity
+        );
+        assert!(compressor.set_cluster_capacity(1).is_none());
+        assert!(compressor.set_cluster_capacity(u64::MAX).is_none())
+    }
+
+    #[test]
     fn test_decompress_recompress() {
         let mut compressor = IdCompressor::new();
 
@@ -525,4 +576,14 @@ mod tests {
         assert_eq!(session_space_id.decompress(&compressor).unwrap(), stable_id,);
         assert_eq!(stable_id.recompress(&compressor).unwrap(), session_space_id);
     }
+
+    #[test]
+    fn test_recompress_invalid() {
+        let compressor = IdCompressor::new();
+        let foreign_stable = StableId::from(SessionId::new());
+        assert!(foreign_stable.recompress(&compressor).is_err());
+    }
+
+    #[test]
+    fn test_finalize_range_twice() {}
 }
