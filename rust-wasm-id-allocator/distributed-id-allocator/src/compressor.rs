@@ -113,7 +113,7 @@ impl IdCompressor {
         // Check if the block has IDs
         let (range_base_local, range_len) = match range {
             None => {
-                return Err(FinalizationError::InvalidRange);
+                return Ok(());
             }
             Some((_, 0)) => {
                 return Err(FinalizationError::InvalidRange);
