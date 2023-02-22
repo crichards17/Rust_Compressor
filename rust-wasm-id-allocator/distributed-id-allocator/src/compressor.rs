@@ -46,8 +46,16 @@ impl IdCompressor {
         self.sessions.deref_session_space(self.local_session)
     }
 
-    pub fn set_cluster_capacity(&mut self, new_cluster_capacity: u64) {
-        self.cluster_capacity = new_cluster_capacity;
+    pub fn set_cluster_capacity(
+        &mut self,
+        new_cluster_capacity: u64,
+    ) -> Result<(), ClusterCapacityError> {
+        if new_cluster_capacity < 1 {
+            Err(ClusterCapacityError::InvalidClusterCapacity)
+        } else {
+            self.cluster_capacity = new_cluster_capacity;
+            Ok(())
+        }
     }
 
     pub fn generate_next_id(&mut self) -> SessionSpaceId {
@@ -101,12 +109,14 @@ impl IdCompressor {
             id: session_id,
             range,
         }: &IdRange,
-    ) {
+    ) -> Result<(), FinalizationError> {
         // Check if the block has IDs
         let (range_base_local, range_len) = match range {
-            None => return,
+            None => {
+                return Ok(());
+            }
             Some((_, 0)) => {
-                return;
+                return Err(FinalizationError::InvalidRange);
             }
             Some(range) => range,
         };
@@ -120,7 +130,9 @@ impl IdCompressor {
             Some(tail_cluster) => tail_cluster,
             None => {
                 // This is the first cluster in the session
-                debug_assert!(range_base_local == -1);
+                if range_base_local != -1 {
+                    return Err(FinalizationError::RangeFinalizedOutOfOrder);
+                }
                 self.add_empty_cluster(
                     session_space_ref,
                     range_base_local,
@@ -131,6 +143,9 @@ impl IdCompressor {
         };
         let tail_cluster = self.sessions.deref_cluster_mut(tail_cluster_ref);
         let remaining_capacity = tail_cluster.capacity - tail_cluster.count;
+        if tail_cluster.base_local_id - tail_cluster.count != range_base_local {
+            return Err(FinalizationError::RangeFinalizedOutOfOrder);
+        }
         if remaining_capacity >= range_len {
             // The current IdBlock range fits in the existing cluster
             tail_cluster.count += range_len;
@@ -153,6 +168,7 @@ impl IdCompressor {
                 self.sessions.deref_cluster_mut(new_cluster_ref).count += overflow;
             }
         }
+        Ok(())
     }
 
     fn add_empty_cluster(
@@ -414,6 +430,17 @@ impl DecompressionError {
 }
 
 #[derive(Debug)]
+pub enum FinalizationError {
+    RangeFinalizedOutOfOrder,
+    InvalidRange,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum ClusterCapacityError {
+    InvalidClusterCapacity,
+}
+
+#[derive(Debug)]
 pub enum RecompressionError {
     UnallocatedStableId,
     UngeneratedStableId,
@@ -442,6 +469,22 @@ pub struct IdRange {
 mod tests {
     use super::*;
 
+    const STABLE_IDS: &[&str] = &[
+        "748540ca-b7c5-4c99-83ff-c1b8e02c09d6",
+        "748540ca-b7c5-4c99-83ef-c1b8e02c09d6",
+        "748540ca-b7c5-4c99-831f-c1b8e02c09d6",
+        "0002c79e-b536-4776-b000-000266c252d5",
+        "082533b9-6d05-4068-a008-fe2cc43543f7",
+        "2c9fa1f8-48d5-4554-a466-000000000000",
+        "2c9fa1f8-48d5-4000-a000-000000000000",
+        "10000000-0000-4000-b000-000000000000",
+        "10000000-0000-4000-b020-000000000000", // 2^52
+        "10000000-0000-4000-b00f-ffffffffffff",
+        "10000000-0000-4000-b040-000000000000",
+        "f0000000-0000-4000-8000-000000000000",
+        "efffffff-ffff-4fff-bfff-ffffffffffff",
+    ];
+
     #[test]
     fn test_complex() {
         let mut compressor = IdCompressor::new();
@@ -458,7 +501,7 @@ mod tests {
         let out_range = compressor.take_next_range();
 
         // Finalize initial range
-        compressor.finalize_range(&out_range);
+        assert!(compressor.finalize_range(&out_range).is_ok());
 
         let session_space_id_3 = compressor.generate_next_id();
         let session_space_id_4 = compressor.generate_next_id();
@@ -516,6 +559,21 @@ mod tests {
     }
 
     #[test]
+    fn test_new_with_session_id() {
+        let session_id = SessionId::new();
+        let compressor = IdCompressor::new_with_session_id(session_id);
+        assert_eq!(session_id, compressor.session_id);
+    }
+
+    #[test]
+    fn test_cluster_capacity_validation() {
+        let mut compressor = IdCompressor::new();
+        assert!(compressor.set_cluster_capacity(0).is_err());
+        assert!(compressor.set_cluster_capacity(1).is_ok());
+        assert!(compressor.set_cluster_capacity(u64::MAX).is_ok())
+    }
+
+    #[test]
     fn test_decompress_recompress() {
         let mut compressor = IdCompressor::new();
 
@@ -524,5 +582,40 @@ mod tests {
         let stable_id = StableId::from(compressor.session_id);
         assert_eq!(session_space_id.decompress(&compressor).unwrap(), stable_id,);
         assert_eq!(stable_id.recompress(&compressor).unwrap(), session_space_id);
+    }
+
+    #[test]
+    fn test_recompress_invalid() {
+        let compressor = IdCompressor::new();
+        let foreign_stable = StableId::from(SessionId::new());
+        assert!(foreign_stable.recompress(&compressor).is_err());
+    }
+
+    #[test]
+    fn test_finalize_range_ordering() {
+        let mut compressor = IdCompressor::new();
+        _ = compressor.set_cluster_capacity(3);
+
+        let _ = compressor.generate_next_id();
+        let _ = compressor.generate_next_id();
+        let out_range = compressor.take_next_range();
+
+        // Finalize the same range twice
+        assert!(compressor.finalize_range(&out_range).is_ok());
+        assert!(compressor.finalize_range(&out_range).is_err());
+
+        let mut compressor = IdCompressor::new();
+        _ = compressor.set_cluster_capacity(3);
+
+        let _ = compressor.generate_next_id();
+        let _ = compressor.generate_next_id();
+        let out_range_1 = compressor.take_next_range();
+        let _ = compressor.generate_next_id();
+        let _ = compressor.generate_next_id();
+        let out_range_2 = compressor.take_next_range();
+
+        // Finalize ranges out of order
+        assert!(compressor.finalize_range(&out_range_2).is_err());
+        assert!(compressor.finalize_range(&out_range_1).is_ok());
     }
 }
