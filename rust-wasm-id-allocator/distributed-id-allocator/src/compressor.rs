@@ -530,6 +530,20 @@ pub enum NormalizationError {
     NoAlignedLocal,
 }
 
+impl NormalizationError {
+    pub fn get_error_string(&self) -> &'static str {
+        match self {
+            NormalizationError::UnknownSessionSpaceId => "UnknownSessionSpaceId",
+            NormalizationError::UnknownSessionId => "UnknownSessionId",
+            NormalizationError::UngeneratedId => "UngeneratedId",
+            NormalizationError::UnfinalizedForeignLocal => "UnfinalizedForeignLocal",
+            NormalizationError::UnFinalizedForeignFinal => "UnFinalizedForeignFinal",
+            NormalizationError::NoFinalizedRanges => "NoFinalizedRanges",
+            NormalizationError::NoAlignedLocal => "NoAlignedLocal",
+        }
+    }
+}
+
 pub struct IdRange {
     pub id: SessionId,
     // (First LocalID in the range, count)

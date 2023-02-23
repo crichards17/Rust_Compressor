@@ -2,7 +2,7 @@ use std::f64::NAN;
 
 use distributed_id_allocator::{
     compressor::{ErrorEnum, IdCompressor as IdCompressorCore, IdRange},
-    id_types::{LocalId, SessionId, SessionSpaceId, StableId},
+    id_types::{LocalId, OpSpaceId, SessionId, SessionSpaceId, StableId},
 };
 use wasm_bindgen::prelude::*;
 
@@ -43,7 +43,7 @@ impl IdCompressor {
 
     pub fn generate_next_id(&mut self) -> f64 {
         let next_id = self.compressor.generate_next_id().id();
-        debug_assert!(next_id <= 2 ^ 53 - 1 && next_id >= -2 ^ 53);
+        debug_assert!(next_id <= (2 as i64).pow(53) - 1 && next_id >= -(2 as i64).pow(53));
         next_id as f64
     }
 
@@ -66,16 +66,6 @@ impl IdCompressor {
             Ok(token) => Some(token as f64),
         }
     }
-
-    /*
-    pub fn finalize_range(
-            &mut self,
-            &IdRange {
-                id: session_id,
-                range,
-            }: &IdRange,
-        ) -> Result<(), FinalizationError>
-     */
 
     pub fn finalize_range(
         &mut self,
@@ -116,11 +106,54 @@ impl IdCompressor {
         }
     }
 
+    pub fn normalize_to_op_space(&mut self, session_space_id: f64) -> f64 {
+        if !session_space_id.is_integer() {
+            self.set_error("Non-integer session space ID.");
+            return NAN;
+        };
+        match SessionSpaceId::from_id(session_space_id as i64)
+            .normalize_to_op_space(&self.compressor)
+        {
+            Err(err) => {
+                self.set_error(err.get_error_string());
+                NAN
+            }
+            Ok(op_space_id) => op_space_id.id() as f64,
+        }
+    }
+
+    pub fn normalize_to_session_space(&mut self, originator_token: f64, op_space_id: f64) -> f64 {
+        if !op_space_id.is_integer() || !originator_token.is_integer() {
+            self.set_error("Non-integer inputs.");
+            NAN
+        } else {
+            let session_id = match self
+                .compressor
+                .get_session_id_from_session_token(originator_token as usize)
+            {
+                Err(e) => {
+                    self.set_error(e.get_error_string());
+                    return NAN;
+                }
+                Ok(session_id) => session_id,
+            };
+            match OpSpaceId::from_id(op_space_id as i64)
+                .normalize_to_session_space(session_id, &self.compressor)
+            {
+                Err(err) => {
+                    self.set_error(err.get_error_string());
+                    NAN
+                }
+                Ok(session_space_id) => session_space_id.id() as f64,
+            }
+        }
+    }
+
     pub fn decompress(&mut self, id_to_decompress: f64) -> Option<String> {
         if !id_to_decompress.is_integer() {
             self.set_error("Non-integer ID passed to decompress.");
             return None;
-        }
+        };
         let session_space_id = SessionSpaceId::from_id(id_to_decompress as i64);
         match session_space_id.decompress(&self.compressor) {
             Ok(stable_id) => Some(stable_id.to_uuid_string()),
@@ -167,20 +200,6 @@ impl IdCompressor {
 
         take_next_range(&mut self) -> IdRange
 
-
-
-        pub fn normalize_to_op_space(
-            &self,
-            compressor: &IdCompressor,
-        ) -> Result<OpSpaceId, NormalizationError>
-
-        pub fn normalize_to_session_space(
-            &self,
-            originator: SessionId,
-            compressor: &IdCompressor,
-        ) -> Result<SessionSpaceId, NormalizationError>
-
-
         */
 }
 
@@ -196,11 +215,18 @@ impl IsInt for f64 {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::IsInt;
 
     #[test]
-    fn test_i64_as_f64() {
-        let num: i64 = -5;
-        dbg!(num as f64);
+    fn is_int() {
+        assert!(0.0.is_integer());
+        assert!(1.0.is_integer());
+        assert!((-1.0).is_integer());
+        assert!(((2 as u64).pow(52) as f64).is_integer());
+        assert!((((2 as u64).pow(53) - 1) as f64).is_integer());
+        assert!(!0.1.is_integer());
+        assert!(!(-0.1).is_integer());
+        dbg!((((2 as u64).pow(54) + 3) as f64).is_integer());
+        assert!((((2 as u64).pow(54) + 3) as f64).is_integer());
     }
 }

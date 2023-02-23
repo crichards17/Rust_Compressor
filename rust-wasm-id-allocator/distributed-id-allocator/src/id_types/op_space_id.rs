@@ -6,8 +6,13 @@ pub struct OpSpaceId {
 }
 
 impl OpSpaceId {
-    pub(super) fn id(&self) -> i64 {
+    pub fn id(&self) -> i64 {
         self.id
+    }
+
+    // TODO: don't export out of crate
+    pub fn from_id(id: i64) -> OpSpaceId {
+        Self { id }
     }
 
     pub(crate) fn to_space(&self) -> CompressedId {
