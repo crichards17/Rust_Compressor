@@ -1,8 +1,8 @@
 use std::f64::NAN;
 
 use distributed_id_allocator::{
-    compressor::{ErrorEnum, IdCompressor as IdCompressorCore},
-    id_types::{SessionId, SessionSpaceId, StableId},
+    compressor::{ErrorEnum, IdCompressor as IdCompressorCore, IdRange},
+    id_types::{LocalId, SessionId, SessionSpaceId, StableId},
 };
 use wasm_bindgen::prelude::*;
 
@@ -41,12 +41,79 @@ impl IdCompressor {
         }
     }
 
-    // pub(crate) fn new_with_session_id(session_id: SessionId) -> Self
-
     pub fn generate_next_id(&mut self) -> f64 {
         let next_id = self.compressor.generate_next_id().id();
         debug_assert!(next_id <= 2 ^ 53 - 1 && next_id >= -2 ^ 53);
         next_id as f64
+    }
+
+    pub fn get_token(&mut self, uuid_string: String) -> Option<f64> {
+        let session_id = match SessionId::from_uuid_string(&uuid_string) {
+            Err(e) => {
+                self.set_error(e.get_error_string());
+                return None;
+            }
+            Ok(session_id) => session_id,
+        };
+        match self
+            .compressor
+            .get_session_token_from_session_id(session_id)
+        {
+            Err(e) => {
+                self.set_error(e.get_error_string());
+                return None;
+            }
+            Ok(token) => Some(token as f64),
+        }
+    }
+
+    /*
+    pub fn finalize_range(
+            &mut self,
+            &IdRange {
+                id: session_id,
+                range,
+            }: &IdRange,
+        ) -> Result<(), FinalizationError>
+     */
+
+    pub fn finalize_range(
+        &mut self,
+        session_token: f64,
+        range_base_local: f64,
+        range_len: f64,
+    ) -> bool {
+        if !session_token.is_integer()
+            || !range_base_local.is_integer()
+            || !range_len.is_integer()
+            || session_token < 0.0
+            || range_base_local > -1.0
+            || range_len <= 0.0
+        {
+            self.set_error("Invalid Range parameter(s).");
+            return false;
+        }
+        let id = match self
+            .compressor
+            .get_session_id_from_session_token(session_token as usize)
+        {
+            Err(e) => {
+                self.set_error(e.get_error_string());
+                return false;
+            }
+            Ok(session_id) => session_id,
+        };
+        let id_range = IdRange {
+            id: id,
+            range: Some((LocalId::new(range_base_local as i64), range_len as u64)),
+        };
+        match self.compressor.finalize_range(&id_range) {
+            Err(e) => {
+                self.set_error(e.get_error_string());
+                return false;
+            }
+            Ok(_) => true,
+        }
     }
 
     pub fn decompress(&mut self, id_to_decompress: f64) -> Option<String> {
@@ -66,7 +133,10 @@ impl IdCompressor {
 
     pub fn recompress(&mut self, id_to_recompress: String) -> f64 {
         let stable_id = match SessionId::from_uuid_string(&id_to_recompress) {
-            Err(_) => return NAN,
+            Err(e) => {
+                self.set_error(e.get_error_string());
+                return NAN;
+            }
             Ok(session_id) => StableId::from(session_id),
         };
         match stable_id.recompress(&self.compressor) {
@@ -93,19 +163,11 @@ impl IdCompressor {
 
     /*
 
-    pub(crate) fn new_with_session_id(session_id: SessionId) -> Self
-
     set_cluster_capacity(
 
         take_next_range(&mut self) -> IdRange
 
-        pub fn finalize_range(
-            &mut self,
-            &IdRange {
-                id: session_id,
-                range,
-            }: &IdRange,
-        ) -> Result<(), FinalizationError>
+
 
         pub fn normalize_to_op_space(
             &self,

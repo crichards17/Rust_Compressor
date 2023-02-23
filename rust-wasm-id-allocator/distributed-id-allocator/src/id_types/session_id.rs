@@ -1,3 +1,5 @@
+use crate::compressor::ErrorEnum;
+
 use super::{LocalId, StableId};
 use uuid::Uuid;
 
@@ -57,4 +59,12 @@ impl SessionId {
 
 pub enum UuidGenerationError {
     InvalidUuidString,
+}
+
+impl ErrorEnum for UuidGenerationError {
+    fn get_error_string(&self) -> &'static str {
+        match self {
+            UuidGenerationError::InvalidUuidString => "Invalid Uuid String",
+        }
+    }
 }

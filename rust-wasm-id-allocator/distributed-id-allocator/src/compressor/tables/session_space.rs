@@ -21,6 +21,10 @@ impl Sessions {
         }
     }
 
+    pub fn get_sessions_count(&self) -> usize {
+        self.session_list.len()
+    }
+
     pub fn get_or_create(&mut self, session_id: SessionId) -> SessionSpaceRef {
         match self.session_map.get(&session_id) {
             None => {
@@ -98,6 +102,10 @@ impl SessionSpace {
 
     pub fn session_id(&self) -> SessionId {
         self.session_id
+    }
+
+    pub fn self_ref(&self) -> SessionSpaceRef {
+        self.self_ref
     }
 
     pub fn get_tail_cluster(&self) -> Option<ClusterRef> {
