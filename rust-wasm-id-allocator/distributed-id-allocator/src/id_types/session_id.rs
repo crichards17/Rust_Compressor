@@ -38,6 +38,13 @@ impl SessionId {
         SessionId { id }
     }
 
+    pub fn from_uuid_string(uuid_string: &str) -> Result<SessionId, UuidGenerationError> {
+        match Uuid::try_parse(uuid_string) {
+            Err(_) => Err(UuidGenerationError::InvalidUuidString),
+            Ok(uuid) => Ok(SessionId::from_uuid(uuid)),
+        }
+    }
+
     pub(super) fn id(&self) -> u128 {
         self.id
     }
@@ -46,4 +53,8 @@ impl SessionId {
         let new_id = self.id + (offset_local.to_generation_count() - 1) as u128;
         StableId::new(new_id)
     }
+}
+
+pub enum UuidGenerationError {
+    InvalidUuidString,
 }

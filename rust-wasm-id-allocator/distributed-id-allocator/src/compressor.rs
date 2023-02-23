@@ -407,6 +407,10 @@ impl StableId {
     }
 }
 
+pub trait ErrorEnum {
+    fn get_error_string(&self) -> &'static str;
+}
+
 // TODO: comment each one about how it can happen
 #[derive(Debug)]
 pub enum DecompressionError {
@@ -417,14 +421,33 @@ pub enum DecompressionError {
     NoAlignedLocal,
 }
 
-impl DecompressionError {
-    pub fn get_error_string(&self) -> &'static str {
+impl ErrorEnum for DecompressionError {
+    fn get_error_string(&self) -> &'static str {
         match self {
             DecompressionError::UnfinalizedId => "UnfinalizedId",
             DecompressionError::UnallocatedFinalId => "UnallocatedFinalId",
             DecompressionError::UnobtainableId => "UnobtainableId",
             DecompressionError::UngeneratedFinalId => "UngeneratedFinalId",
             DecompressionError::NoAlignedLocal => "NoAlignedLocal",
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum RecompressionError {
+    UnallocatedStableId,
+    UngeneratedStableId,
+    UnfinalizedForeignId,
+    NoAllocatedFinal,
+}
+
+impl RecompressionError {
+    pub fn get_error_string(&self) -> &'static str {
+        match self {
+            RecompressionError::UnallocatedStableId => "UnallocatedStableId",
+            RecompressionError::UngeneratedStableId => "UngeneratedStableId",
+            RecompressionError::UnfinalizedForeignId => "UnfinalizedForeignId",
+            RecompressionError::NoAllocatedFinal => "NoAllocatedFinal",
         }
     }
 }
@@ -440,12 +463,12 @@ pub enum ClusterCapacityError {
     InvalidClusterCapacity,
 }
 
-#[derive(Debug)]
-pub enum RecompressionError {
-    UnallocatedStableId,
-    UngeneratedStableId,
-    UnfinalizedForeignId,
-    NoAllocatedFinal,
+impl ErrorEnum for ClusterCapacityError {
+    fn get_error_string(&self) -> &'static str {
+        match self {
+            ClusterCapacityError::InvalidClusterCapacity => "Invalid cluster capacity.",
+        }
+    }
 }
 
 #[derive(Debug)]
