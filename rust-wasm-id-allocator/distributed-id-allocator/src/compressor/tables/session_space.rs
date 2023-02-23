@@ -48,13 +48,6 @@ impl Sessions {
         }
     }
 
-    pub fn get_mut(&mut self, session_id: SessionId) -> Option<&mut SessionSpace> {
-        match self.session_map.get(&session_id) {
-            None => None,
-            Some(session_space_ref) => Some(self.deref_session_space_mut(*session_space_ref)),
-        }
-    }
-
     pub fn deref_session_space_mut(
         &mut self,
         session_space_ref: SessionSpaceRef,
