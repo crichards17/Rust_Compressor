@@ -7,10 +7,6 @@ pub struct StableId {
 }
 
 impl StableId {
-    pub(super) fn id(&self) -> u128 {
-        self.id
-    }
-
     pub(super) fn new(id: u128) -> Self {
         StableId { id }
     }

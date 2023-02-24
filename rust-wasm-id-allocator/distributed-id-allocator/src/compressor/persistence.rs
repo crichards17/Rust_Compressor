@@ -13,7 +13,6 @@ pub(crate) fn deserialize(bytes: &[u8]) -> Result<IdCompressor, DeserializationE
         VersionedPersistentCompressor::V1(persistent_compressor) => {
             Ok(v1::deserialize(persistent_compressor))
         }
-        _ => return Err(DeserializationError::UnknownError),
     }
 }
 
