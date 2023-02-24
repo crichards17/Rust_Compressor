@@ -1,3 +1,5 @@
+use crate::compressor::ErrorEnum;
+
 use super::{LocalId, StableId};
 use uuid::Uuid;
 
@@ -38,6 +40,13 @@ impl SessionId {
         SessionId { id }
     }
 
+    pub fn from_uuid_string(uuid_string: &str) -> Result<SessionId, UuidGenerationError> {
+        match Uuid::try_parse(uuid_string) {
+            Err(_) => Err(UuidGenerationError::InvalidUuidString),
+            Ok(uuid) => Ok(SessionId::from_uuid(uuid)),
+        }
+    }
+
     pub(super) fn id(&self) -> u128 {
         self.id
     }
@@ -45,5 +54,17 @@ impl SessionId {
     pub(crate) fn stable_from_local_offset(&self, offset_local: LocalId) -> StableId {
         let new_id = self.id + (offset_local.to_generation_count() - 1) as u128;
         StableId::new(new_id)
+    }
+}
+
+pub enum UuidGenerationError {
+    InvalidUuidString,
+}
+
+impl ErrorEnum for UuidGenerationError {
+    fn get_error_string(&self) -> &'static str {
+        match self {
+            UuidGenerationError::InvalidUuidString => "Invalid Uuid String",
+        }
     }
 }

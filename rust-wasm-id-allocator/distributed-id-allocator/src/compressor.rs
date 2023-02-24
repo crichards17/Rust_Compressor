@@ -46,6 +46,30 @@ impl IdCompressor {
         self.sessions.deref_session_space(self.local_session)
     }
 
+    pub fn get_session_id_from_session_token(
+        &self,
+        index: usize,
+    ) -> Result<SessionId, impl ErrorEnum> {
+        if index >= self.sessions.get_sessions_count() {
+            return Err(SessionTokenError::UnknownSessionToken);
+        }
+        let session_space_ref = SessionSpaceRef::create_from_index(index);
+        Ok(self
+            .sessions
+            .deref_session_space(session_space_ref)
+            .session_id())
+    }
+
+    pub fn get_session_token_from_session_id(
+        &self,
+        session_id: SessionId,
+    ) -> Result<usize, impl ErrorEnum> {
+        match self.sessions.get(session_id) {
+            None => Err(SessionTokenError::UnknownSessionId),
+            Some(session_space) => Ok(session_space.self_ref().get_index()),
+        }
+    }
+
     pub fn set_cluster_capacity(
         &mut self,
         new_cluster_capacity: u64,
@@ -407,6 +431,10 @@ impl StableId {
     }
 }
 
+pub trait ErrorEnum {
+    fn get_error_string(&self) -> &'static str;
+}
+
 // TODO: comment each one about how it can happen
 #[derive(Debug)]
 pub enum DecompressionError {
@@ -417,8 +445,8 @@ pub enum DecompressionError {
     NoAlignedLocal,
 }
 
-impl DecompressionError {
-    pub fn get_error_string(&self) -> &'static str {
+impl ErrorEnum for DecompressionError {
+    fn get_error_string(&self) -> &'static str {
         match self {
             DecompressionError::UnfinalizedId => "UnfinalizedId",
             DecompressionError::UnallocatedFinalId => "UnallocatedFinalId",
@@ -430,9 +458,37 @@ impl DecompressionError {
 }
 
 #[derive(Debug)]
+pub enum RecompressionError {
+    UnallocatedStableId,
+    UngeneratedStableId,
+    UnfinalizedForeignId,
+    NoAllocatedFinal,
+}
+
+impl RecompressionError {
+    pub fn get_error_string(&self) -> &'static str {
+        match self {
+            RecompressionError::UnallocatedStableId => "UnallocatedStableId",
+            RecompressionError::UngeneratedStableId => "UngeneratedStableId",
+            RecompressionError::UnfinalizedForeignId => "UnfinalizedForeignId",
+            RecompressionError::NoAllocatedFinal => "NoAllocatedFinal",
+        }
+    }
+}
+
+#[derive(Debug)]
 pub enum FinalizationError {
     RangeFinalizedOutOfOrder,
     InvalidRange,
+}
+
+impl ErrorEnum for FinalizationError {
+    fn get_error_string(&self) -> &'static str {
+        match self {
+            FinalizationError::RangeFinalizedOutOfOrder => "RangeFinalizedOutOfOrder.",
+            FinalizationError::InvalidRange => "Invalid Range.",
+        }
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -440,12 +496,27 @@ pub enum ClusterCapacityError {
     InvalidClusterCapacity,
 }
 
-#[derive(Debug)]
-pub enum RecompressionError {
-    UnallocatedStableId,
-    UngeneratedStableId,
-    UnfinalizedForeignId,
-    NoAllocatedFinal,
+impl ErrorEnum for ClusterCapacityError {
+    fn get_error_string(&self) -> &'static str {
+        match self {
+            ClusterCapacityError::InvalidClusterCapacity => "Invalid cluster capacity.",
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub enum SessionTokenError {
+    UnknownSessionToken,
+    UnknownSessionId,
+}
+
+impl ErrorEnum for SessionTokenError {
+    fn get_error_string(&self) -> &'static str {
+        match self {
+            SessionTokenError::UnknownSessionToken => "Unknown Session Token.",
+            SessionTokenError::UnknownSessionId => "UnknownSessionId.",
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -459,10 +530,24 @@ pub enum NormalizationError {
     NoAlignedLocal,
 }
 
+impl NormalizationError {
+    pub fn get_error_string(&self) -> &'static str {
+        match self {
+            NormalizationError::UnknownSessionSpaceId => "UnknownSessionSpaceId",
+            NormalizationError::UnknownSessionId => "UnknownSessionId",
+            NormalizationError::UngeneratedId => "UngeneratedId",
+            NormalizationError::UnfinalizedForeignLocal => "UnfinalizedForeignLocal",
+            NormalizationError::UnFinalizedForeignFinal => "UnFinalizedForeignFinal",
+            NormalizationError::NoFinalizedRanges => "NoFinalizedRanges",
+            NormalizationError::NoAlignedLocal => "NoAlignedLocal",
+        }
+    }
+}
+
 pub struct IdRange {
-    id: SessionId,
+    pub id: SessionId,
     // (First LocalID in the range, count)
-    range: Option<(LocalId, u64)>,
+    pub range: Option<(LocalId, u64)>,
 }
 
 #[cfg(test)]
