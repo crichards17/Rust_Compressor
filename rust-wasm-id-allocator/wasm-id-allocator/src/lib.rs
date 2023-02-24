@@ -11,10 +11,6 @@ pub struct IdCompressor {
     compressor: IdCompressorCore,
     error_string: Option<String>,
 }
-/*
-TODO:
-- doc which methods may populate error field
-*/
 
 #[wasm_bindgen]
 impl IdCompressor {
