@@ -11,13 +11,10 @@ pub struct IdCompressor {
     compressor: IdCompressorCore,
     error_string: Option<String>,
 }
-/*
-TODO:
-- doc which methods may populate error field
-*/
 
 #[wasm_bindgen]
 impl IdCompressor {
+    #[wasm_bindgen(constructor)]
     pub fn new() -> IdCompressor {
         IdCompressor {
             compressor: IdCompressorCore::new(),
@@ -67,6 +64,32 @@ impl IdCompressor {
         }
     }
 
+    pub fn take_next_range(&mut self) -> Option<InteropIdRange> {
+        let id_range = self.compressor.take_next_range();
+        let id_token = match self
+            .compressor
+            .get_session_token_from_session_id(id_range.id)
+        {
+            Err(e) => {
+                self.set_error(e.get_error_string());
+                return None;
+            }
+            Ok(token) => token,
+        };
+        match id_range.range {
+            Some((local, count)) => Some(InteropIdRange {
+                token: id_token as f64,
+                local: local.id() as f64,
+                count: count as f64,
+            }),
+            None => Some(InteropIdRange {
+                token: id_token as f64,
+                local: NAN,
+                count: NAN,
+            }),
+        }
+    }
+
     pub fn finalize_range(
         &mut self,
         session_token: f64,
@@ -94,15 +117,14 @@ impl IdCompressor {
             Ok(session_id) => session_id,
         };
         let id_range = IdRange {
-            id: id,
+            id,
             range: Some((LocalId::new(range_base_local as i64), range_len as u64)),
         };
-        match self.compressor.finalize_range(&id_range) {
-            Err(e) => {
-                self.set_error(e.get_error_string());
-                return false;
-            }
-            Ok(_) => true,
+        if let Err(e) = self.compressor.finalize_range(&id_range) {
+            self.set_error(e.get_error_string());
+            false
+        } else {
+            true
         }
     }
 
@@ -193,15 +215,29 @@ impl IdCompressor {
     fn set_error(&mut self, error: &str) {
         self.error_string = Some(String::from(error));
     }
+}
 
-    /*
+#[wasm_bindgen]
+pub struct InteropIdRange {
+    token: f64,
+    local: f64,
+    count: f64,
+}
 
-    set_cluster_capacity(
-
-        take_next_range(&mut self) -> IdRange NOTE: try (f64, f64, f64) and see what WASMBindGen makes.
-
-
-        */
+#[wasm_bindgen]
+impl InteropIdRange {
+    #[wasm_bindgen(getter)]
+    pub fn get_token(&self) -> f64 {
+        self.token
+    }
+    #[wasm_bindgen(getter)]
+    pub fn get_local(&self) -> f64 {
+        self.local
+    }
+    #[wasm_bindgen(getter)]
+    pub fn get_count(&self) -> f64 {
+        self.count
+    }
 }
 
 trait IsInt {

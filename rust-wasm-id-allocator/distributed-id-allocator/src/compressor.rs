@@ -554,7 +554,7 @@ pub struct IdRange {
 mod tests {
     use super::*;
 
-    const STABLE_IDS: &[&str] = &[
+    const _STABLE_IDS: &[&str] = &[
         "748540ca-b7c5-4c99-83ff-c1b8e02c09d6",
         "748540ca-b7c5-4c99-83ef-c1b8e02c09d6",
         "748540ca-b7c5-4c99-831f-c1b8e02c09d6",

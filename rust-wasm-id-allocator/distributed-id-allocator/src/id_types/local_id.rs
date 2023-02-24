@@ -16,7 +16,7 @@ impl LocalId {
         LocalId { id }
     }
 
-    pub(crate) fn id(&self) -> i64 {
+    pub fn id(&self) -> i64 {
         self.id
     }
 
