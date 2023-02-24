@@ -27,6 +27,11 @@ impl SessionSpaceId {
     pub(crate) fn is_local(&self) -> bool {
         self.id < 0
     }
+
+    #[cfg(test)]
+    pub(crate) fn is_final(&self) -> bool {
+        self.id >= 0
+    }
 }
 
 impl From<LocalId> for SessionSpaceId {

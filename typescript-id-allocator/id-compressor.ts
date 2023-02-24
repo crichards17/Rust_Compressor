@@ -1,4 +1,4 @@
-import { make_compressor, IdCompressor } from "wasm-id-allocator";
+import { IdCompressor } from "wasm-id-allocator";
 
 /* 
 TODO: 
@@ -6,5 +6,5 @@ TODO:
 */
 
 export function makeCompressor(): IdCompressor {
-    return make_compressor();
+    return new IdCompressor();
 };
