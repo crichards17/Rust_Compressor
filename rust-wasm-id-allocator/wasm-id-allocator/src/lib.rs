@@ -165,7 +165,8 @@ impl IdCompressor {
 
     set_cluster_capacity(
 
-        take_next_range(&mut self) -> IdRange
+        take_next_range(&mut self) -> IdRange NOTE: try (f64, f64, f64) and see what WASMBindGen makes.
+
 
 
 
