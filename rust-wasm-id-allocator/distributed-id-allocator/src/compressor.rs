@@ -574,7 +574,7 @@ mod tests {
     fn test_complex() {
         let mut compressor = IdCompressor::new();
 
-        compressor.set_cluster_capacity(3);
+        _ = compressor.set_cluster_capacity(3);
 
         // Before first cluster creation
         let session_space_id_1 = compressor.generate_next_id();
