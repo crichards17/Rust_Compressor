@@ -203,6 +203,24 @@ impl IdCompressor {
         }
     }
 
+    // Note: bindgen does not allow returning a reference slice
+    pub fn serialize(&self, include_local_state: bool) -> Vec<u8> {
+        self.compressor.serialize(include_local_state)
+    }
+
+    pub fn deserialize(&mut self, bytes: &[u8]) -> Option<IdCompressor> {
+        match IdCompressorCore::deserialize(bytes) {
+            Err(e) => {
+                self.set_error(e.get_error_string());
+                None
+            }
+            Ok(id_compressor) => Some(IdCompressor {
+                compressor: (id_compressor),
+                error_string: (None),
+            }),
+        }
+    }
+
     pub fn get_error(&mut self) -> String {
         let error = match &self.error_string {
             None => String::from(""),

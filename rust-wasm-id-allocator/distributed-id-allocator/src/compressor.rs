@@ -465,8 +465,8 @@ pub enum RecompressionError {
     NoAllocatedFinal,
 }
 
-impl RecompressionError {
-    pub fn get_error_string(&self) -> &'static str {
+impl ErrorEnum for RecompressionError {
+    fn get_error_string(&self) -> &'static str {
         match self {
             RecompressionError::UnallocatedStableId => "UnallocatedStableId",
             RecompressionError::UngeneratedStableId => "UngeneratedStableId",

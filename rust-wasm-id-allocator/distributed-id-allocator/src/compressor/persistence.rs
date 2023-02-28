@@ -1,4 +1,4 @@
-use super::IdCompressor;
+use super::{ErrorEnum, IdCompressor};
 use postcard::from_bytes;
 use serde::{Deserialize, Serialize};
 
@@ -25,6 +25,15 @@ enum VersionedPersistentCompressor {
 pub enum DeserializationError {
     PostcardError(postcard::Error),
     UnknownError,
+}
+
+impl ErrorEnum for DeserializationError {
+    fn get_error_string(&self) -> &'static str {
+        match self {
+            DeserializationError::PostcardError(_) => "Postcard error.",
+            DeserializationError::UnknownError => "Unknown deserialization error.",
+        }
+    }
 }
 
 pub(crate) mod v1 {
