@@ -211,7 +211,7 @@ impl IdCompressor {
     pub fn deserialize(&mut self, bytes: &[u8]) -> Option<IdCompressor> {
         match IdCompressorCore::deserialize(bytes) {
             Err(e) => {
-                self.set_error(e.get_error_string());
+                self.set_error(&e.get_error_string());
                 None
             }
             Ok(id_compressor) => Some(IdCompressor {

@@ -27,11 +27,11 @@ pub enum DeserializationError {
     UnknownError,
 }
 
-impl ErrorEnum for DeserializationError {
-    fn get_error_string(&self) -> &'static str {
+impl DeserializationError {
+    pub fn get_error_string(&self) -> String {
         match self {
-            DeserializationError::PostcardError(_) => "Postcard error.",
-            DeserializationError::UnknownError => "Unknown deserialization error.",
+            DeserializationError::PostcardError(e) => e.to_string(),
+            DeserializationError::UnknownError => String::from("Unknown deserialization error."),
         }
     }
 }
