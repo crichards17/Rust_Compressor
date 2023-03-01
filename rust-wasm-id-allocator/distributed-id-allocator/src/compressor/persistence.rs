@@ -27,6 +27,15 @@ pub enum DeserializationError {
     UnknownError,
 }
 
+impl DeserializationError {
+    pub fn get_error_string(&self) -> String {
+        match self {
+            DeserializationError::PostcardError(e) => e.to_string(),
+            DeserializationError::UnknownError => String::from("Unknown deserialization error."),
+        }
+    }
+}
+
 pub(crate) mod v1 {
 
     use crate::{
