@@ -1,4 +1,4 @@
-use super::{ErrorEnum, IdCompressor};
+use super::IdCompressor;
 use postcard::from_bytes;
 use serde::{Deserialize, Serialize};
 
