@@ -42,6 +42,14 @@ impl IdCompressor {
         }
     }
 
+    pub fn get_local_session_id(&self) -> SessionId {
+        self.session_id
+    }
+
+    pub fn get_local_session_token(&self) -> usize {
+        self.local_session.get_index()
+    }
+
     fn get_local_session_space(&self) -> &SessionSpace {
         self.sessions.deref_session_space(self.local_session)
     }
