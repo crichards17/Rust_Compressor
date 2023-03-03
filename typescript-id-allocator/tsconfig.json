@@ -2,17 +2,19 @@
 	"exclude": ["dist", "node_modules"],
 	"compilerOptions": {
 		"target": "es2017",
+		"declaration": true,
+		"declarationMap": true,
 		"esModuleInterop": true,
 		"module": "commonjs",
 		"moduleResolution": "node",
 		"noUnusedLocals": true,
-		"sourceMap": false,
+		"sourceMap": true,
 		"noImplicitAny": false,
 		"incremental": true,
 		"types": ["mocha"],
 		"strict": true,
 		"pretty": true,
 		"lib": ["ES2017", "ES2018.Promise", "DOM", "DOM.Iterable"],
-        "outDir": "./dist/javascript"
+		"outDir": "./dist/javascript",
 	},
 }
