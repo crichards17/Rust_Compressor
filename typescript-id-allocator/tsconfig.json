@@ -1,12 +1,17 @@
 {
-    "compilerOptions": {
-        "target": "ES2015",
-        "module": "CommonJs",
-        "moduleResolution": "node",
-        "strict": true,
-        "esModuleInterop": true,
-        "skipLibCheck": true,
-        "forceConsistentCasingInFileNames": true,
-        "outDir": "./dist/javascript"
-    }
+	"exclude": ["dist", "node_modules"],
+	"compilerOptions": {
+		"target": "es2017",
+		"esModuleInterop": true,
+		"module": "commonjs",
+		"moduleResolution": "node",
+		"noUnusedLocals": true,
+		"sourceMap": false,
+		"noImplicitAny": false,
+		"incremental": true,
+		"types": ["mocha"],
+		"strict": true,
+		"pretty": true,
+		"lib": ["ES2017", "ES2018.Promise", "DOM", "DOM.Iterable"],
+	},
 }
