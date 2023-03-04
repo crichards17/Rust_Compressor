@@ -193,3 +193,130 @@ impl InteropIdRange {
         self.count
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use distributed_id_allocator::compressor::{NormalizationError, SessionTokenError};
+
+    #[test]
+    #[should_panic]
+    fn cluster_capacity_fract() {
+        let mut compressor = IdCompressor::new();
+        _ = compressor.set_cluster_capacity(5.5 as f64);
+    }
+
+    #[test]
+    #[should_panic]
+    fn cluster_capacity_negative() {
+        let mut compressor = IdCompressor::new();
+        _ = compressor.set_cluster_capacity(-2 as f64);
+    }
+
+    #[test]
+    fn generate_next_id() {
+        let mut compressor = IdCompressor::new();
+        assert_eq!(compressor.generate_next_id(), -1 as f64);
+    }
+
+    #[test]
+    #[should_panic]
+    fn get_token_invalid_uuid() {
+        let mut compressor = IdCompressor::new();
+        _ = compressor.get_token(String::from("not_a_uuid")); // Errors at SessionId::from_uuid_string()
+    }
+
+    #[test]
+    fn take_next_range() {
+        let mut compressor = IdCompressor::new();
+        let id_1 = compressor.generate_next_id();
+        let count_expected = 5;
+        for _ in 1..count_expected {
+            compressor.generate_next_id();
+        }
+        let interop_id_range = compressor.take_next_range();
+        assert_eq!(interop_id_range.local, id_1);
+        assert_eq!(interop_id_range.count, count_expected as f64);
+    }
+
+    #[test]
+    fn take_next_range_empty() {
+        let mut compressor = IdCompressor::new();
+        let interop_id_range = compressor.take_next_range();
+        assert!(interop_id_range.local.is_nan());
+        assert!(interop_id_range.count.is_nan());
+    }
+
+    #[test]
+    fn finalize_range() {
+        let mut compressor = IdCompressor::new();
+        for _ in 0..5 {
+            compressor.generate_next_id();
+        }
+        let interop_id_range = compressor.take_next_range();
+
+        assert!(compressor
+            .finalize_range(
+                interop_id_range.token,
+                interop_id_range.local,
+                interop_id_range.count
+            )
+            .is_ok());
+    }
+
+    #[test]
+    fn normalize_to_op_space() {
+        let mut compressor = IdCompressor::new();
+        for _ in 0..5 {
+            compressor.generate_next_id();
+        }
+        let interop_id_range = compressor.take_next_range();
+        _ = compressor.finalize_range(
+            interop_id_range.token,
+            interop_id_range.local,
+            interop_id_range.count,
+        );
+        assert_eq!(compressor.normalize_to_op_space(-1 as f64), 0 as f64);
+        assert_eq!(compressor.normalize_to_op_space(-5 as f64), 4 as f64);
+        let new_final = compressor.generate_next_id();
+        assert_eq!(compressor.normalize_to_op_space(new_final), new_final);
+
+        assert!(compressor.normalize_to_op_space(-6 as f64).is_nan());
+        assert_eq!(
+            compressor.error_string,
+            Some(String::from(
+                NormalizationError::UnknownSessionSpaceId.get_error_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn normalize_to_session_space() {
+        let mut compressor = IdCompressor::new();
+        for _ in 0..5 {
+            compressor.generate_next_id();
+        }
+        let interop_id_range = compressor.take_next_range();
+        _ = compressor.finalize_range(
+            interop_id_range.token,
+            interop_id_range.local,
+            interop_id_range.count,
+        );
+        assert_eq!(
+            compressor.normalize_to_session_space(0 as f64, 1.0),
+            -2 as f64
+        );
+        assert!(compressor
+            .normalize_to_session_space(3 as f64, -1.0)
+            .is_nan());
+        assert_eq!(
+            compressor.error_string,
+            Some(String::from(
+                SessionTokenError::UnknownSessionToken.get_error_string()
+            ))
+        );
+        assert!(compressor
+            .normalize_to_session_space(0 as f64, 7.0)
+            .is_nan());
+    }
+}
