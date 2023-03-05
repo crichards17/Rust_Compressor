@@ -567,7 +567,6 @@ pub struct IdRange {
     pub range: Option<(LocalId, u64)>,
 }
 
-#[cfg(feature = "uuid-generation")]
 #[cfg(test)]
 mod tests {
     use super::*;

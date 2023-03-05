@@ -4,14 +4,17 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-default = []
+default = ["uuid-generation"]
 uuid-generation = ["uuid/v4"]
 
-[dependencies]
-serde = { version = "1.0.152", default-features = false }
+[dependencies.serde]
+version = "1.0.152"
+default-features = false
+
 [dependencies.postcard]
 version = "1.0.0"
 features = ["alloc"]
+
 [dependencies.uuid]
 version = "1.2.2"
 features = [
