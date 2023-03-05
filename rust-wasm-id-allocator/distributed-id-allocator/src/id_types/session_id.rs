@@ -17,6 +17,7 @@ impl SessionId {
     // Verified: The more-significant half of the N nibble is used to denote the variant (10xx)
     const LOWER_MASK: u128 = 0x3FFFFFFFFFFFFFFF;
 
+    #[cfg(feature = "uuid-generation")]
     pub(crate) fn new() -> SessionId {
         // todo doc restriction on upper bits and debug assert
         SessionId::from_uuid(Uuid::new_v4())

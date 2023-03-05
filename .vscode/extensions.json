@@ -1,0 +1,12 @@
+{
+    "recommendations": [
+        "bungcip.better-toml",
+        "vadimcn.vscode-lldb",
+        "serayuzgur.crates",
+        "ms-vsliveshare.vsliveshare",
+        "esbenp.prettier-vscode",
+        "swellaby.vscode-rust-test-adapter",
+        "rust-lang.rust-analyzer",
+        "hbenl.vscode-test-explorer"
+    ]
+}

@@ -20,6 +20,8 @@
 		"wasm-pack": "^0.10.3"
 	},
 	"dependencies": {
+		"@types/uuid": "^9.0.1",
+		"uuid": "^9.0.0",
 		"wasm-id-allocator": "file:./dist/wasm/"
 	}
 }

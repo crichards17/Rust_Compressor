@@ -21,12 +21,13 @@ pub struct IdCompressor {
 }
 
 impl IdCompressor {
+    #[cfg(feature = "uuid-generation")]
     pub fn new() -> Self {
         let session_id = SessionId::new();
         IdCompressor::new_with_session_id(session_id)
     }
 
-    pub(crate) fn new_with_session_id(session_id: SessionId) -> Self {
+    pub fn new_with_session_id(session_id: SessionId) -> Self {
         let mut sessions = Sessions::new();
         IdCompressor {
             session_id,
@@ -232,8 +233,16 @@ impl IdCompressor {
         }
     }
 
+    #[cfg(feature = "uuid-generation")]
     pub fn deserialize(bytes: &[u8]) -> Result<IdCompressor, DeserializationError> {
-        persistence::deserialize(bytes)
+        persistence::deserialize(bytes, || SessionId::new())
+    }
+
+    pub fn deserialize_with_session_id(
+        bytes: &[u8],
+        session_id: SessionId,
+    ) -> Result<IdCompressor, DeserializationError> {
+        persistence::deserialize(bytes, || session_id)
     }
 }
 
@@ -558,6 +567,7 @@ pub struct IdRange {
     pub range: Option<(LocalId, u64)>,
 }
 
+#[cfg(feature = "uuid-generation")]
 #[cfg(test)]
 mod tests {
     use super::*;

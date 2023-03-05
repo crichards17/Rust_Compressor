@@ -12,81 +12,76 @@ import {
 	SessionSpaceCompressedId,
 	StableId,
 } from "./types";
+import { generateStableId } from "./util";
 
 export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 	private readonly wasmCompressor: WasmIdCompressor;
+	public readonly localSessionId: SessionId;
 	constructor() {
-		this.wasmCompressor = new WasmIdCompressor();
+		this.localSessionId = generateStableId() as SessionId;
+		this.wasmCompressor = new WasmIdCompressor(this.localSessionId);
 	}
 
-	dispose(): void {
+	public dispose(): void {
 		this.wasmCompressor.free();
 	}
 
-	get localSessionId(): SessionId {
+	public finalizeCreationRange(range: IdCreationRange): void {
 		throw new Error("Method not implemented.");
 	}
 
-	finalizeCreationRange(range: IdCreationRange): void {
+	public takeNextCreationRange(): IdCreationRange {
 		throw new Error("Method not implemented.");
 	}
 
-	takeNextCreationRange(): IdCreationRange {
+	public generateCompressedId(): SessionSpaceCompressedId {
+		return this.wasmCompressor.generate_next_id() as SessionSpaceCompressedId;
+	}
+
+	public normalizeToOpSpace(id: SessionSpaceCompressedId): OpSpaceCompressedId {
 		throw new Error("Method not implemented.");
 	}
 
-	generateCompressedId(): SessionSpaceCompressedId {
-		throw new Error("Method not implemented.");
-	}
-
-	normalizeToOpSpace(id: SessionSpaceCompressedId): OpSpaceCompressedId {
-		throw new Error("Method not implemented.");
-	}
-
-	normalizeToSessionSpace(
+	public normalizeToSessionSpace(
 		id: OpSpaceCompressedId,
 		originSessionId: SessionId,
 	): SessionSpaceCompressedId;
-	normalizeToSessionSpace(id: FinalCompressedId): SessionSpaceCompressedId;
-	normalizeToSessionSpace(
+	public normalizeToSessionSpace(id: FinalCompressedId): SessionSpaceCompressedId;
+	public normalizeToSessionSpace(
 		id: OpSpaceCompressedId,
 		sessionIdIfLocal?: SessionId | undefined,
 	): SessionSpaceCompressedId;
-	normalizeToSessionSpace(
-		id: unknown,
-		sessionIdIfLocal?: unknown,
-	): import("./types").SessionSpaceCompressedId {
+	public normalizeToSessionSpace(
+		id: OpSpaceCompressedId,
+		sessionIdIfLocal?: SessionId,
+	): SessionSpaceCompressedId {
 		throw new Error("Method not implemented.");
 	}
 
-	decompress(id: FinalCompressedId | SessionSpaceCompressedId): string | StableId {
+	public decompress(id: FinalCompressedId | SessionSpaceCompressedId): string | StableId {
 		throw new Error("Method not implemented.");
 	}
 
-	tryDecompress(id: FinalCompressedId | SessionSpaceCompressedId): string | StableId | undefined {
+	public tryDecompress(
+		id: FinalCompressedId | SessionSpaceCompressedId,
+	): string | StableId | undefined {
 		throw new Error("Method not implemented.");
 	}
 
-	recompress(uncompressed: string): SessionSpaceCompressedId {
+	public recompress(uncompressed: string): SessionSpaceCompressedId {
 		throw new Error("Method not implemented.");
 	}
 
-	tryRecompress(uncompressed: string): SessionSpaceCompressedId | undefined {
+	public tryRecompress(uncompressed: string): SessionSpaceCompressedId | undefined {
 		throw new Error("Method not implemented.");
 	}
 
-	serialize(
+	public serialize(
 		withSession: boolean,
 	): SerializedIdCompressorWithOngoingSession | SerializedIdCompressorWithNoSession;
-	serialize(withSession: true): SerializedIdCompressorWithOngoingSession;
-	serialize(withSession: false): SerializedIdCompressorWithNoSession;
-	serialize(withSession: boolean): SerializedIdCompressor;
-	serialize(
-		withSession: unknown,
-	):
-		| import("./types").SerializedIdCompressorWithOngoingSession
-		| import("./types").SerializedIdCompressor
-		| import("./types").SerializedIdCompressorWithNoSession {
+	public serialize(withSession: true): SerializedIdCompressorWithOngoingSession;
+	public serialize(withSession: false): SerializedIdCompressorWithNoSession;
+	public serialize(withSession: boolean): SerializedIdCompressor {
 		throw new Error("Method not implemented.");
 	}
 }
