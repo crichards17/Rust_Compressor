@@ -1,7 +1,4 @@
-/*!
- * Copyright (c) Microsoft Corporation and contributors. All rights reserved.
- * Licensed under the MIT License.
- */
+// COPIED FROM FLUID FRAMEWORK
 
 /**
  * An identifier (UUID) that has been shortened by a distributed compression algorithm.
