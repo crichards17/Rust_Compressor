@@ -1,7 +1,7 @@
 [workspace]
 members = ["./distributed-id-allocator", "./wasm-id-allocator"]
 
-# https://www.reddit.com/r/rust/comments/kjcrxu/is_rust_code_compiled_into_webassembly_just_that/
 [profile.release]
 opt-level = 2
 lto = true
+codegen-units = 1
