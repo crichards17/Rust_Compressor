@@ -159,13 +159,11 @@ impl IdCompressor {
         bytes: &[u8],
         session_id_string: String,
     ) -> Result<IdCompressor, JsError> {
-        match IdCompressorCore::deserialize_with_session_id(
-            bytes,
-            match SessionId::from_uuid_string(&session_id_string) {
-                Ok(id) => id,
-                Err(e) => return Err(JsError::new(e.get_error_string())),
-            },
-        ) {
+        let session_id = match SessionId::from_uuid_string(&session_id_string) {
+            Ok(id) => id,
+            Err(e) => return Err(JsError::new(e.get_error_string())),
+        };
+        match IdCompressorCore::deserialize_with_session_id(bytes, || session_id) {
             Err(e) => Err(JsError::new(&e.get_error_string())),
             Ok(id_compressor) => Ok(IdCompressor {
                 compressor: (id_compressor),

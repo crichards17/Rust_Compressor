@@ -238,11 +238,14 @@ impl IdCompressor {
         persistence::deserialize(bytes, || SessionId::new())
     }
 
-    pub fn deserialize_with_session_id(
+    pub fn deserialize_with_session_id<FMakeSession>(
         bytes: &[u8],
-        session_id: SessionId,
-    ) -> Result<IdCompressor, DeserializationError> {
-        persistence::deserialize(bytes, || session_id)
+        make_session_id: FMakeSession,
+    ) -> Result<IdCompressor, DeserializationError>
+    where
+        FMakeSession: FnOnce() -> SessionId,
+    {
+        persistence::deserialize(bytes, make_session_id)
     }
 }
 
