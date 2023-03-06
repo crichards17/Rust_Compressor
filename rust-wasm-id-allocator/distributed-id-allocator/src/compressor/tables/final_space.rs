@@ -21,11 +21,11 @@ impl FinalSpace {
         }
     }
 
-    pub fn add_cluster(&mut self, new_cluster_ref: ClusterRef, sessions: &Sessions) {
+    pub fn add_cluster(&mut self, new_cluster_ref: ClusterRef, _sessions: &Sessions) {
         #[cfg(debug_assertions)]
         if self.clusters.len() != 0 {
-            let new_cluster_base_final = sessions.deref_cluster(new_cluster_ref).base_final_id;
-            let last_cluster_base_final = sessions
+            let new_cluster_base_final = _sessions.deref_cluster(new_cluster_ref).base_final_id;
+            let last_cluster_base_final = _sessions
                 .deref_cluster(self.clusters[self.clusters.len() - 1])
                 .base_final_id;
             assert!(
