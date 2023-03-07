@@ -211,36 +211,42 @@ mod tests {
     use super::*;
     use distributed_id_allocator::compressor::{NormalizationError, SessionTokenError};
 
+    static DEFAULT_LOCAL: &str = "748540ca-b7c5-4c99-83ff-c1b8e02c09d6";
+
     #[test]
     #[should_panic]
     fn cluster_capacity_fract() {
-        let mut compressor = IdCompressor::new();
+        let mut compressor = IdCompressor::new(String::from(DEFAULT_LOCAL)).unwrap();
         _ = compressor.set_cluster_capacity(5.5 as f64);
     }
 
     #[test]
     #[should_panic]
     fn cluster_capacity_negative() {
-        let mut compressor = IdCompressor::new();
+        let mut compressor = IdCompressor::new(String::from(DEFAULT_LOCAL)).unwrap();
+
         _ = compressor.set_cluster_capacity(-2 as f64);
     }
 
     #[test]
     fn generate_next_id() {
-        let mut compressor = IdCompressor::new();
+        let mut compressor = IdCompressor::new(String::from(DEFAULT_LOCAL)).unwrap();
+
         assert_eq!(compressor.generate_next_id(), -1 as f64);
     }
 
     #[test]
     #[should_panic]
     fn get_token_invalid_uuid() {
-        let mut compressor = IdCompressor::new();
+        let mut compressor = IdCompressor::new(String::from(DEFAULT_LOCAL)).unwrap();
+
         _ = compressor.get_token(String::from("not_a_uuid")); // Errors at SessionId::from_uuid_string()
     }
 
     #[test]
     fn take_next_range() {
-        let mut compressor = IdCompressor::new();
+        let mut compressor = IdCompressor::new(String::from(DEFAULT_LOCAL)).unwrap();
+
         let id_1 = compressor.generate_next_id();
         let count_expected = 5;
         for _ in 1..count_expected {
@@ -253,7 +259,8 @@ mod tests {
 
     #[test]
     fn take_next_range_empty() {
-        let mut compressor = IdCompressor::new();
+        let mut compressor = IdCompressor::new(String::from(DEFAULT_LOCAL)).unwrap();
+
         let interop_id_range = compressor.take_next_range();
         assert!(interop_id_range.local.is_nan());
         assert!(interop_id_range.count.is_nan());
@@ -261,7 +268,8 @@ mod tests {
 
     #[test]
     fn finalize_range() {
-        let mut compressor = IdCompressor::new();
+        let mut compressor = IdCompressor::new(String::from(DEFAULT_LOCAL)).unwrap();
+
         for _ in 0..5 {
             compressor.generate_next_id();
         }
@@ -278,7 +286,8 @@ mod tests {
 
     #[test]
     fn normalize_to_op_space() {
-        let mut compressor = IdCompressor::new();
+        let mut compressor = IdCompressor::new(String::from(DEFAULT_LOCAL)).unwrap();
+
         for _ in 0..5 {
             compressor.generate_next_id();
         }
@@ -304,7 +313,8 @@ mod tests {
 
     #[test]
     fn normalize_to_session_space() {
-        let mut compressor = IdCompressor::new();
+        let mut compressor = IdCompressor::new(String::from(DEFAULT_LOCAL)).unwrap();
+
         for _ in 0..5 {
             compressor.generate_next_id();
         }
