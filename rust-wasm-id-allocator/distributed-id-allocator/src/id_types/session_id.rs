@@ -58,6 +58,7 @@ impl SessionId {
     }
 }
 
+#[derive(Debug)]
 pub enum UuidGenerationError {
     InvalidUuidString,
 }
