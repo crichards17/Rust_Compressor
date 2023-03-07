@@ -1,7 +1,4 @@
-/*!
- * Copyright (c) Microsoft Corporation and contributors. All rights reserved.
- * Licensed under the MIT License.
- */
+// COPIED FROM FLUID FRAMEWORK
 
 import {
 	SessionSpaceCompressedId,
@@ -12,7 +9,6 @@ import {
 } from "./identifiers";
 import {
 	IdCreationRange,
-	SerializedIdCompressor,
 	SerializedIdCompressorWithNoSession,
 	SerializedIdCompressorWithOngoingSession,
 } from "./persisted-types";
@@ -55,7 +51,6 @@ export interface IIdCompressorCore {
 	 * This only includes finalized state and is therefore suitable for use in summaries.
 	 */
 	serialize(withSession: false): SerializedIdCompressorWithNoSession;
-	serialize(withSession: boolean): SerializedIdCompressor;
 }
 
 /**
@@ -100,10 +95,6 @@ export interface IIdCompressor {
 	 * @returns the session-space ID corresponding to `id`.
 	 */
 	normalizeToSessionSpace(id: FinalCompressedId): SessionSpaceCompressedId;
-	normalizeToSessionSpace(
-		id: OpSpaceCompressedId,
-		sessionIdIfLocal?: SessionId,
-	): SessionSpaceCompressedId;
 
 	/**
 	 * Decompresses a previously compressed ID into a UUID or override string.

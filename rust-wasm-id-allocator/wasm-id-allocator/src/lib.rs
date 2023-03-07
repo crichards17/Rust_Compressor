@@ -17,11 +17,15 @@ const MAX_SAFE_INTEGER: i64 = (2 as i64).pow(53) - 1;
 #[wasm_bindgen]
 impl IdCompressor {
     #[wasm_bindgen(constructor)]
-    pub fn new() -> IdCompressor {
-        IdCompressor {
-            compressor: IdCompressorCore::new(),
+    pub fn new(session_id_string: String) -> Option<IdCompressor> {
+        let session_id = match SessionId::from_uuid_string(&session_id_string) {
+            Ok(id) => id,
+            Err(_) => return None,
+        };
+        Some(IdCompressor {
+            compressor: IdCompressorCore::new_with_session_id(session_id),
             error_string: None,
-        }
+        })
     }
 
     pub fn set_cluster_capacity(&mut self, new_cluster_capacity: f64) -> Result<(), JsError> {
@@ -150,8 +154,16 @@ impl IdCompressor {
         self.compressor.serialize(include_local_state)
     }
 
-    pub fn deserialize(&mut self, bytes: &[u8]) -> Result<IdCompressor, JsError> {
-        match IdCompressorCore::deserialize(bytes) {
+    pub fn deserialize(
+        &mut self,
+        bytes: &[u8],
+        session_id_string: String,
+    ) -> Result<IdCompressor, JsError> {
+        let session_id = match SessionId::from_uuid_string(&session_id_string) {
+            Ok(id) => id,
+            Err(e) => return Err(JsError::new(e.get_error_string())),
+        };
+        match IdCompressorCore::deserialize_with_session_id(bytes, || session_id) {
             Err(e) => Err(JsError::new(&e.get_error_string())),
             Ok(id_compressor) => Ok(IdCompressor {
                 compressor: (id_compressor),

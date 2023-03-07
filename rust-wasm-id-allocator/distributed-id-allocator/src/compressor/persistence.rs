@@ -1,17 +1,25 @@
+use crate::id_types::SessionId;
+
 use super::IdCompressor;
 use postcard::from_bytes;
 use serde::{Deserialize, Serialize};
 
 pub(super) const DEFAULT_CLUSTER_CAPACITY: u64 = 512;
 
-pub(crate) fn deserialize(bytes: &[u8]) -> Result<IdCompressor, DeserializationError> {
+pub(crate) fn deserialize<FMakeSession>(
+    bytes: &[u8],
+    make_session_id: FMakeSession,
+) -> Result<IdCompressor, DeserializationError>
+where
+    FMakeSession: FnOnce() -> SessionId,
+{
     let versioned_persistent_compressor: VersionedPersistentCompressor = match from_bytes(bytes) {
         Ok(result) => result,
         Err(e) => return Err(DeserializationError::PostcardError(e)),
     };
     match versioned_persistent_compressor {
         VersionedPersistentCompressor::V1(persistent_compressor) => {
-            Ok(v1::deserialize(persistent_compressor))
+            Ok(v1::deserialize(persistent_compressor, make_session_id))
         }
     }
 }
@@ -120,9 +128,15 @@ pub(crate) mod v1 {
         }
     }
 
-    pub(super) fn deserialize(persistent_compressor: PersistentCompressor) -> IdCompressor {
+    pub(super) fn deserialize<FMakeSession>(
+        persistent_compressor: PersistentCompressor,
+        make_session_id: FMakeSession,
+    ) -> IdCompressor
+    where
+        FMakeSession: FnOnce() -> SessionId,
+    {
         let mut compressor = match persistent_compressor.local_state {
-            None => IdCompressor::new(),
+            None => IdCompressor::new_with_session_id(make_session_id()),
             Some(local_state) => {
                 let mut compressor = IdCompressor::new_with_session_id(SessionId::from_uuid_u128(
                     local_state.session_uuid_u128,
