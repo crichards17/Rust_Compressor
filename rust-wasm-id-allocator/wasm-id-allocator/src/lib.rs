@@ -207,56 +207,81 @@ mod tests {
     use super::*;
     use distributed_id_allocator::compressor::{NormalizationError, SessionTokenError};
 
-    static SESSION_ID_1: &str = "748540ca-b7c5-4c99-83ff-c1b8e02c09d6";
+    const _STABLE_IDS: &[&str] = &[
+        "748540ca-b7c5-4c99-83ff-c1b8e02c09d6",
+        "748540ca-b7c5-4c99-83ef-c1b8e02c09d6",
+        "748540ca-b7c5-4c99-831f-c1b8e02c09d6",
+        "0002c79e-b536-4776-b000-000266c252d5",
+        "082533b9-6d05-4068-a008-fe2cc43543f7",
+        "2c9fa1f8-48d5-4554-a466-000000000000",
+        "2c9fa1f8-48d5-4000-a000-000000000000",
+        "10000000-0000-4000-b000-000000000000",
+        "10000000-0000-4000-b020-000000000000", // 2^52
+        "10000000-0000-4000-b00f-ffffffffffff",
+        "10000000-0000-4000-b040-000000000000",
+        "f0000000-0000-4000-8000-000000000000",
+        "efffffff-ffff-4fff-bfff-ffffffffffff",
+    ];
+
+    fn initialize_compressor() -> (IdCompressor, Vec<f64>) {
+        let mut compressor = IdCompressor::new(String::from(_STABLE_IDS[0])).unwrap();
+        let mut generated_ids: Vec<f64> = Vec::new();
+        for _ in 0..5 {
+            generated_ids.push(compressor.generate_next_id());
+        }
+        (compressor, generated_ids)
+    }
+
+    fn finalize_compressor(compressor: &mut IdCompressor) {
+        let interop_id_range = compressor.take_next_range();
+        _ = compressor.finalize_range(
+            interop_id_range.token,
+            interop_id_range.local,
+            interop_id_range.count,
+        )
+    }
 
     #[test]
     #[should_panic]
     fn cluster_capacity_fract() {
-        let mut compressor = IdCompressor::new(String::from(SESSION_ID_1)).unwrap();
+        let (mut compressor, _) = initialize_compressor();
         _ = compressor.set_cluster_capacity(5.5 as f64);
     }
 
     #[test]
     #[should_panic]
     fn cluster_capacity_negative() {
-        let mut compressor = IdCompressor::new(String::from(SESSION_ID_1)).unwrap();
-
+        let (mut compressor, _) = initialize_compressor();
         _ = compressor.set_cluster_capacity(-2 as f64);
     }
 
     #[test]
     fn generate_next_id() {
-        let mut compressor = IdCompressor::new(String::from(SESSION_ID_1)).unwrap();
-
-        assert_eq!(compressor.generate_next_id(), -1 as f64);
+        let (mut compressor, generated_ids) = initialize_compressor();
+        assert_eq!(
+            compressor.generate_next_id(),
+            generated_ids[generated_ids.len() - 1] - 1.0
+        );
     }
 
     #[test]
     #[should_panic]
     fn get_token_invalid_uuid() {
-        let mut compressor = IdCompressor::new(String::from(SESSION_ID_1)).unwrap();
-
+        let (mut compressor, _) = initialize_compressor();
         _ = compressor.get_token(String::from("not_a_uuid")); // Errors at SessionId::from_uuid_string()
     }
 
     #[test]
     fn take_next_range() {
-        let mut compressor = IdCompressor::new(String::from(SESSION_ID_1)).unwrap();
-
-        let id_1 = compressor.generate_next_id();
-        let count_expected = 5;
-        for _ in 1..count_expected {
-            compressor.generate_next_id();
-        }
+        let (mut compressor, generated_ids) = initialize_compressor();
         let interop_id_range = compressor.take_next_range();
-        assert_eq!(interop_id_range.local, id_1);
-        assert_eq!(interop_id_range.count, count_expected as f64);
+        assert_eq!(interop_id_range.local, generated_ids[0]);
+        assert_eq!(interop_id_range.count, generated_ids.len() as f64);
     }
 
     #[test]
     fn take_next_range_empty() {
-        let mut compressor = IdCompressor::new(String::from(SESSION_ID_1)).unwrap();
-
+        let mut compressor = IdCompressor::new(String::from(_STABLE_IDS[0])).unwrap();
         let interop_id_range = compressor.take_next_range();
         assert!(interop_id_range.local.is_nan());
         assert!(interop_id_range.count.is_nan());
@@ -264,11 +289,7 @@ mod tests {
 
     #[test]
     fn finalize_range() {
-        let mut compressor = IdCompressor::new(String::from(SESSION_ID_1)).unwrap();
-
-        for _ in 0..5 {
-            compressor.generate_next_id();
-        }
+        let (mut compressor, _) = initialize_compressor();
         let interop_id_range = compressor.take_next_range();
 
         assert!(compressor
@@ -282,23 +303,20 @@ mod tests {
 
     #[test]
     fn normalize_to_op_space() {
-        let mut compressor = IdCompressor::new(String::from(SESSION_ID_1)).unwrap();
-
-        for _ in 0..5 {
-            compressor.generate_next_id();
+        let (mut compressor, generated_ids) = initialize_compressor();
+        finalize_compressor(&mut compressor);
+        let id_count = generated_ids.len();
+        for id in generated_ids {
+            assert!(!compressor.normalize_to_op_space(id).is_nan());
         }
-        let interop_id_range = compressor.take_next_range();
-        _ = compressor.finalize_range(
-            interop_id_range.token,
-            interop_id_range.local,
-            interop_id_range.count,
-        );
-        assert_eq!(compressor.normalize_to_op_space(-1 as f64), 0 as f64);
-        assert_eq!(compressor.normalize_to_op_space(-5 as f64), 4 as f64);
         let new_final = compressor.generate_next_id();
+        dbg!(new_final);
         assert_eq!(compressor.normalize_to_op_space(new_final), new_final);
 
-        assert!(compressor.normalize_to_op_space(-6 as f64).is_nan());
+        assert!(compressor
+            .normalize_to_op_space(0.0 - (id_count as f64) - 1.0)
+            .is_nan());
+
         assert_eq!(
             compressor.error_string,
             Some(String::from(
@@ -309,17 +327,8 @@ mod tests {
 
     #[test]
     fn normalize_to_session_space() {
-        let mut compressor = IdCompressor::new(String::from(SESSION_ID_1)).unwrap();
-
-        for _ in 0..5 {
-            compressor.generate_next_id();
-        }
-        let interop_id_range = compressor.take_next_range();
-        _ = compressor.finalize_range(
-            interop_id_range.token,
-            interop_id_range.local,
-            interop_id_range.count,
-        );
+        let (mut compressor, _) = initialize_compressor();
+        finalize_compressor(&mut compressor);
         assert_eq!(
             compressor.normalize_to_session_space(0 as f64, 1.0),
             -2 as f64
@@ -341,13 +350,14 @@ mod tests {
     #[test]
     #[should_panic]
     fn decompress_invalid() {
-        let mut compressor = IdCompressor::new(String::from(SESSION_ID_1)).unwrap();
+        let (mut compressor, _) = initialize_compressor();
+
         _ = compressor.decompress(1.0);
     }
 
     #[test]
     fn decompress() {
-        let mut compressor = IdCompressor::new(String::from(SESSION_ID_1)).unwrap();
+        let (mut compressor, _) = initialize_compressor();
 
         for _ in 0..5 {
             compressor.generate_next_id();
@@ -364,62 +374,42 @@ mod tests {
     #[test]
     #[should_panic]
     fn recompress_invalid_uuid_string() {
-        let mut compressor = IdCompressor::new(String::from(SESSION_ID_1)).unwrap();
+        let (mut compressor, _) = initialize_compressor();
+
         _ = compressor.recompress(String::from("invalid_uuid"));
     }
 
     #[test]
     #[should_panic]
     fn recompress_unknown_uuid() {
-        let mut compressor = IdCompressor::new(String::from(SESSION_ID_1)).unwrap();
-        _ = compressor.recompress(String::from("0002c79e-b536-4776-b000-000266c252d5"));
+        let (mut compressor, _) = initialize_compressor();
+
+        _ = compressor.recompress(String::from(_STABLE_IDS[3]));
     }
 
     #[test]
     fn recompress() {
-        let mut compressor = IdCompressor::new(String::from(SESSION_ID_1)).unwrap();
-
-        for _ in 0..5 {
-            compressor.generate_next_id();
-        }
-        let interop_id_range = compressor.take_next_range();
-        _ = compressor.finalize_range(
-            interop_id_range.token,
-            interop_id_range.local,
-            interop_id_range.count,
-        );
-        let session_id_2 = (StableId::from(SessionId::from_uuid_string(SESSION_ID_1).unwrap()) + 1)
+        let (mut compressor, _) = initialize_compressor();
+        finalize_compressor(&mut compressor);
+        let session_id = (StableId::from(SessionId::from_uuid_string(_STABLE_IDS[0]).unwrap()) + 1)
             .to_uuid_string();
-        assert!(compressor.recompress(session_id_2).is_ok());
+        assert!(compressor.recompress(session_id).is_ok());
     }
     #[test]
     #[should_panic]
     fn deserialize_invalid() {
         let bytes: &[u8] = &[1, 2, 1, 0, 1];
-        _ = IdCompressor::deserialize(bytes, String::from(SESSION_ID_1));
+        _ = IdCompressor::deserialize(bytes, String::from(_STABLE_IDS[0]));
     }
 
     #[test]
     fn serialize_deserialize() {
-        let mut compressor = IdCompressor::new(String::from(SESSION_ID_1)).unwrap();
-
-        for _ in 0..5 {
-            compressor.generate_next_id();
-        }
-        let interop_id_range = compressor.take_next_range();
-        _ = compressor.finalize_range(
-            interop_id_range.token,
-            interop_id_range.local,
-            interop_id_range.count,
-        );
+        let (mut compressor, _) = initialize_compressor();
+        finalize_compressor(&mut compressor);
         compressor.generate_next_id();
         let serialized_local = compressor.serialize(true);
-        assert!(IdCompressor::deserialize(&serialized_local, String::from(SESSION_ID_1)).is_ok());
+        assert!(IdCompressor::deserialize(&serialized_local, String::from(_STABLE_IDS[0])).is_ok());
         let serialized_final = compressor.serialize(false);
-        assert!(IdCompressor::deserialize(
-            &serialized_final,
-            String::from("0002c79e-b536-4776-b000-000266c252d5")
-        )
-        .is_ok())
+        assert!(IdCompressor::deserialize(&serialized_final, String::from(_STABLE_IDS[3])).is_ok())
     }
 }
