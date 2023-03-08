@@ -7,6 +7,7 @@ use distributed_id_allocator::{
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
+#[derive(Debug, PartialEq)]
 pub struct IdCompressor {
     compressor: IdCompressorCore,
     error_string: Option<String>,
@@ -275,6 +276,7 @@ mod tests {
     fn take_next_range() {
         let (mut compressor, generated_ids) = initialize_compressor();
         let interop_id_range = compressor.take_next_range();
+        assert_eq!(interop_id_range.token, 0.0);
         assert_eq!(interop_id_range.local, generated_ids[0]);
         assert_eq!(interop_id_range.count, generated_ids.len() as f64);
     }
@@ -307,10 +309,10 @@ mod tests {
         finalize_compressor(&mut compressor);
         let id_count = generated_ids.len();
         for id in generated_ids {
-            assert!(!compressor.normalize_to_op_space(id).is_nan());
+            let op_space_id = compressor.normalize_to_op_space(id);
+            assert_eq!(compressor.normalize_to_session_space(0.0, op_space_id), id);
         }
         let new_final = compressor.generate_next_id();
-        dbg!(new_final);
         assert_eq!(compressor.normalize_to_op_space(new_final), new_final);
 
         assert!(compressor
@@ -357,19 +359,17 @@ mod tests {
 
     #[test]
     fn decompress() {
-        let (mut compressor, _) = initialize_compressor();
-
-        for _ in 0..5 {
-            compressor.generate_next_id();
+        let (mut compressor, generated_ids) = initialize_compressor();
+        finalize_compressor(&mut compressor);
+        let session_id = compressor.compressor.get_local_session_id();
+        let base_stable = StableId::from(session_id);
+        for id in generated_ids {
+            let expected_offset = ((id * -1.0) - 1.0) as u64;
+            assert_eq!(
+                compressor.decompress(id).ok().unwrap(),
+                (base_stable + expected_offset).to_uuid_string()
+            );
         }
-        let interop_id_range = compressor.take_next_range();
-        _ = compressor.finalize_range(
-            interop_id_range.token,
-            interop_id_range.local,
-            interop_id_range.count,
-        );
-        assert!(compressor.decompress(0.0).is_ok());
-        assert!(compressor.decompress(4.0).is_ok());
     }
     #[test]
     #[should_panic]
@@ -410,6 +410,11 @@ mod tests {
         let serialized_local = compressor.serialize(true);
         assert!(IdCompressor::deserialize(&serialized_local, String::from(_STABLE_IDS[0])).is_ok());
         let serialized_final = compressor.serialize(false);
-        assert!(IdCompressor::deserialize(&serialized_final, String::from(_STABLE_IDS[3])).is_ok())
+        assert!(IdCompressor::deserialize(&serialized_final, String::from(_STABLE_IDS[3])).is_ok());
+        let compressor_serialized_deserialized =
+            IdCompressor::deserialize(&serialized_local, String::from(_STABLE_IDS[0]))
+                .ok()
+                .unwrap();
+        assert_eq!(compressor, compressor_serialized_deserialized)
     }
 }
