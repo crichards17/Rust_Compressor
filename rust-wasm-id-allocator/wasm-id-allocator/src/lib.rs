@@ -208,24 +208,11 @@ mod tests {
     use super::*;
     use distributed_id_allocator::compressor::{NormalizationError, SessionTokenError};
 
-    const _STABLE_IDS: &[&str] = &[
-        "748540ca-b7c5-4c99-83ff-c1b8e02c09d6",
-        "748540ca-b7c5-4c99-83ef-c1b8e02c09d6",
-        "748540ca-b7c5-4c99-831f-c1b8e02c09d6",
-        "0002c79e-b536-4776-b000-000266c252d5",
-        "082533b9-6d05-4068-a008-fe2cc43543f7",
-        "2c9fa1f8-48d5-4554-a466-000000000000",
-        "2c9fa1f8-48d5-4000-a000-000000000000",
-        "10000000-0000-4000-b000-000000000000",
-        "10000000-0000-4000-b020-000000000000", // 2^52
-        "10000000-0000-4000-b00f-ffffffffffff",
-        "10000000-0000-4000-b040-000000000000",
-        "f0000000-0000-4000-8000-000000000000",
-        "efffffff-ffff-4fff-bfff-ffffffffffff",
-    ];
+    const _STABLE_ID_1: &str = "748540ca-b7c5-4c99-83ff-c1b8e02c09d6";
+    const _STABLE_ID_2: &str = "0002c79e-b536-4776-b000-000266c252d5";
 
     fn initialize_compressor() -> (IdCompressor, Vec<f64>) {
-        let mut compressor = IdCompressor::new(String::from(_STABLE_IDS[0])).unwrap();
+        let mut compressor = IdCompressor::new(String::from(_STABLE_ID_1)).unwrap();
         let mut generated_ids: Vec<f64> = Vec::new();
         for _ in 0..5 {
             generated_ids.push(compressor.generate_next_id());
@@ -283,7 +270,7 @@ mod tests {
 
     #[test]
     fn take_next_range_empty() {
-        let mut compressor = IdCompressor::new(String::from(_STABLE_IDS[0])).unwrap();
+        let mut compressor = IdCompressor::new(String::from(_STABLE_ID_1)).unwrap();
         let interop_id_range = compressor.take_next_range();
         assert!(interop_id_range.local.is_nan());
         assert!(interop_id_range.count.is_nan());
@@ -384,22 +371,23 @@ mod tests {
     fn recompress_unknown_uuid() {
         let (mut compressor, _) = initialize_compressor();
 
-        _ = compressor.recompress(String::from(_STABLE_IDS[3]));
+        _ = compressor.recompress(String::from(_STABLE_ID_2));
     }
 
     #[test]
     fn recompress() {
         let (mut compressor, _) = initialize_compressor();
         finalize_compressor(&mut compressor);
-        let session_id = (StableId::from(SessionId::from_uuid_string(_STABLE_IDS[0]).unwrap()) + 1)
+        let session_id = (StableId::from(SessionId::from_uuid_string(_STABLE_ID_1).unwrap()) + 1)
             .to_uuid_string();
         assert!(compressor.recompress(session_id).is_ok());
     }
+
     #[test]
     #[should_panic]
     fn deserialize_invalid() {
         let bytes: &[u8] = &[1, 2, 1, 0, 1];
-        _ = IdCompressor::deserialize(bytes, String::from(_STABLE_IDS[0]));
+        _ = IdCompressor::deserialize(bytes, String::from(_STABLE_ID_1));
     }
 
     #[test]
@@ -408,11 +396,11 @@ mod tests {
         finalize_compressor(&mut compressor);
         compressor.generate_next_id();
         let serialized_local = compressor.serialize(true);
-        assert!(IdCompressor::deserialize(&serialized_local, String::from(_STABLE_IDS[0])).is_ok());
+        assert!(IdCompressor::deserialize(&serialized_local, String::from(_STABLE_ID_1)).is_ok());
         let serialized_final = compressor.serialize(false);
-        assert!(IdCompressor::deserialize(&serialized_final, String::from(_STABLE_IDS[3])).is_ok());
+        assert!(IdCompressor::deserialize(&serialized_final, String::from(_STABLE_ID_2)).is_ok());
         let compressor_serialized_deserialized =
-            IdCompressor::deserialize(&serialized_local, String::from(_STABLE_IDS[0]))
+            IdCompressor::deserialize(&serialized_local, String::from(_STABLE_ID_1))
                 .ok()
                 .unwrap();
         assert_eq!(compressor, compressor_serialized_deserialized)
