@@ -300,7 +300,6 @@ impl SessionSpaceId {
         &self,
         compressor: &IdCompressor,
     ) -> Result<OpSpaceId, NormalizationError> {
-        // Return the most final version of the given StableId
         match self.to_space() {
             CompressedId::Final(final_id) => Ok(OpSpaceId::from(final_id)),
             CompressedId::Local(local_id) => {
