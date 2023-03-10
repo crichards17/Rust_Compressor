@@ -4,5 +4,4 @@ To build the Rust workspace, run `cargo build` from the rust-wasm-id-allocator f
 
 To build the TS/WASM package, run the following from the typescript-id-allocator folder:
 
-- `npm i`
 - `npm run build:e2e`
