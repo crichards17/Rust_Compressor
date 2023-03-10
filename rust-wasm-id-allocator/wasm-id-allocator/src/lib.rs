@@ -63,14 +63,14 @@ impl IdCompressor {
     pub fn take_next_range(&mut self) -> InteropIdRange {
         let token = self.compressor.get_local_session_token() as f64;
         match self.compressor.take_next_range().range {
-            Some((local, count)) => InteropIdRange {
+            Some((first_local, count)) => InteropIdRange {
                 token,
-                local: local.id() as f64,
+                first_local: first_local.id() as f64,
                 count: count as f64,
             },
             None => InteropIdRange {
                 token,
-                local: NAN,
+                first_local: NAN,
                 count: NAN,
             },
         }
@@ -183,22 +183,22 @@ impl IdCompressor {
 #[wasm_bindgen]
 pub struct InteropIdRange {
     token: f64,
-    local: f64,
+    first_local: f64,
     count: f64,
 }
 
 #[wasm_bindgen]
 impl InteropIdRange {
     #[wasm_bindgen(getter)]
-    pub fn get_token(&self) -> f64 {
+    pub fn token(&self) -> f64 {
         self.token
     }
     #[wasm_bindgen(getter)]
-    pub fn get_local(&self) -> f64 {
-        self.local
+    pub fn first_local(&self) -> f64 {
+        self.first_local
     }
     #[wasm_bindgen(getter)]
-    pub fn get_count(&self) -> f64 {
+    pub fn count(&self) -> f64 {
         self.count
     }
 }
@@ -224,7 +224,7 @@ mod tests {
         let interop_id_range = compressor.take_next_range();
         _ = compressor.finalize_range(
             interop_id_range.token,
-            interop_id_range.local,
+            interop_id_range.first_local,
             interop_id_range.count,
         )
     }
@@ -264,7 +264,7 @@ mod tests {
         let (mut compressor, generated_ids) = initialize_compressor();
         let interop_id_range = compressor.take_next_range();
         assert_eq!(interop_id_range.token, 0.0);
-        assert_eq!(interop_id_range.local, generated_ids[0]);
+        assert_eq!(interop_id_range.first_local, generated_ids[0]);
         assert_eq!(interop_id_range.count, generated_ids.len() as f64);
     }
 
@@ -272,7 +272,7 @@ mod tests {
     fn take_next_range_empty() {
         let mut compressor = IdCompressor::new(String::from(_STABLE_ID_1)).unwrap();
         let interop_id_range = compressor.take_next_range();
-        assert!(interop_id_range.local.is_nan());
+        assert!(interop_id_range.first_local.is_nan());
         assert!(interop_id_range.count.is_nan());
     }
 
@@ -284,7 +284,7 @@ mod tests {
         assert!(compressor
             .finalize_range(
                 interop_id_range.token,
-                interop_id_range.local,
+                interop_id_range.first_local,
                 interop_id_range.count
             )
             .is_ok());
