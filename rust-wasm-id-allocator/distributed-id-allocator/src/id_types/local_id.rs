@@ -7,7 +7,7 @@ pub struct LocalId {
 }
 
 impl LocalId {
-    pub fn new(id: i64) -> LocalId {
+    pub fn from_id(id: i64) -> LocalId {
         debug_assert!(
             id < 0,
             "Local ID must be negative. Passed value was {}.",
@@ -25,7 +25,7 @@ impl LocalId {
     }
 
     pub fn from_generation_count(generation_count: u64) -> Self {
-        LocalId::new(-(generation_count as i64))
+        LocalId::from_id(-(generation_count as i64))
     }
 }
 
@@ -66,6 +66,6 @@ impl PartialOrd<i64> for LocalId {
 impl Sub<u64> for LocalId {
     type Output = LocalId;
     fn sub(self, rhs: u64) -> Self::Output {
-        LocalId::new(self.id - rhs as i64)
+        LocalId::from_id(self.id - rhs as i64)
     }
 }

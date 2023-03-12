@@ -18,9 +18,9 @@ impl SessionSpaceId {
 
     pub(crate) fn to_space(&self) -> CompressedId {
         if self.is_local() {
-            return CompressedId::Local(LocalId::new(self.id));
+            return CompressedId::Local(LocalId::from_id(self.id));
         } else {
-            CompressedId::Final(FinalId::new(self.id as u64))
+            CompressedId::Final(FinalId::from_id(self.id as u64))
         }
     }
 

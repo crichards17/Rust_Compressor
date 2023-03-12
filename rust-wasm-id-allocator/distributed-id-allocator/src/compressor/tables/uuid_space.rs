@@ -52,7 +52,7 @@ impl UuidSpace {
                 let cluster_max_stable = cluster_min_stable + cluster_match.capacity;
                 if query >= cluster_min_stable && query <= cluster_max_stable {
                     let originator_local =
-                        LocalId::new(-((query - StableId::from(result_session_id)) as i64) - 1);
+                        LocalId::from_id(-((query - StableId::from(result_session_id)) as i64) - 1);
                     return Some((cluster_match, originator_local));
                 } else {
                     None

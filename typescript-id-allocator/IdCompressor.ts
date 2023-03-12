@@ -16,16 +16,15 @@ import {
 } from "./types";
 import { assert, generateStableId } from "./util";
 import { getIds } from "./util/idRange";
+import { fail } from "./util/utilities";
 
 export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 	private readonly wasmCompressor: WasmIdCompressor;
 	public readonly localSessionId: SessionId;
-	private readonly localSessionToken: number;
 	private readonly sessionTokens: Map<SessionId, number> = new Map();
 	constructor() {
 		this.localSessionId = generateStableId() as SessionId;
 		this.wasmCompressor = new WasmIdCompressor(this.localSessionId);
-		this.localSessionToken = this.getOrCreateSessionToken(this.localSessionId);
 	}
 
 	private getOrCreateSessionToken(sessionId: SessionId): number {
@@ -93,13 +92,16 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 		id: OpSpaceCompressedId,
 		sessionIdIfLocal?: SessionId,
 	): SessionSpaceCompressedId {
-		const originatorToken =
-			sessionIdIfLocal === undefined
-				? this.localSessionToken
-				: this.getOrCreateSessionToken(sessionIdIfLocal);
-		return this.idOrError<SessionSpaceCompressedId>(
-			this.wasmCompressor.normalize_to_session_space(originatorToken, id),
-		);
+		let normalizedId: number;
+		if (id < 0) {
+			normalizedId = this.wasmCompressor.normalize_local_to_session_space(
+				this.getOrCreateSessionToken(sessionIdIfLocal ?? fail("No session ID supplied.")),
+				id,
+			);
+		} else {
+			normalizedId = this.wasmCompressor.normalize_final_to_session_space(id);
+		}
+		return this.idOrError<SessionSpaceCompressedId>(normalizedId);
 	}
 
 	public decompress(id: FinalCompressedId | SessionSpaceCompressedId): string | StableId {
@@ -135,7 +137,8 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 		newSessionId: SessionId,
 	): IdCompressor;
 	public static deserialize(
-		serialized: SerializedIdCompressorWithNoSession | SerializedIdCompressorWithOngoingSession, sessionId?: SessionId
+		serialized: SerializedIdCompressorWithNoSession | SerializedIdCompressorWithOngoingSession,
+		sessionId?: SessionId,
 	): IdCompressor {
 		throw new Error("Method not implemented.");
 	}
