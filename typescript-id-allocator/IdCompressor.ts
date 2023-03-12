@@ -54,10 +54,10 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 	public takeNextCreationRange(): IdCreationRange {
 		const wasmRange = this.wasmCompressor.take_next_range();
 		let range: IdCreationRange;
-		if (wasmRange.count === 0) {
+		if (wasmRange.ids === undefined) {
 			range = { sessionId: this.localSessionId };
 		} else {
-			const { first_local, count } = wasmRange;
+			const { first_local, count } = wasmRange.ids;
 			range = {
 				sessionId: this.localSessionId,
 				ids: {
@@ -74,7 +74,7 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 	}
 
 	private idOrError<TId extends CompressedId>(idNum: number): TId {
-		if (idNum === Number.NaN) {
+		if (Object.is(idNum, Number.NaN)) {
 			throw new Error(this.wasmCompressor.get_hotpath_error());
 		}
 		return idNum as TId;
@@ -89,10 +89,6 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 		originSessionId: SessionId,
 	): SessionSpaceCompressedId;
 	public normalizeToSessionSpace(id: FinalCompressedId): SessionSpaceCompressedId;
-	public normalizeToSessionSpace(
-		id: OpSpaceCompressedId,
-		sessionIdIfLocal?: SessionId | undefined,
-	): SessionSpaceCompressedId;
 	public normalizeToSessionSpace(
 		id: OpSpaceCompressedId,
 		sessionIdIfLocal?: SessionId,
@@ -139,9 +135,7 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 		newSessionId: SessionId,
 	): IdCompressor;
 	public static deserialize(
-		...args:
-			| [serialized: SerializedIdCompressorWithNoSession, newSessionIdMaybe: SessionId]
-			| [serialized: SerializedIdCompressorWithOngoingSession, newSessionIdMaybe?: undefined]
+		serialized: SerializedIdCompressorWithNoSession | SerializedIdCompressorWithOngoingSession, sessionId?: SessionId
 	): IdCompressor {
 		throw new Error("Method not implemented.");
 	}
