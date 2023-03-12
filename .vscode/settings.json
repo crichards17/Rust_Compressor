@@ -1,7 +1,8 @@
 {
-    "mochaExplorer.files": "typescript-id-allocator/dist/javascript/test/**/*.js",
-    "mochaExplorer.require": "source-map-support/register",
-    "mochaExplorer.watch": "typescript-id-allocator/dist/javascript/test/**/*.js",
-    "editor.formatOnSave": true,
-    "rust-analyzer.cargo.features": "all",
+  "mochaExplorer.files": "typescript-id-allocator/dist/javascript/test/**/*.js",
+  "mochaExplorer.require": "source-map-support/register",
+  "mochaExplorer.watch": "typescript-id-allocator/dist/javascript/test/**/*.js",
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "rust-analyzer.cargo.features": "all"
 }
