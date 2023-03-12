@@ -1,6 +1,11 @@
 import type { LocalCompressedId, OpSpaceCompressedId, SessionId } from "../identifiers";
 
 /**
+ * The version of IdCompressor that is currently persisted.
+ */
+export const currentWrittenVersion = "0.0.1";
+
+/**
  * The minimal required contents of a serialized IdCompressor.
  */
 export interface VersionedSerializedIdCompressor {

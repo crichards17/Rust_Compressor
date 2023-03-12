@@ -14,17 +14,22 @@ import {
 	StableId,
 	UnackedLocalId,
 } from "./types";
+import { currentWrittenVersion } from "./types/persisted-types/0.0.1";
 import { assert, generateStableId } from "./util";
 import { getIds } from "./util/idRange";
 import { fail } from "./util/utilities";
 
 export class IdCompressor implements IIdCompressor, IIdCompressorCore {
-	private readonly wasmCompressor: WasmIdCompressor;
-	public readonly localSessionId: SessionId;
 	private readonly sessionTokens: Map<SessionId, number> = new Map();
-	constructor() {
-		this.localSessionId = generateStableId() as SessionId;
-		this.wasmCompressor = new WasmIdCompressor(this.localSessionId);
+
+	private constructor(
+		public readonly wasmCompressor: WasmIdCompressor,
+		public readonly localSessionId: SessionId,
+	) {}
+
+	public static create(): IdCompressor {
+		const localSessionId = generateStableId() as SessionId;
+		return new IdCompressor(new WasmIdCompressor(localSessionId), localSessionId);
 	}
 
 	private getOrCreateSessionToken(sessionId: SessionId): number {
@@ -122,13 +127,13 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 		throw new Error("Method not implemented.");
 	}
 
-	public serialize(
-		withSession: boolean,
-	): SerializedIdCompressorWithOngoingSession | SerializedIdCompressorWithNoSession;
 	public serialize(withSession: true): SerializedIdCompressorWithOngoingSession;
 	public serialize(withSession: false): SerializedIdCompressorWithNoSession;
 	public serialize(withSession: boolean): SerializedIdCompressor {
-		throw new Error("Method not implemented.");
+		return {
+			bytes: this.wasmCompressor.serialize(withSession),
+			version: currentWrittenVersion,
+		} as SerializedIdCompressor;
 	}
 
 	public static deserialize(serialized: SerializedIdCompressorWithOngoingSession): IdCompressor;
@@ -137,10 +142,18 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 		newSessionId: SessionId,
 	): IdCompressor;
 	public static deserialize(
-		serialized: SerializedIdCompressorWithNoSession | SerializedIdCompressorWithOngoingSession,
+		serialized: SerializedIdCompressor,
 		sessionId?: SessionId,
 	): IdCompressor {
-		throw new Error("Method not implemented.");
+		assert(
+			serialized.version === currentWrittenVersion,
+			"Unknown serialized compressor version found.",
+		);
+		const localSessionId = sessionId ?? (generateStableId() as SessionId);
+		return new IdCompressor(
+			WasmIdCompressor.deserialize(serialized.bytes, localSessionId),
+			localSessionId,
+		);
 	}
 
 	public dispose(): void {
