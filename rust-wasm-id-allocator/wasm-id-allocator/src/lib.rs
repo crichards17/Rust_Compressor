@@ -102,7 +102,7 @@ impl IdCompressor {
             .normalize_to_op_space(&self.compressor)
         {
             Err(err) => {
-                self.set_hotpath_error(err.get_error_string());
+                self.set_error_string(err.get_error_string());
                 NAN
             }
             Ok(op_space_id) => op_space_id.id() as f64,
@@ -119,7 +119,7 @@ impl IdCompressor {
             .get_session_id_from_session_token(originator_token as usize)
         {
             Err(e) => {
-                self.set_hotpath_error(e.get_error_string());
+                self.set_error_string(e.get_error_string());
                 return NAN;
             }
             Ok(session_id) => session_id,
@@ -128,7 +128,7 @@ impl IdCompressor {
             .normalize_to_session_space(session_id, &self.compressor)
         {
             Err(err) => {
-                self.set_hotpath_error(err.get_error_string());
+                self.set_error_string(err.get_error_string());
                 NAN
             }
             Ok(session_space_id) => session_space_id.id() as f64,
@@ -138,28 +138,37 @@ impl IdCompressor {
     pub fn normalize_final_to_session_space(&mut self, op_space_id: f64) -> f64 {
         match FinalId::from_id(op_space_id as u64).normalize_to_session_space(&self.compressor) {
             Err(err) => {
-                self.set_hotpath_error(err.get_error_string());
+                self.set_error_string(err.get_error_string());
                 NAN
             }
             Ok(session_space_id) => session_space_id.id() as f64,
         }
     }
 
-    pub fn decompress(&mut self, id_to_decompress: f64) -> Result<String, JsError> {
+    pub fn decompress(&mut self, id_to_decompress: f64) -> Option<String> {
         match SessionSpaceId::from_id(id_to_decompress as i64).decompress(&self.compressor) {
-            Ok(stable_id) => Ok(stable_id.to_uuid_string()),
-            Err(e) => Err(JsError::new(e.get_error_string())),
+            Ok(stable_id) => Some(stable_id.to_uuid_string()),
+            Err(e) => {
+                self.set_error_string(e.get_error_string());
+                None
+            }
         }
     }
 
-    pub fn recompress(&mut self, id_to_recompress: String) -> Result<f64, JsError> {
+    pub fn recompress(&mut self, id_to_recompress: String) -> Option<f64> {
         let stable_id = match SessionId::from_uuid_string(&id_to_recompress) {
-            Err(e) => return Err(JsError::new(e.get_error_string())),
+            Err(e) => {
+                self.set_error_string(e.get_error_string());
+                return None;
+            },
             Ok(session_id) => StableId::from(session_id),
         };
         match stable_id.recompress(&self.compressor) {
-            Ok(session_space_id) => Ok(session_space_id.id() as f64),
-            Err(e) => Err(JsError::new(e.get_error_string())),
+            Ok(session_space_id) => Some(session_space_id.id() as f64),
+            Err(e) => {
+                self.set_error_string(e.get_error_string());
+                None
+            },
         }
     }
 
@@ -181,13 +190,13 @@ impl IdCompressor {
         }
     }
 
-    pub fn get_hotpath_error(&mut self) -> Option<String> {
+    pub fn get_error_string(&mut self) -> Option<String> {
         let error = self.error_string.clone();
         self.error_string = None;
         error
     }
 
-    fn set_hotpath_error(&mut self, error: &str) {
+    fn set_error_string(&mut self, error: &str) {
         self.error_string = Some(String::from(error));
     }
 }
@@ -318,7 +327,7 @@ mod tests {
         for id in generated_ids {
             let op_space_id = compressor.normalize_to_op_space(id);
             assert_eq!(
-                compressor.normalize_local_to_session_space(0.0, op_space_id),
+                compressor.normalize_final_to_session_space(op_space_id),
                 id
             );
         }
@@ -355,11 +364,10 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
     fn decompress_invalid() {
         let (mut compressor, _) = initialize_compressor();
 
-        _ = compressor.decompress(1.0);
+        assert!(compressor.decompress(1.0).is_none());
     }
 
     #[test]
@@ -371,25 +379,23 @@ mod tests {
         for id in generated_ids {
             let expected_offset = ((id * -1.0) - 1.0) as u64;
             assert_eq!(
-                compressor.decompress(id).ok().unwrap(),
+                compressor.decompress(id).unwrap(),
                 (base_stable + expected_offset).to_uuid_string()
             );
         }
     }
     #[test]
-    #[should_panic]
     fn recompress_invalid_uuid_string() {
         let (mut compressor, _) = initialize_compressor();
 
-        _ = compressor.recompress(String::from("invalid_uuid"));
+       assert!(compressor.recompress(String::from("invalid_uuid")).is_none());
     }
 
     #[test]
-    #[should_panic]
     fn recompress_unknown_uuid() {
         let (mut compressor, _) = initialize_compressor();
 
-        _ = compressor.recompress(String::from(_STABLE_ID_2));
+        assert!(compressor.recompress(String::from(_STABLE_ID_2)).is_none());
     }
 
     #[test]
@@ -398,7 +404,7 @@ mod tests {
         finalize_compressor(&mut compressor);
         let session_id = (StableId::from(SessionId::from_uuid_string(_STABLE_ID_1).unwrap()) + 1)
             .to_uuid_string();
-        assert!(compressor.recompress(session_id).is_ok());
+        assert!(compressor.recompress(session_id).is_some());
     }
 
     #[test]

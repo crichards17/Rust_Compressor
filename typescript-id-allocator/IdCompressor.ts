@@ -79,7 +79,7 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 
 	private idOrError<TId extends CompressedId>(idNum: number): TId {
 		if (Object.is(idNum, Number.NaN)) {
-			throw new Error(this.wasmCompressor.get_hotpath_error());
+			throw new Error(this.wasmCompressor.get_error_string());
 		}
 		return idNum as TId;
 	}
@@ -110,21 +110,23 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 	}
 
 	public decompress(id: FinalCompressedId | SessionSpaceCompressedId): string | StableId {
-		throw new Error("Method not implemented.");
+		return this.tryDecompress(id) ?? fail("Could not decompress.");
 	}
 
 	public tryDecompress(
 		id: FinalCompressedId | SessionSpaceCompressedId,
 	): string | StableId | undefined {
-		throw new Error("Method not implemented.");
+		// TODO: log error string to telemetry if undefined
+		return this.wasmCompressor.decompress(id);
 	}
 
 	public recompress(uncompressed: string): SessionSpaceCompressedId {
-		throw new Error("Method not implemented.");
+		return this.tryRecompress(uncompressed) ?? fail("Could not recompress.");
 	}
 
 	public tryRecompress(uncompressed: string): SessionSpaceCompressedId | undefined {
-		throw new Error("Method not implemented.");
+		// TODO: log error string to telemetry if undefined
+		return this.wasmCompressor.recompress(uncompressed) as SessionSpaceCompressedId | undefined;
 	}
 
 	public serialize(withSession: true): SerializedIdCompressorWithOngoingSession;
