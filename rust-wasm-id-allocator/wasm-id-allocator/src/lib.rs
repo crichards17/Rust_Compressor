@@ -2,7 +2,7 @@ use std::f64::NAN;
 
 use distributed_id_allocator::{
     compressor::{ErrorEnum, IdCompressor as IdCompressorCore, IdRange},
-    id_types::{FinalId, LocalId, OpSpaceId, SessionId, SessionSpaceId, StableId},
+    id_types::{FinalId, LocalId, SessionId, SessionSpaceId, StableId},
 };
 use wasm_bindgen::prelude::*;
 
