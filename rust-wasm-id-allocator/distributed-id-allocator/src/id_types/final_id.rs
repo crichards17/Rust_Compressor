@@ -8,7 +8,7 @@ impl FinalId {
         self.id
     }
 
-    pub(crate) fn new(id: u64) -> Self {
+    pub fn from_id(id: u64) -> Self {
         FinalId { id }
     }
 }

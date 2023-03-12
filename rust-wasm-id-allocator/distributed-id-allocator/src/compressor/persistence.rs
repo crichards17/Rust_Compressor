@@ -161,7 +161,7 @@ pub(crate) mod v1 {
                 .get_tail_cluster(&compressor.sessions)
             {
                 Some(cluster) => cluster.base_final_id + cluster.capacity,
-                None => FinalId::new(0),
+                None => FinalId::from_id(0),
             };
             let session_space_ref =
                 SessionSpaceRef::create_from_index(cluster_data.session_index as usize);
@@ -171,7 +171,7 @@ pub(crate) mod v1 {
                     let cluster = compressor.sessions.deref_cluster(cluster_ref);
                     cluster.base_local_id - cluster.capacity
                 }
-                None => LocalId::new(-1),
+                None => LocalId::from_id(-1),
             };
             let new_cluster = IdCluster {
                 session_creator: session_space_ref,
@@ -203,7 +203,7 @@ pub(crate) mod v1 {
 
         #[test]
         fn assert_local_id_alignment() {
-            assert_eq!(LocalId::new(-1).to_generation_count(), 1);
+            assert_eq!(LocalId::from_id(-1).to_generation_count(), 1);
         }
     }
 }

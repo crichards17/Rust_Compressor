@@ -46,46 +46,46 @@ mod tests {
     #[test]
     fn test_empty() {
         let session_space_normalizer = SessionSpaceNormalizer::new();
-        assert!(!session_space_normalizer.contains(LocalId::new(-1)));
+        assert!(!session_space_normalizer.contains(LocalId::from_id(-1)));
     }
 
     #[test]
     fn test_single() {
         let mut session_space_normalizer = SessionSpaceNormalizer::new();
-        session_space_normalizer.add_local_range(LocalId::new(-1), 5);
-        assert!(session_space_normalizer.contains(LocalId::new(-1)));
-        assert!(session_space_normalizer.contains(LocalId::new(-2)));
+        session_space_normalizer.add_local_range(LocalId::from_id(-1), 5);
+        assert!(session_space_normalizer.contains(LocalId::from_id(-1)));
+        assert!(session_space_normalizer.contains(LocalId::from_id(-2)));
     }
 
     #[test]
     fn test_discontiguous() {
         let mut session_space_normalizer = SessionSpaceNormalizer::new();
-        session_space_normalizer.add_local_range(LocalId::new(-1), 2);
-        session_space_normalizer.add_local_range(LocalId::new(-6), 4);
-        session_space_normalizer.add_local_range(LocalId::new(-15), 1);
-        assert!(!session_space_normalizer.contains(LocalId::new(-11)));
-        assert!(!session_space_normalizer.contains(LocalId::new(-3)));
-        assert!(session_space_normalizer.contains(LocalId::new(-7)));
+        session_space_normalizer.add_local_range(LocalId::from_id(-1), 2);
+        session_space_normalizer.add_local_range(LocalId::from_id(-6), 4);
+        session_space_normalizer.add_local_range(LocalId::from_id(-15), 1);
+        assert!(!session_space_normalizer.contains(LocalId::from_id(-11)));
+        assert!(!session_space_normalizer.contains(LocalId::from_id(-3)));
+        assert!(session_space_normalizer.contains(LocalId::from_id(-7)));
     }
 
     #[test]
     fn test_contiguous() {
         let mut session_space_normalizer = SessionSpaceNormalizer::new();
-        session_space_normalizer.add_local_range(LocalId::new(-1), 2);
-        session_space_normalizer.add_local_range(LocalId::new(-3), 4);
-        session_space_normalizer.add_local_range(LocalId::new(-15), 1);
-        assert!(session_space_normalizer.contains(LocalId::new(-1)));
-        assert!(session_space_normalizer.contains(LocalId::new(-4)));
-        assert!(session_space_normalizer.contains(LocalId::new(-6)));
-        assert!(!session_space_normalizer.contains(LocalId::new(-7)));
-        assert!(session_space_normalizer.contains(LocalId::new(-15)));
+        session_space_normalizer.add_local_range(LocalId::from_id(-1), 2);
+        session_space_normalizer.add_local_range(LocalId::from_id(-3), 4);
+        session_space_normalizer.add_local_range(LocalId::from_id(-15), 1);
+        assert!(session_space_normalizer.contains(LocalId::from_id(-1)));
+        assert!(session_space_normalizer.contains(LocalId::from_id(-4)));
+        assert!(session_space_normalizer.contains(LocalId::from_id(-6)));
+        assert!(!session_space_normalizer.contains(LocalId::from_id(-7)));
+        assert!(session_space_normalizer.contains(LocalId::from_id(-15)));
     }
 
     #[test]
     fn test_contains() {
         let mut session_space_normalizer = SessionSpaceNormalizer::new();
-        session_space_normalizer.add_local_range(LocalId::new(-1), 2);
-        session_space_normalizer.add_local_range(LocalId::new(-6), 2);
-        assert!(!session_space_normalizer.contains(LocalId::new(-3)));
+        session_space_normalizer.add_local_range(LocalId::from_id(-1), 2);
+        session_space_normalizer.add_local_range(LocalId::from_id(-6), 2);
+        assert!(!session_space_normalizer.contains(LocalId::from_id(-3)));
     }
 }
