@@ -593,7 +593,13 @@ pub struct IdRange {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+
+    use uuid::Uuid;
+
     use super::*;
+
+    const EDGE_OF_VERSION_SESSION_ID: &str = "00000000-0000-4fff-bfff-ffffffffffff";
 
     const _STABLE_IDS: &[&str] = &[
         "748540ca-b7c5-4c99-83ff-c1b8e02c09d6",
@@ -609,7 +615,58 @@ mod tests {
         "10000000-0000-4000-b040-000000000000",
         "f0000000-0000-4000-8000-000000000000",
         "efffffff-ffff-4fff-bfff-ffffffffffff",
+        EDGE_OF_VERSION_SESSION_ID,
     ];
+
+    impl SessionSpaceId {
+        fn unwrap_uuid_str(&self, compressor: &IdCompressor) -> String {
+            self.decompress(compressor).unwrap().to_uuid_string()
+        }
+    }
+
+    impl IdCompressor {
+        // All helpers prefixed with 'h' to avoid polluting intellisense
+
+        fn h_generate_n_ids(&mut self, num_ids: i32) -> Vec<SessionSpaceId> {
+            let mut ids = Vec::new();
+            for _ in 0..num_ids {
+                ids.push(self.generate_next_id())
+            }
+            ids
+        }
+
+        fn h_finalize_next_range(&mut self) {
+            let range = self.take_next_range();
+            _ = self.finalize_range(&range);
+        }
+    }
+
+    #[test]
+    fn test_cluster_spans_reserved_bits() {
+        let mut compressor = IdCompressor::new_with_session_id(
+            SessionId::from_uuid_string(EDGE_OF_VERSION_SESSION_ID).unwrap(),
+        );
+
+        let local_first = compressor.generate_next_id();
+        assert_eq!(
+            local_first.unwrap_uuid_str(&compressor),
+            EDGE_OF_VERSION_SESSION_ID
+        );
+        compressor.h_finalize_next_range();
+
+        // Some eager finals, some locals
+        let ids = compressor.h_generate_n_ids(10);
+        compressor.h_finalize_next_range();
+
+        let mut uuid_set = HashSet::new();
+        for id in &ids {
+            uuid_set.insert(id.unwrap_uuid_str(&compressor));
+        }
+        assert_eq!(uuid_set.len(), ids.len());
+        for uuid_str in &uuid_set {
+            assert!(Uuid::try_parse(uuid_str).is_ok());
+        }
+    }
 
     #[test]
     fn test_complex() {
