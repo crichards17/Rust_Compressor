@@ -599,7 +599,8 @@ mod tests {
 
     use super::*;
 
-    const EDGE_OF_VERSION_SESSION_ID: &str = "00000000-0000-4fff-bfff-ffffffffffff";
+    const LEADING_EDGE_OF_VERSION_SESSION_ID: &str = "00000000-0000-4fff-bfff-ffffffffffff";
+    const TRAILING_EDGE_OF_VERSION_SESSION_ID: &str = "00000000-0001-4000-8000-000000000000";
 
     const _STABLE_IDS: &[&str] = &[
         "748540ca-b7c5-4c99-83ff-c1b8e02c09d6",
@@ -615,7 +616,7 @@ mod tests {
         "10000000-0000-4000-b040-000000000000",
         "f0000000-0000-4000-8000-000000000000",
         "efffffff-ffff-4fff-bfff-ffffffffffff",
-        EDGE_OF_VERSION_SESSION_ID,
+        LEADING_EDGE_OF_VERSION_SESSION_ID,
     ];
 
     impl SessionSpaceId {
@@ -644,13 +645,13 @@ mod tests {
     #[test]
     fn test_cluster_spans_reserved_bits() {
         let mut compressor = IdCompressor::new_with_session_id(
-            SessionId::from_uuid_string(EDGE_OF_VERSION_SESSION_ID).unwrap(),
+            SessionId::from_uuid_string(LEADING_EDGE_OF_VERSION_SESSION_ID).unwrap(),
         );
 
         let local_first = compressor.generate_next_id();
         assert_eq!(
             local_first.unwrap_uuid_str(&compressor),
-            EDGE_OF_VERSION_SESSION_ID
+            LEADING_EDGE_OF_VERSION_SESSION_ID
         );
         compressor.h_finalize_next_range();
 
@@ -663,8 +664,12 @@ mod tests {
             uuid_set.insert(id.unwrap_uuid_str(&compressor));
         }
         assert_eq!(uuid_set.len(), ids.len());
+        let trailing_uuid = Uuid::try_parse(TRAILING_EDGE_OF_VERSION_SESSION_ID)
+            .unwrap()
+            .as_u128();
         for uuid_str in &uuid_set {
-            assert!(Uuid::try_parse(uuid_str).is_ok());
+            let uuid = Uuid::try_parse(uuid_str).unwrap();
+            assert!(uuid.as_u128() >= trailing_uuid);
         }
     }
 
