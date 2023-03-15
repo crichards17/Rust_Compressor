@@ -185,7 +185,7 @@ pub struct IdCluster {
 impl IdCluster {
     pub fn get_allocated_final(&self, local_within: LocalId) -> Option<FinalId> {
         let cluster_offset =
-            (local_within.to_generation_count() - self.base_local_id.to_generation_count()) as u64;
+            local_within.to_generation_count() - self.base_local_id.to_generation_count();
         if cluster_offset < self.capacity {
             Some(self.base_final_id + cluster_offset)
         } else {

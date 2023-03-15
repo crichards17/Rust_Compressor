@@ -1,7 +1,32 @@
-use std::f64::NAN;
+#![deny(
+    bad_style,
+    dead_code,
+    improper_ctypes,
+    non_shorthand_field_patterns,
+    no_mangle_generic_items,
+    overflowing_literals,
+    path_statements,
+    patterns_in_fns_without_body,
+    private_in_public,
+    unconditional_recursion,
+    unused,
+    unused_allocation,
+    unused_comparisons,
+    unused_parens,
+    while_true,
+    // missing_debug_implementations,
+    // missing_docs,
+    trivial_casts,
+    trivial_numeric_casts,
+    unused_extern_crates,
+    unused_import_braces,
+    unused_qualifications,
+    // unused_results
+)]
 
 use distributed_id_allocator::compressor::{ErrorEnum, IdCompressor as IdCompressorCore, IdRange};
-use id_types::{LocalId, OpSpaceId, SessionId, SessionSpaceId, StableId};
+use id_types::{OpSpaceId, SessionId, SessionSpaceId, StableId};
+use std::f64::NAN;
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
@@ -11,7 +36,8 @@ pub struct IdCompressor {
     error_string: Option<String>,
 }
 
-const MAX_SAFE_INTEGER: i64 = (2 as i64).pow(53) - 1;
+const BINARY_BASE: i64 = 2;
+const MAX_SAFE_INTEGER: i64 = BINARY_BASE.pow(53) - 1;
 
 #[wasm_bindgen]
 impl IdCompressor {
@@ -258,7 +284,7 @@ mod tests {
     #[should_panic]
     fn cluster_capacity_fract() {
         let (mut compressor, _) = initialize_compressor();
-        _ = compressor.set_cluster_capacity(5.5 as f64);
+        _ = compressor.set_cluster_capacity(5.5);
     }
 
     #[test]
