@@ -3,7 +3,6 @@ export {
 	SerializedIdCompressor,
 	SerializedIdCompressorWithNoSession,
 	SerializedIdCompressorWithOngoingSession,
-	UnackedLocalId,
 	VersionedSerializedIdCompressor,
 } from "./persisted-types";
 

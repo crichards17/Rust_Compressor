@@ -1,4 +1,4 @@
-import type { LocalCompressedId, OpSpaceCompressedId, SessionId } from "../identifiers";
+import type { SessionId } from "../identifiers";
 
 /**
  * The version of IdCompressor that is currently persisted.
@@ -53,9 +53,9 @@ export interface SerializedIdCompressorWithOngoingSession extends SerializedIdCo
  * This would result in the following range:
  * ```
  * {
- *     first: localId1,
- *     last: localId6,
- *     overrides: [[localId2, '0093cf29-9454-4034-8940-33b1077b41c3'], [localId4, '0ed545f8-e97e-4dc1-acf9-c4a783258bdf']]
+ *     firstGenCount: 1,
+ *     lastGenCount: 6,
+ *     overrides: [[2, '0093cf29-9454-4034-8940-33b1077b41c3'], [4, '0ed545f8-e97e-4dc1-acf9-c4a783258bdf']]
  * }
  * ```
  */
@@ -64,24 +64,22 @@ export interface IdCreationRange {
 	readonly ids?: IdCreationRange.Ids;
 }
 
-export type UnackedLocalId = LocalCompressedId & OpSpaceCompressedId;
-
 // eslint-disable-next-line @typescript-eslint/no-namespace
 export namespace IdCreationRange {
 	export type Ids =
 		| {
-				readonly first: UnackedLocalId;
-				readonly last: UnackedLocalId;
+				readonly firstGenCount: number;
+				readonly lastGenCount: number;
 		  }
 		| ({
-				readonly first?: UnackedLocalId;
-				readonly last?: UnackedLocalId;
+				readonly firstGenCount?: number;
+				readonly lastGenCount?: number;
 		  } & HasOverrides);
 
 	export interface HasOverrides {
 		readonly overrides: Overrides;
 	}
 
-	export type Override = readonly [id: UnackedLocalId, override: string];
+	export type Override = readonly [associatedGenCount: number, override: string];
 	export type Overrides = readonly [Override, ...Override[]];
 }

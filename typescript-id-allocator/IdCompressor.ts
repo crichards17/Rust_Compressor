@@ -12,7 +12,6 @@ import {
 	SessionId,
 	SessionSpaceCompressedId,
 	StableId,
-	UnackedLocalId,
 } from "./types";
 import { currentWrittenVersion } from "./types/persisted-types/0.0.1";
 import { assert, generateStableId } from "./util";
@@ -46,7 +45,7 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 		if (ids === undefined) {
 			return;
 		}
-		const { first, last, overrides } = ids;
+		const { firstGenCount: first, lastGenCount: last, overrides } = ids;
 		assert(overrides === undefined, "Overrides not yet supported.");
 		this.wasmCompressor.finalize_range(
 			this.getOrCreateSessionToken(range.sessionId),
@@ -61,12 +60,12 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 		if (wasmRange.ids === undefined) {
 			range = { sessionId: this.localSessionId };
 		} else {
-			const { first_local, count } = wasmRange.ids;
+			const { first_local_gen_count, count } = wasmRange.ids;
 			range = {
 				sessionId: this.localSessionId,
 				ids: {
-					first: first_local as UnackedLocalId,
-					last: (first_local - count + 1) as UnackedLocalId,
+					firstGenCount: first_local_gen_count,
+					lastGenCount: first_local_gen_count + count - 1,
 				},
 			};
 		}
