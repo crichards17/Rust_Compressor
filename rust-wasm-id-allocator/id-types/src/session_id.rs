@@ -1,5 +1,3 @@
-use crate::compressor::ErrorEnum;
-
 use super::{LocalId, StableId};
 use uuid::Uuid;
 
@@ -18,17 +16,17 @@ impl SessionId {
     const LOWER_MASK: u128 = 0x3FFFFFFFFFFFFFFF;
 
     #[cfg(feature = "uuid-generation")]
-    pub(crate) fn new() -> SessionId {
+    pub fn new() -> SessionId {
         // todo doc restriction on upper bits and debug assert
         SessionId::from_uuid(Uuid::new_v4())
     }
 
-    pub(super) fn from_uuid(uuid: uuid::Uuid) -> SessionId {
+    pub(crate) fn from_uuid(uuid: uuid::Uuid) -> SessionId {
         let as_u128 = uuid.as_u128();
         SessionId::from_uuid_u128(as_u128)
     }
 
-    pub(crate) fn from_uuid_u128(as_u128: u128) -> SessionId {
+    pub fn from_uuid_u128(as_u128: u128) -> SessionId {
         let upper_masked = as_u128 & SessionId::UPPER_MASK;
         let middie_bitties_masked = as_u128 & SessionId::MIDDIE_BITTIES_MASK;
         let lower_masked = as_u128 & SessionId::LOWER_MASK;
@@ -48,11 +46,11 @@ impl SessionId {
         }
     }
 
-    pub(super) fn id(&self) -> u128 {
+    pub(crate) fn id(&self) -> u128 {
         self.id
     }
 
-    pub(crate) fn stable_from_local_offset(&self, offset_local: LocalId) -> StableId {
+    pub fn stable_from_local_offset(&self, offset_local: LocalId) -> StableId {
         let new_id = self.id + (offset_local.to_generation_count() - 1) as u128;
         StableId::new(new_id)
     }
@@ -61,12 +59,4 @@ impl SessionId {
 #[derive(Debug)]
 pub enum UuidGenerationError {
     InvalidUuidString,
-}
-
-impl ErrorEnum for UuidGenerationError {
-    fn get_error_string(&self) -> &'static str {
-        match self {
-            UuidGenerationError::InvalidUuidString => "Invalid Uuid String",
-        }
-    }
 }

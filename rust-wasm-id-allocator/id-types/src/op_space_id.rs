@@ -15,7 +15,7 @@ impl OpSpaceId {
         Self { id }
     }
 
-    pub(crate) fn to_space(&self) -> CompressedId {
+    pub fn to_space(&self) -> CompressedId {
         if self.is_local() {
             return CompressedId::Local(LocalId::from_id(self.id));
         } else {
@@ -23,7 +23,7 @@ impl OpSpaceId {
         }
     }
 
-    pub(crate) fn is_local(&self) -> bool {
+    pub fn is_local(&self) -> bool {
         self.id < 0
     }
 }

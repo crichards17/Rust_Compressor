@@ -2,8 +2,7 @@
 The local/UUID space within an individual Session.
 Effectively represents the cluster chain for a given session.
 */
-use crate::id_types::SessionId;
-use crate::id_types::*;
+use id_types::{FinalId, LocalId, SessionId};
 use std::cmp::Ordering;
 use std::collections::HashMap;
 

@@ -1,4 +1,4 @@
-use crate::id_types::SessionId;
+use id_types::SessionId;
 
 use super::IdCompressor;
 use postcard::from_bytes;
@@ -54,8 +54,8 @@ pub(crate) mod v1 {
             },
         },
         compressor::IdCompressor,
-        id_types::{FinalId, LocalId, SessionId, StableId},
     };
+    use id_types::{FinalId, LocalId, SessionId, StableId};
     use postcard::to_allocvec;
     use serde::{Deserialize, Serialize};
 

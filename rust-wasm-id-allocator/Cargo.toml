@@ -1,5 +1,5 @@
 [workspace]
-members = ["./distributed-id-allocator", "./wasm-id-allocator"]
+members = ["./distributed-id-allocator", "./wasm-id-allocator", "./id-types"]
 
 [profile.release]
 opt-level = 2

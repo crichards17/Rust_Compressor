@@ -1,4 +1,4 @@
-use crate::id_types::FinalId;
+use id_types::FinalId;
 
 /*
 Propose: rename to final_space_table

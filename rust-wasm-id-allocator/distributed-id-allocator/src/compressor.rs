@@ -5,7 +5,8 @@ use self::tables::final_space::FinalSpace;
 use self::tables::session_space::{ClusterRef, SessionSpace, SessionSpaceRef, Sessions};
 use self::tables::session_space_normalizer::SessionSpaceNormalizer;
 use self::tables::uuid_space::UuidSpace;
-use super::id_types::*;
+use id_types::session_id::UuidGenerationError;
+use id_types::*;
 
 #[derive(PartialEq, Eq, Debug)]
 pub struct IdCompressor {
@@ -247,16 +248,94 @@ impl IdCompressor {
     {
         persistence::deserialize(bytes, make_session_id)
     }
-}
 
-impl SessionSpaceId {
-    pub fn decompress(&self, compressor: &IdCompressor) -> Result<StableId, DecompressionError> {
-        match self.to_space() {
-            CompressedId::Final(final_id) => {
-                match compressor
-                    .final_space
-                    .search(final_id, &compressor.sessions)
+    pub fn normalize_to_op_space(
+        &self,
+        id: SessionSpaceId,
+    ) -> Result<OpSpaceId, NormalizationError> {
+        match id.to_space() {
+            CompressedId::Final(final_id) => Ok(OpSpaceId::from(final_id)),
+            CompressedId::Local(local_id) => {
+                if !self.session_space_normalizer.contains(local_id) {
+                    return Err(NormalizationError::UnknownSessionSpaceId);
+                } else {
+                    let local_session_space = self.sessions.deref_session_space(self.local_session);
+                    match local_session_space.try_convert_to_final(local_id) {
+                        Some(converted_final) => Ok(OpSpaceId::from(converted_final)),
+                        None => Ok(OpSpaceId::from(local_id)),
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn normalize_to_session_space(
+        &self,
+        id: OpSpaceId,
+        originator: SessionId,
+    ) -> Result<SessionSpaceId, NormalizationError> {
+        match id.to_space() {
+            CompressedId::Local(local_to_normalize) => {
+                if originator == self.session_id {
+                    Ok(SessionSpaceId::from(local_to_normalize))
+                } else {
+                    // LocalId from a foreign session
+                    let foreign_session_space = match self.sessions.get(originator) {
+                        Some(session_space) => session_space,
+                        None => {
+                            return Err(NormalizationError::UnknownSessionId);
+                        }
+                    };
+                    match foreign_session_space.try_convert_to_final(local_to_normalize) {
+                        Some(final_id) => Ok(SessionSpaceId::from(final_id)),
+                        None => Err(NormalizationError::UnfinalizedForeignLocal),
+                    }
+                }
+            }
+            CompressedId::Final(final_to_normalize) => {
+                match self
+                    .get_local_session_space()
+                    .get_cluster_by_allocated_final(final_to_normalize)
                 {
+                    // Exists in local cluster chain
+                    Some(containing_cluster) => {
+                        let aligned_local =
+                            match containing_cluster.get_aligned_local(final_to_normalize) {
+                                None => return Err(NormalizationError::NoAlignedLocal),
+                                Some(aligned_local) => aligned_local,
+                            };
+                        if self.session_space_normalizer.contains(aligned_local) {
+                            Ok(SessionSpaceId::from(aligned_local))
+                        } else {
+                            if aligned_local.to_generation_count() <= self.generated_id_count {
+                                Ok(SessionSpaceId::from(final_to_normalize))
+                            } else {
+                                Err(NormalizationError::UngeneratedId)
+                            }
+                        }
+                    }
+                    None => {
+                        // Does not exist in local cluster chain
+                        match self.final_space.get_tail_cluster(&self.sessions) {
+                            None => Err(NormalizationError::NoFinalizedRanges),
+                            Some(final_space_tail_cluster) => {
+                                if final_to_normalize <= final_space_tail_cluster.max_final() {
+                                    Ok(SessionSpaceId::from(final_to_normalize))
+                                } else {
+                                    Err(NormalizationError::UnFinalizedForeignFinal)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn decompress(&self, id: SessionSpaceId) -> Result<StableId, DecompressionError> {
+        match id.to_space() {
+            CompressedId::Final(final_id) => {
+                match self.final_space.search(final_id, &self.sessions) {
                     Some(containing_cluster) => {
                         let aligned_local = match containing_cluster.get_aligned_local(final_id) {
                             None => return Err(DecompressionError::NoAlignedLocal),
@@ -264,13 +343,11 @@ impl SessionSpaceId {
                         };
                         if aligned_local < containing_cluster.max_local() {
                             // must be an id generated (allocated or finalized) by the local session, or a finalized id from a remote session
-                            if containing_cluster.session_creator == compressor.local_session {
-                                if compressor.session_space_normalizer.contains(aligned_local) {
+                            if containing_cluster.session_creator == self.local_session {
+                                if self.session_space_normalizer.contains(aligned_local) {
                                     return Err(DecompressionError::UnobtainableId);
                                 }
-                                if aligned_local.to_generation_count()
-                                    > compressor.generated_id_count
-                                {
+                                if aligned_local.to_generation_count() > self.generated_id_count {
                                     return Err(DecompressionError::UngeneratedFinalId);
                                 }
                             } else {
@@ -278,7 +355,7 @@ impl SessionSpaceId {
                             }
                         }
 
-                        Ok(compressor
+                        Ok(self
                             .sessions
                             .deref_session_space(containing_cluster.session_creator)
                             .session_id()
@@ -288,145 +365,26 @@ impl SessionSpaceId {
                 }
             }
             CompressedId::Local(local_id) => {
-                if !compressor.session_space_normalizer.contains(local_id) {
+                if !self.session_space_normalizer.contains(local_id) {
                     return Err(DecompressionError::UnobtainableId);
                 }
-                Ok(compressor.session_id.stable_from_local_offset(local_id))
+                Ok(self.session_id.stable_from_local_offset(local_id))
             }
         }
     }
 
-    pub fn normalize_to_op_space(
-        &self,
-        compressor: &IdCompressor,
-    ) -> Result<OpSpaceId, NormalizationError> {
-        match self.to_space() {
-            CompressedId::Final(final_id) => Ok(OpSpaceId::from(final_id)),
-            CompressedId::Local(local_id) => {
-                if !compressor.session_space_normalizer.contains(local_id) {
-                    return Err(NormalizationError::UnknownSessionSpaceId);
-                } else {
-                    let local_session_space = compressor
-                        .sessions
-                        .deref_session_space(compressor.local_session);
-                    match local_session_space.try_convert_to_final(local_id) {
-                        Some(converted_final) => Ok(OpSpaceId::from(converted_final)),
-                        None => Ok(OpSpaceId::from(local_id)),
-                    }
-                }
-            }
-        }
-    }
-}
-
-impl OpSpaceId {
-    pub fn normalize_to_session_space(
-        &self,
-        originator_if_local_id: Option<SessionId>,
-        compressor: &IdCompressor,
-    ) -> Result<SessionSpaceId, NormalizationError> {
-        match self.to_space() {
-            CompressedId::Local(local_to_normalize) => match originator_if_local_id {
-                None => Err(NormalizationError::NoSessionIdProvided),
-                Some(originator) => {
-                    local_to_normalize.normalize_to_session_space(originator, compressor)
-                }
-            },
-            CompressedId::Final(final_to_normalize) => {
-                final_to_normalize.normalize_to_session_space(compressor)
-            }
-        }
-    }
-}
-
-impl LocalId {
-    pub fn normalize_to_session_space(
-        &self,
-        originator: SessionId,
-        compressor: &IdCompressor,
-    ) -> Result<SessionSpaceId, NormalizationError> {
-        if originator == compressor.session_id {
-            Ok(SessionSpaceId::from(*self))
-        } else {
-            // LocalId from a foreign session
-            let foreign_session_space = match compressor.sessions.get(originator) {
-                Some(session_space) => session_space,
-                None => {
-                    return Err(NormalizationError::UnknownSessionId);
-                }
-            };
-            match foreign_session_space.try_convert_to_final(*self) {
-                Some(final_id) => Ok(SessionSpaceId::from(final_id)),
-                None => Err(NormalizationError::UnfinalizedForeignLocal),
-            }
-        }
-    }
-}
-
-impl FinalId {
-    pub fn normalize_to_session_space(
-        &self,
-        compressor: &IdCompressor,
-    ) -> Result<SessionSpaceId, NormalizationError> {
-        match compressor
-            .get_local_session_space()
-            .get_cluster_by_allocated_final(*self)
-        {
-            // Exists in local cluster chain
-            Some(containing_cluster) => {
-                let aligned_local = match containing_cluster.get_aligned_local(*self) {
-                    None => return Err(NormalizationError::NoAlignedLocal),
-                    Some(aligned_local) => aligned_local,
-                };
-                if compressor.session_space_normalizer.contains(aligned_local) {
-                    Ok(SessionSpaceId::from(aligned_local))
-                } else {
-                    if aligned_local.to_generation_count() <= compressor.generated_id_count {
-                        Ok(SessionSpaceId::from(*self))
-                    } else {
-                        Err(NormalizationError::UngeneratedId)
-                    }
-                }
-            }
+    pub fn recompress(&self, id: StableId) -> Result<SessionSpaceId, RecompressionError> {
+        match self.uuid_space.search(id, &self.sessions) {
             None => {
-                // Does not exist in local cluster chain
-                match compressor
-                    .final_space
-                    .get_tail_cluster(&compressor.sessions)
-                {
-                    None => Err(NormalizationError::NoFinalizedRanges),
-                    Some(final_space_tail_cluster) => {
-                        if *self <= final_space_tail_cluster.max_final() {
-                            Ok(SessionSpaceId::from(*self))
-                        } else {
-                            Err(NormalizationError::UnFinalizedForeignFinal)
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-impl StableId {
-    pub fn recompress(
-        &self,
-        compressor: &IdCompressor,
-    ) -> Result<SessionSpaceId, RecompressionError> {
-        match compressor.uuid_space.search(*self, &compressor.sessions) {
-            None => {
-                let session_as_stable = StableId::from(compressor.session_id);
-                if self >= &session_as_stable {
+                let session_as_stable = StableId::from(self.session_id);
+                if id >= session_as_stable {
                     // TODO: WARN: UUID math
-                    let gen_count_equivalent = *self - session_as_stable + 1;
-                    if gen_count_equivalent <= compressor.generated_id_count as u128 {
+                    let gen_count_equivalent = id - session_as_stable + 1;
+                    if gen_count_equivalent <= self.generated_id_count as u128 {
                         // Is a locally generated ID, with or without a finalized cluster
                         let local_equivalent =
                             LocalId::from_generation_count(gen_count_equivalent as u64);
-                        if compressor
-                            .session_space_normalizer
-                            .contains(local_equivalent)
-                        {
+                        if self.session_space_normalizer.contains(local_equivalent) {
                             return Ok(SessionSpaceId::from(local_equivalent));
                         }
                     }
@@ -434,16 +392,11 @@ impl StableId {
                 Err(RecompressionError::UnallocatedStableId)
             }
             Some((cluster, originator_local)) => {
-                if cluster.session_creator == compressor.local_session {
+                if cluster.session_creator == self.local_session {
                     // Local session
-                    if compressor
-                        .session_space_normalizer
-                        .contains(originator_local)
-                    {
+                    if self.session_space_normalizer.contains(originator_local) {
                         return Ok(SessionSpaceId::from(originator_local));
-                    } else if originator_local.to_generation_count()
-                        <= compressor.generated_id_count
-                    {
+                    } else if originator_local.to_generation_count() <= self.generated_id_count {
                         // Id is an eager final
                         match cluster.get_allocated_final(originator_local) {
                             None => return Err(RecompressionError::NoAllocatedFinal),
@@ -472,6 +425,14 @@ impl StableId {
 
 pub trait ErrorEnum {
     fn get_error_string(&self) -> &'static str;
+}
+
+impl ErrorEnum for UuidGenerationError {
+    fn get_error_string(&self) -> &'static str {
+        match self {
+            UuidGenerationError::InvalidUuidString => "Invalid Uuid String",
+        }
+    }
 }
 
 // TODO: comment each one about how it can happen
@@ -619,9 +580,13 @@ mod tests {
         LEADING_EDGE_OF_VERSION_SESSION_ID,
     ];
 
-    impl SessionSpaceId {
+    trait TestSessionSpaceId {
+        fn unwrap_uuid_str(&self, compressor: &IdCompressor) -> String;
+    }
+
+    impl TestSessionSpaceId for SessionSpaceId {
         fn unwrap_uuid_str(&self, compressor: &IdCompressor) -> String {
-            self.decompress(compressor).unwrap().to_uuid_string()
+            compressor.decompress(*self).unwrap().to_uuid_string()
         }
     }
 
@@ -718,14 +683,14 @@ mod tests {
             session_space_id_7,
         ] {
             let stable_id = StableId::from(compressor.session_id) + offset as u64;
-            assert_eq!(id.decompress(&compressor).unwrap(), stable_id,);
-            assert_eq!(stable_id.recompress(&compressor).unwrap(), id);
+            assert_eq!(compressor.decompress(id).unwrap(), stable_id,);
+            assert_eq!(compressor.recompress(stable_id).unwrap(), id);
 
-            let op_space_id = id.normalize_to_op_space(&compressor).unwrap();
+            let op_space_id = compressor.normalize_to_op_space(id).unwrap();
             assert_eq!(
                 id,
-                op_space_id
-                    .normalize_to_session_space(Some(compressor.session_id), &compressor)
+                compressor
+                    .normalize_to_session_space(op_space_id, compressor.session_id)
                     .unwrap()
             );
             if op_space_ids[offset] < 0 {
@@ -768,15 +733,15 @@ mod tests {
         let session_space_id = compressor.generate_next_id();
 
         let stable_id = StableId::from(compressor.session_id);
-        assert_eq!(session_space_id.decompress(&compressor).unwrap(), stable_id,);
-        assert_eq!(stable_id.recompress(&compressor).unwrap(), session_space_id);
+        assert_eq!(compressor.decompress(session_space_id).unwrap(), stable_id,);
+        assert_eq!(compressor.recompress(stable_id).unwrap(), session_space_id);
     }
 
     #[test]
     fn test_recompress_invalid() {
         let compressor = IdCompressor::new();
         let foreign_stable = StableId::from(SessionId::new());
-        assert!(foreign_stable.recompress(&compressor).is_err());
+        assert!(compressor.recompress(foreign_stable).is_err());
     }
 
     #[test]

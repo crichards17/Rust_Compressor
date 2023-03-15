@@ -1,9 +1,7 @@
 use std::f64::NAN;
 
-use distributed_id_allocator::{
-    compressor::{ErrorEnum, IdCompressor as IdCompressorCore, IdRange},
-    id_types::{FinalId, LocalId, SessionId, SessionSpaceId, StableId},
-};
+use distributed_id_allocator::compressor::{ErrorEnum, IdCompressor as IdCompressorCore, IdRange};
+use id_types::{FinalId, LocalId, SessionId, SessionSpaceId, StableId};
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
@@ -160,7 +158,7 @@ impl IdCompressor {
             Err(e) => {
                 self.set_error_string(e.get_error_string());
                 return None;
-            },
+            }
             Ok(session_id) => StableId::from(session_id),
         };
         match stable_id.recompress(&self.compressor) {
@@ -168,7 +166,7 @@ impl IdCompressor {
             Err(e) => {
                 self.set_error_string(e.get_error_string());
                 None
-            },
+            }
         }
     }
 
@@ -326,10 +324,7 @@ mod tests {
         let id_count = generated_ids.len();
         for id in generated_ids {
             let op_space_id = compressor.normalize_to_op_space(id);
-            assert_eq!(
-                compressor.normalize_final_to_session_space(op_space_id),
-                id
-            );
+            assert_eq!(compressor.normalize_final_to_session_space(op_space_id), id);
         }
         let new_final = compressor.generate_next_id();
         assert_eq!(compressor.normalize_to_op_space(new_final), new_final);
@@ -388,7 +383,9 @@ mod tests {
     fn recompress_invalid_uuid_string() {
         let (mut compressor, _) = initialize_compressor();
 
-       assert!(compressor.recompress(String::from("invalid_uuid")).is_none());
+        assert!(compressor
+            .recompress(String::from("invalid_uuid"))
+            .is_none());
     }
 
     #[test]
