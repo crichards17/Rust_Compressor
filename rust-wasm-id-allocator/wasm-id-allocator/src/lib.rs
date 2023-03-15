@@ -1,7 +1,7 @@
 use std::f64::NAN;
 
 use distributed_id_allocator::compressor::{ErrorEnum, IdCompressor as IdCompressorCore, IdRange};
-use id_types::{FinalId, LocalId, SessionId, SessionSpaceId, StableId};
+use id_types::{LocalId, OpSpaceId, SessionId, SessionSpaceId, StableId};
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
@@ -96,8 +96,9 @@ impl IdCompressor {
     }
 
     pub fn normalize_to_op_space(&mut self, session_space_id: f64) -> f64 {
-        match SessionSpaceId::from_id(session_space_id as i64)
-            .normalize_to_op_space(&self.compressor)
+        match &self
+            .compressor
+            .normalize_to_op_space(SessionSpaceId::from_id(session_space_id as i64))
         {
             Err(err) => {
                 self.set_error_string(err.get_error_string());
@@ -107,11 +108,7 @@ impl IdCompressor {
         }
     }
 
-    pub fn normalize_local_to_session_space(
-        &mut self,
-        originator_token: f64,
-        op_space_id: f64,
-    ) -> f64 {
+    pub fn normalize_to_session_space(&mut self, originator_token: f64, op_space_id: f64) -> f64 {
         let session_id = match self
             .compressor
             .get_session_id_from_session_token(originator_token as usize)
@@ -122,8 +119,9 @@ impl IdCompressor {
             }
             Ok(session_id) => session_id,
         };
-        match LocalId::from_id(op_space_id as i64)
-            .normalize_to_session_space(session_id, &self.compressor)
+        match &self
+            .compressor
+            .normalize_to_session_space(OpSpaceId::from_id(op_space_id as i64), session_id)
         {
             Err(err) => {
                 self.set_error_string(err.get_error_string());
@@ -133,18 +131,11 @@ impl IdCompressor {
         }
     }
 
-    pub fn normalize_final_to_session_space(&mut self, op_space_id: f64) -> f64 {
-        match FinalId::from_id(op_space_id as u64).normalize_to_session_space(&self.compressor) {
-            Err(err) => {
-                self.set_error_string(err.get_error_string());
-                NAN
-            }
-            Ok(session_space_id) => session_space_id.id() as f64,
-        }
-    }
-
     pub fn decompress(&mut self, id_to_decompress: f64) -> Option<String> {
-        match SessionSpaceId::from_id(id_to_decompress as i64).decompress(&self.compressor) {
+        match &self
+            .compressor
+            .decompress(SessionSpaceId::from_id(id_to_decompress as i64))
+        {
             Ok(stable_id) => Some(stable_id.to_uuid_string()),
             Err(e) => {
                 self.set_error_string(e.get_error_string());
@@ -161,7 +152,7 @@ impl IdCompressor {
             }
             Ok(session_id) => StableId::from(session_id),
         };
-        match stable_id.recompress(&self.compressor) {
+        match &self.compressor.recompress(stable_id) {
             Ok(session_space_id) => Some(session_space_id.id() as f64),
             Err(e) => {
                 self.set_error_string(e.get_error_string());
@@ -324,7 +315,13 @@ mod tests {
         let id_count = generated_ids.len();
         for id in generated_ids {
             let op_space_id = compressor.normalize_to_op_space(id);
-            assert_eq!(compressor.normalize_final_to_session_space(op_space_id), id);
+            assert_eq!(
+                compressor.normalize_to_session_space(
+                    op_space_id,
+                    compressor.compressor.get_local_session_token() as f64
+                ),
+                id
+            );
         }
         let new_final = compressor.generate_next_id();
         assert_eq!(compressor.normalize_to_op_space(new_final), new_final);
@@ -345,9 +342,9 @@ mod tests {
     fn normalize_to_session_space() {
         let (mut compressor, _) = initialize_compressor();
         finalize_compressor(&mut compressor);
-        assert_eq!(compressor.normalize_final_to_session_space(1.0), -2 as f64);
+        assert_eq!(compressor.normalize_to_session_space(1.0, 0.0), -2 as f64);
         assert!(compressor
-            .normalize_local_to_session_space(3 as f64, -1.0)
+            .normalize_to_session_space(3 as f64, -1.0)
             .is_nan());
         assert_eq!(
             compressor.error_string,
@@ -355,7 +352,7 @@ mod tests {
                 SessionTokenError::UnknownSessionToken.get_error_string()
             ))
         );
-        assert!(compressor.normalize_final_to_session_space(7.0).is_nan());
+        assert!(compressor.normalize_to_session_space(7.0, 0.0).is_nan());
     }
 
     #[test]

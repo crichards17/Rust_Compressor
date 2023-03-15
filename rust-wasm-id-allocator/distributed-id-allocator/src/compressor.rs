@@ -277,7 +277,21 @@ impl IdCompressor {
         match id.to_space() {
             CompressedId::Local(local_to_normalize) => {
                 if originator == self.session_id {
-                    Ok(SessionSpaceId::from(local_to_normalize))
+                    if self.session_space_normalizer.contains(local_to_normalize) {
+                        return Ok(SessionSpaceId::from(local_to_normalize));
+                    } else if local_to_normalize.to_generation_count() <= self.generated_id_count {
+                        // Id is an eager final
+
+                        match self
+                            .get_local_session_space()
+                            .try_convert_to_final(local_to_normalize)
+                        {
+                            None => return Err(NormalizationError::NoAllocatedFinal),
+                            Some(allocated_final) => Ok(allocated_final.into()),
+                        }
+                    } else {
+                        return Err(NormalizationError::UnallocatedLocal);
+                    }
                 } else {
                     // LocalId from a foreign session
                     let foreign_session_space = match self.sessions.get(originator) {
@@ -529,6 +543,8 @@ pub enum NormalizationError {
     NoFinalizedRanges,
     NoAlignedLocal,
     NoSessionIdProvided,
+    NoAllocatedFinal,
+    UnallocatedLocal,
 }
 
 impl NormalizationError {
@@ -542,6 +558,8 @@ impl NormalizationError {
             NormalizationError::NoFinalizedRanges => "NoFinalizedRanges",
             NormalizationError::NoAlignedLocal => "NoAlignedLocal",
             NormalizationError::NoSessionIdProvided => "NoSessionIdProvided",
+            NormalizationError::NoAllocatedFinal => "NoAllocatedFinal",
+            NormalizationError::UnallocatedLocal => "UnallocatedLocal",
         }
     }
 }
