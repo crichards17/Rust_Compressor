@@ -109,10 +109,6 @@ impl IdCompressor {
     }
 
     pub fn normalize_to_session_space(&mut self, op_space_id: f64, originator_token: f64) -> f64 {
-        if originator_token < 0.0 {
-            self.set_error_string("Originator token cannot be negative.");
-            return NAN;
-        }
         let session_id = match self
             .compressor
             .get_session_id_from_session_token(originator_token as usize)
@@ -365,9 +361,6 @@ mod tests {
             ),
             -2 as f64
         );
-        assert!(compressor
-            .normalize_to_session_space(-3 as f64, -1.0)
-            .is_nan());
         assert!(compressor
             .normalize_to_session_space(-3 as f64, 4.0)
             .is_nan());

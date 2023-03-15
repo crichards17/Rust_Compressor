@@ -32,7 +32,6 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 		return new IdCompressor(new WasmIdCompressor(localSessionId), localSessionId);
 	}
 
-	// TODO: A consumer passing an invalid or unknown SessionId will produce a JsError (at wasmCompressor.get_token()). Is this the behavior we want?
 	private getOrCreateSessionToken(sessionId: SessionId): number {
 		let token = this.sessionTokens.get(sessionId);
 		if (token === undefined) {
@@ -93,9 +92,7 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 		id: OpSpaceCompressedId,
 		originSessionId: SessionId,
 	): SessionSpaceCompressedId {
-		let session_token = this.getOrCreateSessionToken(
-			originSessionId ?? fail("No session ID supplied."),
-		);
+		let session_token = this.getOrCreateSessionToken(originSessionId);
 		let normalizedId = this.wasmCompressor.normalize_to_session_space(id, session_token);
 		return this.idOrError<SessionSpaceCompressedId>(normalizedId);
 	}
