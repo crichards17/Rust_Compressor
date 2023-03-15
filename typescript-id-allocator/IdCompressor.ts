@@ -91,21 +91,9 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 	public normalizeToSessionSpace(
 		id: OpSpaceCompressedId,
 		originSessionId: SessionId,
-	): SessionSpaceCompressedId;
-	public normalizeToSessionSpace(id: FinalCompressedId): SessionSpaceCompressedId;
-	public normalizeToSessionSpace(
-		id: OpSpaceCompressedId,
-		sessionIdIfLocal?: SessionId,
 	): SessionSpaceCompressedId {
-		let normalizedId: number;
-		if (id < 0) {
-			normalizedId = this.wasmCompressor.normalize_local_to_session_space(
-				this.getOrCreateSessionToken(sessionIdIfLocal ?? fail("No session ID supplied.")),
-				id,
-			);
-		} else {
-			normalizedId = this.wasmCompressor.normalize_final_to_session_space(id);
-		}
+		let session_token = this.getOrCreateSessionToken(originSessionId);
+		let normalizedId = this.wasmCompressor.normalize_to_session_space(id, session_token);
 		return this.idOrError<SessionSpaceCompressedId>(normalizedId);
 	}
 

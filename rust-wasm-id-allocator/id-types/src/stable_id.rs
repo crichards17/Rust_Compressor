@@ -11,7 +11,7 @@ impl StableId {
         StableId { id }
     }
 
-    pub(crate) fn null() -> StableId {
+    pub fn null() -> StableId {
         StableId { id: 0 }
     }
 
@@ -30,7 +30,7 @@ impl StableId {
         self.to_uuid().to_string()
     }
 
-    pub(crate) fn to_uuid_u128(&self) -> u128 {
+    pub fn to_uuid_u128(&self) -> u128 {
         // bitwise reverse transform
         let upper_masked = (self.id & StableId::UPPER_MASK) << 6;
         let middie_bitties_masked = (self.id & StableId::MIDDIE_BITTIES_MASK) << 2;

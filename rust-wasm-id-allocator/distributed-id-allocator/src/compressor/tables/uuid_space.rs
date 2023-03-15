@@ -3,7 +3,7 @@ This is an acceleration structure for the final_space_table.
 */
 
 use super::session_space::{ClusterRef, IdCluster, Sessions};
-use crate::id_types::{LocalId, SessionId, StableId};
+use id_types::{LocalId, SessionId, StableId};
 use std::collections::BTreeMap;
 use std::ops::Bound;
 

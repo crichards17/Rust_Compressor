@@ -1,6 +1,6 @@
 pub(crate) mod v1 {
     use crate::compressor::tables::session_space_normalizer::SessionSpaceNormalizer;
-    use crate::id_types::LocalId;
+    use id_types::LocalId;
     use serde::{Deserialize, Serialize};
 
     #[derive(Serialize, Deserialize)]
