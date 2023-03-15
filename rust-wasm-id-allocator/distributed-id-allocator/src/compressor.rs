@@ -13,7 +13,7 @@ pub struct IdCompressor {
     session_id: SessionId,
     local_session: SessionSpaceRef,
     generated_id_count: u64,
-    next_range_base: LocalId,
+    next_range_base_generation_count: u64,
     sessions: Sessions,
     final_space: FinalSpace,
     uuid_space: UuidSpace,
@@ -34,7 +34,7 @@ impl IdCompressor {
             session_id,
             local_session: sessions.get_or_create(session_id),
             generated_id_count: 0,
-            next_range_base: LocalId::from_id(-1),
+            next_range_base_generation_count: LocalId::from_id(-1).to_generation_count(),
             sessions,
             final_space: FinalSpace::new(),
             uuid_space: UuidSpace::new(),
@@ -119,7 +119,7 @@ impl IdCompressor {
     }
 
     pub fn take_next_range(&mut self) -> IdRange {
-        let count = self.generated_id_count - (self.next_range_base.to_generation_count() - 1);
+        let count = self.generated_id_count - (self.next_range_base_generation_count - 1);
         IdRange {
             id: self.session_id,
             range: if count == 0 {
@@ -130,8 +130,8 @@ impl IdCompressor {
                     "Must only allocate a positive number of IDs. Count was {}",
                     count
                 );
-                let next_range = Some((self.next_range_base, count));
-                self.next_range_base = LocalId::from_generation_count(self.generated_id_count + 1);
+                let next_range = Some((self.next_range_base_generation_count, count));
+                self.next_range_base_generation_count = self.generated_id_count + 1;
                 next_range
             },
         }
@@ -145,7 +145,7 @@ impl IdCompressor {
         }: &IdRange,
     ) -> Result<(), FinalizationError> {
         // Check if the block has IDs
-        let (range_base_local, range_len) = match range {
+        let (range_base_gen_count, range_len) = match range {
             None => {
                 return Ok(());
             }
@@ -155,6 +155,7 @@ impl IdCompressor {
             Some(range) => range,
         };
 
+        let range_base_local = LocalId::from_generation_count(range_base_gen_count);
         let session_space_ref = self.sessions.get_or_create(session_id);
         let tail_cluster_ref = match self
             .sessions
@@ -566,8 +567,8 @@ impl NormalizationError {
 
 pub struct IdRange {
     pub id: SessionId,
-    // (First LocalID in the range, count)
-    pub range: Option<(LocalId, u64)>,
+    // (First LocalID in the range as generation count, count of IDs)
+    pub range: Option<(u64, u64)>,
 }
 
 #[cfg(test)]

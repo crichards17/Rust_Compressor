@@ -61,10 +61,10 @@ impl IdCompressor {
     pub fn take_next_range(&mut self) -> InteropIdRange {
         let token = self.compressor.get_local_session_token() as f64;
         match self.compressor.take_next_range().range {
-            Some((first_local, count)) => InteropIdRange {
+            Some((first_local_gen_count, count)) => InteropIdRange {
                 token,
                 ids: Some(InteropIds {
-                    first_local: first_local.id() as f64,
+                    first_local_gen_count: first_local_gen_count as f64,
                     count: count as f64,
                 }),
             },
@@ -75,7 +75,7 @@ impl IdCompressor {
     pub fn finalize_range(
         &mut self,
         session_token: f64,
-        range_base_local: f64,
+        range_base_count: f64,
         range_len: f64,
     ) -> Result<(), JsError> {
         let id = match self
@@ -90,7 +90,7 @@ impl IdCompressor {
         self.compressor
             .finalize_range(&IdRange {
                 id,
-                range: Some((LocalId::from_id(range_base_local as i64), range_len as u64)),
+                range: Some((range_base_count as u64, range_len as u64)),
             })
             .map_err(|e| JsError::new(e.get_error_string()))
     }
@@ -216,15 +216,15 @@ impl InteropIdRange {
 #[wasm_bindgen]
 #[derive(Clone, Copy)]
 pub struct InteropIds {
-    first_local: f64,
+    first_local_gen_count: f64,
     count: f64,
 }
 
 #[wasm_bindgen]
 impl InteropIds {
     #[wasm_bindgen(getter)]
-    pub fn first_local(&self) -> f64 {
-        self.first_local
+    pub fn first_local_gen_count(&self) -> f64 {
+        self.first_local_gen_count
     }
     #[wasm_bindgen(getter)]
     pub fn count(&self) -> f64 {
@@ -251,8 +251,11 @@ mod tests {
 
     fn finalize_compressor(compressor: &mut IdCompressor) {
         let interop_id_range = compressor.take_next_range();
-        let InteropIds { first_local, count } = interop_id_range.ids.unwrap();
-        _ = compressor.finalize_range(interop_id_range.token, first_local, count)
+        let InteropIds {
+            first_local_gen_count,
+            count,
+        } = interop_id_range.ids.unwrap();
+        _ = compressor.finalize_range(interop_id_range.token, first_local_gen_count, count)
     }
 
     #[test]
@@ -289,9 +292,15 @@ mod tests {
     fn take_next_range() {
         let (mut compressor, generated_ids) = initialize_compressor();
         let interop_id_range = compressor.take_next_range();
-        let InteropIds { first_local, count } = interop_id_range.ids.unwrap();
+        let InteropIds {
+            first_local_gen_count,
+            count,
+        } = interop_id_range.ids.unwrap();
         assert_eq!(interop_id_range.token, 0.0);
-        assert_eq!(first_local, generated_ids[0]);
+        assert_eq!(
+            LocalId::from_generation_count(first_local_gen_count as u64).id() as f64,
+            generated_ids[0]
+        );
         assert_eq!(count, generated_ids.len() as f64);
     }
 
@@ -306,9 +315,12 @@ mod tests {
     fn finalize_range() {
         let (mut compressor, _) = initialize_compressor();
         let interop_id_range = compressor.take_next_range();
-        let InteropIds { first_local, count } = interop_id_range.ids.unwrap();
+        let InteropIds {
+            first_local_gen_count,
+            count,
+        } = interop_id_range.ids.unwrap();
         assert!(compressor
-            .finalize_range(interop_id_range.token, first_local, count)
+            .finalize_range(interop_id_range.token, first_local_gen_count, count)
             .is_ok());
     }
 

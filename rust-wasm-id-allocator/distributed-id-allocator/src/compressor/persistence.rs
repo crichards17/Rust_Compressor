@@ -71,7 +71,7 @@ pub(crate) mod v1 {
     struct LocalState {
         session_uuid_u128: u128,
         generated_id_count: u64,
-        next_range_base: LocalId,
+        next_range_base_generation_count: u64,
         persistent_normalizer: PersistenceNormalizer,
     }
 
@@ -92,7 +92,7 @@ pub(crate) mod v1 {
         let local_state = LocalState {
             session_uuid_u128: StableId::from(compressor.session_id).to_uuid_u128(),
             generated_id_count: compressor.generated_id_count,
-            next_range_base: compressor.next_range_base,
+            next_range_base_generation_count: compressor.next_range_base_generation_count,
             persistent_normalizer: get_persistent_normalizer(&compressor.session_space_normalizer),
         };
 
@@ -142,7 +142,8 @@ pub(crate) mod v1 {
                     local_state.session_uuid_u128,
                 ));
                 compressor.generated_id_count = local_state.generated_id_count;
-                compressor.next_range_base = local_state.next_range_base;
+                compressor.next_range_base_generation_count =
+                    local_state.next_range_base_generation_count;
                 compressor.session_space_normalizer =
                     get_normalizer_from_persistent(local_state.persistent_normalizer);
                 compressor
