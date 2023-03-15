@@ -258,6 +258,7 @@ impl InteropIds {
 mod tests {
     use super::*;
     use distributed_id_allocator::compressor::{NormalizationError, SessionTokenError};
+    use id_types::LocalId;
 
     const _STABLE_ID_1: &str = "748540ca-b7c5-4c99-83ff-c1b8e02c09d6";
     const _STABLE_ID_2: &str = "0002c79e-b536-4776-b000-000266c252d5";
