@@ -42,7 +42,13 @@ impl SessionId {
     pub fn from_uuid_string(uuid_string: &str) -> Result<SessionId, UuidGenerationError> {
         match Uuid::try_parse(uuid_string) {
             Err(_) => Err(UuidGenerationError::InvalidUuidString),
-            Ok(uuid) => Ok(SessionId::from_uuid(uuid)),
+            Ok(uuid) => {
+                if uuid.get_variant() != uuid::Variant::RFC4122 || uuid.get_version_num() != 4 {
+                    Err(UuidGenerationError::InvalidVersionOrVariant)
+                } else {
+                    Ok(SessionId::from_uuid(uuid))
+                }
+            }
         }
     }
 
@@ -59,4 +65,5 @@ impl SessionId {
 #[derive(Debug)]
 pub enum UuidGenerationError {
     InvalidUuidString,
+    InvalidVersionOrVariant,
 }

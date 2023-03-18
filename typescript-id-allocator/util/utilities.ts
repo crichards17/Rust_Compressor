@@ -1,7 +1,8 @@
 // COPIED FROM FLUID FRAMEWORK
 
-import { StableId, UuidString } from "../types";
+import { SessionId, StableId, UuidString } from "../types";
 import { v4, NIL } from "uuid";
+import { assert } from "../copied-utils/assert";
 
 const hexadecimalCharCodes = Array.from("09afAF").map((c) => c.charCodeAt(0)) as [
 	zero: number,
@@ -56,6 +57,13 @@ export function isUuidString(str: string): str is UuidString {
 	}
 
 	return true;
+}
+
+/**
+ * Generate a random session ID
+ */
+export function createSessionId(): SessionId {
+	return generateStableId() as SessionId;
 }
 
 /**
@@ -116,24 +124,6 @@ export function isStableId(str: string): str is StableId {
 	}
 
 	return true;
-}
-
-/**
- * A browser friendly assert library.
- * Use this instead of the 'assert' package, which has a big impact on bundle sizes.
- * @param condition - The condition that should be true, if the condition is false an error will be thrown.
- * Only use this API when `false` indicates a logic error in the problem and thus a bug that should be fixed.
- * @param message - The message to include in the error when the condition does not hold.
- * A number should not be specified manually: use a string.
- * Before a release, policy-check should be run, which will convert any asserts still using strings to
- * use numbered error codes instead.
- */
-export function assert(condition: boolean, message: string | number): asserts condition {
-	if (!condition) {
-		throw new Error(
-			typeof message === "number" ? `0x${message.toString(16).padStart(3, "0")}` : message,
-		);
-	}
 }
 
 export function fail(message: string): never {

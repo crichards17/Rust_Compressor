@@ -16,7 +16,9 @@ import {
 import { currentWrittenVersion } from "./types/persisted-types/0.0.1";
 import { assert, generateStableId } from "./util";
 import { getIds } from "./util/idRange";
-import { fail } from "./util/utilities";
+import { createSessionId, fail } from "./util/utilities";
+
+export const defaultClusterCapacity = WasmIdCompressor.get_default_cluster_capacity();
 
 export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 	private readonly sessionTokens: Map<SessionId, number> = new Map();
@@ -27,7 +29,7 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 	) {}
 
 	public static create(): IdCompressor {
-		const localSessionId = generateStableId() as SessionId;
+		const localSessionId = createSessionId();
 		return new IdCompressor(new WasmIdCompressor(localSessionId), localSessionId);
 	}
 
@@ -72,7 +74,7 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 		return range;
 	}
 
-	public generateCompressedId(): SessionSpaceCompressedId {
+	public generateCompressedId(override?: string): SessionSpaceCompressedId {
 		return this.wasmCompressor.generate_next_id() as SessionSpaceCompressedId;
 	}
 

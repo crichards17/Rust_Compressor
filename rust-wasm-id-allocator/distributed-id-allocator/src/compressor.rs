@@ -22,6 +22,10 @@ pub struct IdCompressor {
 }
 
 impl IdCompressor {
+    pub fn get_default_cluster_capacity() -> u64 {
+        persistence::DEFAULT_CLUSTER_CAPACITY
+    }
+
     #[cfg(feature = "uuid-generation")]
     pub fn new() -> Self {
         let session_id = SessionId::new();
@@ -446,6 +450,7 @@ impl ErrorEnum for UuidGenerationError {
     fn get_error_string(&self) -> &'static str {
         match self {
             UuidGenerationError::InvalidUuidString => "Invalid Uuid String",
+            UuidGenerationError::InvalidVersionOrVariant => "Invalid Version or Variant,",
         }
     }
 }

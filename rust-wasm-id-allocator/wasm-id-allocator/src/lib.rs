@@ -41,6 +41,11 @@ const MAX_SAFE_INTEGER: i64 = BINARY_BASE.pow(53) - 1;
 
 #[wasm_bindgen]
 impl IdCompressor {
+    #[wasm_bindgen]
+    pub fn get_default_cluster_capacity() -> f64 {
+        IdCompressorCore::get_default_cluster_capacity() as f64
+    }
+
     #[wasm_bindgen(constructor)]
     pub fn new(session_id_string: String) -> Option<IdCompressor> {
         let session_id = match SessionId::from_uuid_string(&session_id_string) {

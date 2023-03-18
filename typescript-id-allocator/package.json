@@ -9,8 +9,10 @@
 		"prettier:fix": "prettier --write . --ignore-path ./.prettierignore"
 	},
 	"devDependencies": {
+		"@fluid-tools/benchmark": "^0.46.133527",
 		"@types/chai": "^4.3.4",
 		"@types/mocha": "^10.0.1",
+		"best-random": "^1.0.3",
 		"chai": "^4.3.7",
 		"mocha": "^10.2.0",
 		"prettier": "~2.6.2",
