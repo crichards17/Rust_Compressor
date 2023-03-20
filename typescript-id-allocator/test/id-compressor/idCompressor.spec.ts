@@ -7,32 +7,6 @@ import { strict as assert } from "assert";
 import { v4, v5 } from "uuid";
 import { MockLogger } from "@fluidframework/telemetry-utils";
 import { validateAssertionError } from "@fluidframework/test-runtime-utils";
-import { take } from "@fluid-internal/stochastic-test-utils";
-import {
-	IdCreationRange,
-	UnackedLocalId,
-	FinalCompressedId,
-	LocalCompressedId,
-	OpSpaceCompressedId,
-	SessionId,
-	SessionSpaceCompressedId,
-	StableId,
-} from "@fluidframework/runtime-definitions";
-import {
-	IdCompressor,
-	isFinalId,
-	isLocalId,
-	hasOngoingSession,
-	legacySharedTreeInitialTreeId,
-	createSessionId,
-	incrementUuid,
-	numericUuidFromStableId,
-	stableIdFromNumericUuid,
-	getIds,
-	assertIsStableId,
-	isStableId,
-	fail,
-} from "../../id-compressor";
 import {
 	createCompressor,
 	performFuzzActions,
@@ -47,7 +21,20 @@ import {
 	makeOpGenerator,
 	generateCompressedIds,
 } from "./idCompressorTestUtilities";
-import { expectDefined } from "./testCommon";
+import { expectDefined, isFinalId, isLocalId } from "./testCommon";
+import { take } from "../../copied-utils/stochastic";
+import { IdCompressor } from "../../IdCompressor";
+import { assertIsStableId, isStableId } from "../../util";
+import {
+	FinalCompressedId,
+	LocalCompressedId,
+	OpSpaceCompressedId,
+	SessionId,
+	SessionSpaceCompressedId,
+	StableId,
+} from "../../types";
+import { getIds } from "../../util/idRange";
+import { createSessionId, fail } from "../../util/utilities";
 
 describe("IdCompressor", () => {
 	it("detects invalid cluster sizes", () => {
@@ -68,13 +55,13 @@ describe("IdCompressor", () => {
 
 	it("reports the proper session ID", () => {
 		const sessionId = createSessionId();
-		const compressor = new IdCompressor(sessionId, 0);
+		const compressor = IdCompressor.create(sessionId, 0);
 		assert(compressor.localSessionId, sessionId);
 	});
 
 	it("accepts different numbers of reserved IDs", () => {
 		for (const reservedIdCount of [0, 1, 5]) {
-			const compressor = new IdCompressor(createSessionId(), reservedIdCount);
+			const compressor = IdCompressor.create(createSessionId(), reservedIdCount);
 			if (reservedIdCount > 0) {
 				assert.equal(
 					compressor.decompress(compressor.getReservedId(0)),
@@ -170,7 +157,7 @@ describe("IdCompressor", () => {
 			// This is a regression test for an issue where passing a sequential UUID that sorted before the reserved UUID
 			// as an override created duplicate overrides in the compressor.
 			const newSession = `0${legacySharedTreeInitialTreeId.slice(1)}` as SessionId;
-			const compressor = new IdCompressor(newSession, 1 /* just needs to be > 0 */);
+			const compressor = IdCompressor.create(newSession, 1 /* just needs to be > 0 */);
 
 			// Client1 compresses a uuid
 			compressor.generateCompressedId();
@@ -188,7 +175,7 @@ describe("IdCompressor", () => {
 			// This is a regression test for an issue where passing a sequential UUID that sorted after an existing override
 			// as an override created duplicate overrides in the compressor.
 			const newSession = `b${v4().slice(1)}` as SessionId;
-			const compressor = new IdCompressor(newSession, 0);
+			const compressor = IdCompressor.create(newSession, 0);
 
 			// Client1 compresses a uuid with some override that will sort before the session uuid
 			compressor.generateCompressedId(`a${v4().slice(1)}`);
@@ -207,8 +194,8 @@ describe("IdCompressor", () => {
 			// as an override created duplicate overrides in the compressor.
 			const newSession1 = `c${v4().slice(1)}` as SessionId;
 			const newSession2 = `b${v4().slice(1)}` as SessionId;
-			const compressor1 = new IdCompressor(newSession1, 0);
-			const compressor2 = new IdCompressor(newSession2, 0);
+			const compressor1 = IdCompressor.create(newSession1, 0);
+			const compressor2 = IdCompressor.create(newSession2, 0);
 			compressor1.clusterCapacity = 5;
 			compressor2.clusterCapacity = 5;
 
@@ -1117,7 +1104,7 @@ describe("IdCompressor", () => {
 		it("generates unique eager finals when there are still outstanding locals after a cluster is expanded", () => {
 			// const compressor = createCompressor(Client.Client1, 4 /* must be 4 for the test to make sense */);
 
-			const compressor = new IdCompressor(sessionIds.get(Client.Client1), 0);
+			const compressor = IdCompressor.create(sessionIds.get(Client.Client1), 0);
 			compressor.clusterCapacity = 4;
 
 			// Make locals to fill half the future cluster
@@ -1852,7 +1839,7 @@ function createNetworkTestFunction(
 		it(title, () => {
 			const hasCapacity = typeof testOrCapacity === "number";
 			const capacity = hasCapacity ? testOrCapacity : undefined;
-			const network = new IdCompressorTestNetwork(capacity);
+			const network = IdCompressor.createTestNetwork(capacity);
 			(hasCapacity ? test ?? fail("test must be defined") : testOrCapacity)(network);
 			if (validateAfter) {
 				network.deliverOperations(DestinationClient.All);

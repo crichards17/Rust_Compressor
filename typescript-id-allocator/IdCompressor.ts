@@ -21,6 +21,11 @@ import { createSessionId, fail } from "./util/utilities";
 export const defaultClusterCapacity = WasmIdCompressor.get_default_cluster_capacity();
 
 export class IdCompressor implements IIdCompressor, IIdCompressorCore {
+	/**
+	 * Max allowed cluster size
+	 */
+	public static maxClusterSize = 2 ** 20;
+
 	private readonly sessionTokens: Map<SessionId, number> = new Map();
 
 	private constructor(
@@ -28,9 +33,24 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 		public readonly localSessionId: SessionId,
 	) {}
 
-	public static create(): IdCompressor {
-		const localSessionId = createSessionId();
-		return new IdCompressor(new WasmIdCompressor(localSessionId), localSessionId);
+	public static create(): IdCompressor;
+	public static create(sessionId: SessionId, clusterCapacity?: number): IdCompressor;
+	public static create(sessionId?: SessionId, clusterCapacity?: number): IdCompressor {
+		const localSessionId = sessionId ?? createSessionId();
+		const compressor = new IdCompressor(new WasmIdCompressor(localSessionId), localSessionId);
+		if (clusterCapacity) {
+			compressor.setClusterCapacity(clusterCapacity);
+		}
+		return compressor;
+	}
+
+	public setClusterCapacity(clusterCapacity: number): void {
+		assert(clusterCapacity > 0, 0x481 /* Clusters must have a positive capacity */);
+		assert(
+			clusterCapacity <= IdCompressor.maxClusterSize,
+			0x482 /* Clusters must not exceed max cluster size */,
+		);
+		this.wasmCompressor.set_cluster_capacity(clusterCapacity);
 	}
 
 	private getOrCreateSessionToken(sessionId: SessionId): number {
