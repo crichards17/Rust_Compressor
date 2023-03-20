@@ -34,13 +34,10 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 	) {}
 
 	public static create(): IdCompressor;
-	public static create(sessionId: SessionId, clusterCapacity?: number): IdCompressor;
-	public static create(sessionId?: SessionId, clusterCapacity?: number): IdCompressor {
+	public static create(sessionId: SessionId): IdCompressor;
+	public static create(sessionId?: SessionId): IdCompressor {
 		const localSessionId = sessionId ?? createSessionId();
 		const compressor = new IdCompressor(new WasmIdCompressor(localSessionId), localSessionId);
-		if (clusterCapacity) {
-			compressor.setClusterCapacity(clusterCapacity);
-		}
 		return compressor;
 	}
 
