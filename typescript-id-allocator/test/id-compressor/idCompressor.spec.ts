@@ -21,7 +21,13 @@ import {
 	makeOpGenerator,
 	generateCompressedIds,
 } from "./idCompressorTestUtilities";
-import { convertToGenCount, expectDefined, isFinalId, isLocalId } from "./testCommon";
+import {
+	convertToGenCount,
+	convertToUnackedLocalId,
+	expectDefined,
+	isFinalId,
+	isLocalId,
+} from "./testCommon";
 import { take } from "../../copied-utils/stochastic";
 import { IdCompressor } from "../../IdCompressor";
 import { assertIsStableId, isStableId } from "../../util";
@@ -56,7 +62,7 @@ describe("IdCompressor", () => {
 
 	it("reports the proper session ID", () => {
 		const sessionId = createSessionId();
-		const compressor = IdCompressor.create(sessionId, 0);
+		const compressor = IdCompressor.create(sessionId);
 		assert(compressor.localSessionId, sessionId);
 	});
 
@@ -1061,7 +1067,7 @@ describe("IdCompressor", () => {
 		it("generates unique eager finals when there are still outstanding locals after a cluster is expanded", () => {
 			// const compressor = createCompressor(Client.Client1, 4 /* must be 4 for the test to make sense */);
 
-			const compressor = IdCompressor.create(sessionIds.get(Client.Client1), 0);
+			const compressor = createCompressor(Client.Client1);
 			compressor.clusterCapacity = 4;
 
 			// Make locals to fill half the future cluster
@@ -1115,6 +1121,7 @@ describe("IdCompressor", () => {
 	});
 
 	describe("Serialization", () => {
+		// TODO: test in Rust
 		it("can serialize an empty compressor", () => {
 			const compressor = createCompressor(Client.Client1);
 			const [serializedNoSession, serializedWithSession] = expectSerializes(compressor);
@@ -1144,7 +1151,10 @@ describe("IdCompressor", () => {
 			compressor1.finalizeCreationRange(range2);
 			compressor2.finalizeCreationRange(range2);
 			assert(
-				IdCompressor.deserialize(compressor1.serialize(false), createSessionId()).equals(
+				IdCompressor.deserialize(
+					compressor1.serialize(false),
+					createSessionId(),
+				).equalsInternal(
 					IdCompressor.deserialize(compressor2.serialize(false), createSessionId()),
 					false, // don't compare local state
 				),
@@ -1340,7 +1350,7 @@ describe("IdCompressor", () => {
 			const range1 = network.allocateAndSendIds(Client.Client1, 1, { 0: override });
 			const overrides1 = expectDefined(getIds(range1)?.overrides);
 			const id1 = compressor1.normalizeToSessionSpace(
-				overrides1[0][0],
+				convertToUnackedLocalId(overrides1[0][0]),
 				compressor1.localSessionId,
 			);
 			const opNormalizedLocal1 = compressor1.normalizeToOpSpace(id1);
@@ -1355,7 +1365,7 @@ describe("IdCompressor", () => {
 			const range2 = network.allocateAndSendIds(Client.Client2, 2, { 1: override });
 			const overrides2 = expectDefined(getIds(range2)?.overrides);
 			const id2 = compressor2.normalizeToSessionSpace(
-				overrides2[0][0],
+				convertToUnackedLocalId(overrides2[0][0]),
 				compressor2.localSessionId,
 			);
 			const opNormalizedLocal2 = compressor2.normalizeToOpSpace(id2);
@@ -1802,6 +1812,7 @@ function createNetworkTestFunction(
 				network.deliverOperations(DestinationClient.All);
 				network.assertNetworkState();
 			}
+			network.dispose();
 		}).timeout(10000);
 	};
 }

@@ -28,6 +28,7 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 		public readonly localSessionId: SessionId,
 	) {}
 
+	// TODO: ensure disposal in tests
 	public static create(): IdCompressor;
 	public static create(sessionId: SessionId): IdCompressor;
 	public static create(sessionId?: SessionId): IdCompressor {
@@ -145,6 +146,17 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 		} as SerializedIdCompressor;
 	}
 
+	/**
+	 * Only for use in tests. Always returns false if underlying WASM is built in release.
+	 */
+	public equalsInternal(other: IdCompressor /* TODO add local state comparison */): boolean {
+		return this.wasmCompressor.equals(other.wasmCompressor);
+	}
+
+	public dispose(): void {
+		this.wasmCompressor.free();
+	}
+
 	public static deserialize(serialized: SerializedIdCompressorWithOngoingSession): IdCompressor;
 	public static deserialize(
 		serialized: SerializedIdCompressorWithNoSession,
@@ -163,9 +175,5 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 			WasmIdCompressor.deserialize(serialized.bytes, localSessionId),
 			localSessionId,
 		);
-	}
-
-	public dispose(): void {
-		this.wasmCompressor.free();
 	}
 }

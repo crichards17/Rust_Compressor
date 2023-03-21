@@ -32,7 +32,7 @@ import {
 import { assertIsStableId } from "../../util";
 import { assertIsSessionId, createSessionId, fail } from "../../util/utilities";
 import { getIds } from "../../util/idRange";
-import { isLocalId } from "./testCommon";
+import { getOrCreate, isLocalId } from "./testCommon";
 
 /**
  * A readonly `Map` which is known to contain a value for every possible key
@@ -77,7 +77,6 @@ export function createCompressor(
 	clusterCapacity = 5,
 	logger?: ITelemetryLogger,
 ): IdCompressor {
-	// TODO: LOGGER
 	const compressor = IdCompressor.create(sessionIds.get(client));
 	compressor.clusterCapacity = clusterCapacity;
 	return compressor;
@@ -567,6 +566,12 @@ export class IdCompressorTestNetwork {
 			expectSerializes(compressor);
 		}
 	}
+
+	public dispose(): void {
+		this.compressors.forEach((compressor) => {
+			compressor.dispose();
+		});
+	}
 }
 
 /**
@@ -616,35 +621,7 @@ export function expectSerializes(
 		} else {
 			[serialized, deserialized] = roundtrip(compressor, false);
 		}
-		const chainCount: number[] = [];
-		for (let i = 0; i < serialized.sessions.length; i++) {
-			chainCount[i] = 0;
-		}
-		const chainProcessed: number[] = [...chainCount];
-
-		for (const cluster of serialized.clusters) {
-			const [sessionIndex] = cluster;
-			assert.strictEqual(sessionIndex < serialized.sessions.length, true);
-			chainCount[sessionIndex]++;
-		}
-
-		for (const cluster of serialized.clusters) {
-			const [sessionIndex, capacity, maybeSize] = cluster;
-			const chainIndex = chainProcessed[sessionIndex];
-			if (chainIndex < chainCount[sessionIndex] - 1) {
-				assert.strictEqual(typeof maybeSize !== "number", true);
-			} else {
-				assert.strictEqual(
-					maybeSize === undefined ||
-						typeof maybeSize !== "number" ||
-						maybeSize < capacity,
-					true,
-				);
-			}
-			chainProcessed[sessionIndex]++;
-		}
-
-		assert.strictEqual(compressor.equals(deserialized, withSession), true);
+		assert.strictEqual(compressor.equalsInternal(deserialized, withSession), true);
 		return serialized;
 	}
 
