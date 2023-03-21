@@ -21,7 +21,7 @@ import {
 	makeOpGenerator,
 	generateCompressedIds,
 } from "./idCompressorTestUtilities";
-import { expectDefined, isFinalId, isLocalId } from "./testCommon";
+import { convertToGenCount, expectDefined, isFinalId, isLocalId } from "./testCommon";
 import { take } from "../../copied-utils/stochastic";
 import { IdCompressor } from "../../IdCompressor";
 import { assertIsStableId, isStableId } from "../../util";
@@ -48,7 +48,7 @@ describe("IdCompressor", () => {
 			(e) => validateAssertionError(e, "Clusters must have a positive capacity"),
 		);
 		assert.throws(
-			() => (compressor.clusterCapacity = IdCompressor.maxClusterSize + 1),
+			() => (compressor.clusterCapacity = 2 ** 21),
 			(e) => validateAssertionError(e, "Clusters must not exceed max cluster size"),
 		);
 	});
@@ -57,18 +57,6 @@ describe("IdCompressor", () => {
 		const sessionId = createSessionId();
 		const compressor = IdCompressor.create(sessionId, 0);
 		assert(compressor.localSessionId, sessionId);
-	});
-
-	it("accepts different numbers of reserved IDs", () => {
-		for (const reservedIdCount of [0, 1, 5]) {
-			const compressor = IdCompressor.create(createSessionId(), reservedIdCount);
-			if (reservedIdCount > 0) {
-				assert.equal(
-					compressor.decompress(compressor.getReservedId(0)),
-					legacySharedTreeInitialTreeId,
-				);
-			}
-		}
 	});
 
 	describe("ID Generation", () => {
@@ -153,29 +141,11 @@ describe("IdCompressor", () => {
 			);
 		});
 
-		it("unifies overrides with sequential local IDs that sort before the reserved session UUID", () => {
-			// This is a regression test for an issue where passing a sequential UUID that sorted before the reserved UUID
-			// as an override created duplicate overrides in the compressor.
-			const newSession = `0${legacySharedTreeInitialTreeId.slice(1)}` as SessionId;
-			const compressor = IdCompressor.create(newSession, 1 /* just needs to be > 0 */);
-
-			// Client1 compresses a uuid
-			compressor.generateCompressedId();
-			const localId2 = compressor.generateCompressedId();
-			const stableId2 = assertIsStableId(compressor.decompress(localId2));
-			const localId3 = compressor.generateCompressedId(stableId2);
-			assert.equal(
-				localId3,
-				localId2,
-				"only one local ID should be allocated for the same sequential uuid",
-			);
-		});
-
 		it("unifies overrides with sequential local IDs that sort after an existing override", () => {
 			// This is a regression test for an issue where passing a sequential UUID that sorted after an existing override
 			// as an override created duplicate overrides in the compressor.
 			const newSession = `b${v4().slice(1)}` as SessionId;
-			const compressor = IdCompressor.create(newSession, 0);
+			const compressor = IdCompressor.create(newSession);
 
 			// Client1 compresses a uuid with some override that will sort before the session uuid
 			compressor.generateCompressedId(`a${v4().slice(1)}`);
@@ -194,8 +164,8 @@ describe("IdCompressor", () => {
 			// as an override created duplicate overrides in the compressor.
 			const newSession1 = `c${v4().slice(1)}` as SessionId;
 			const newSession2 = `b${v4().slice(1)}` as SessionId;
-			const compressor1 = IdCompressor.create(newSession1, 0);
-			const compressor2 = IdCompressor.create(newSession2, 0);
+			const compressor1 = IdCompressor.create(newSession1);
+			const compressor2 = IdCompressor.create(newSession2);
 			compressor1.clusterCapacity = 5;
 			compressor2.clusterCapacity = 5;
 
@@ -282,54 +252,41 @@ describe("IdCompressor", () => {
 		tests.forEach(({ title, overrideIndices, idCount }) => {
 			it(title, () => {
 				const compressor = createCompressor(Client.Client1);
-				validateIdCreationRange(compressor, idCount, new Set(overrideIndices));
+				createAndValidateIdRange(compressor, idCount, new Set(overrideIndices));
 			});
 
 			tests.forEach(
 				({ title: title2, overrideIndices: overrideIndices2, idCount: idCount2 }) => {
 					it(`${title2} after a range ${title}`, () => {
 						const compressor = createCompressor(Client.Client1);
-						const lastTaken = validateIdCreationRange(
-							compressor,
-							idCount,
-							new Set(overrideIndices),
-						);
-						validateIdCreationRange(
-							compressor,
-							idCount2,
-							new Set(overrideIndices2),
-							lastTaken,
-						);
+						createAndValidateIdRange(compressor, idCount, new Set(overrideIndices));
+						createAndValidateIdRange(compressor, idCount2, new Set(overrideIndices2));
 					});
 				},
 			);
 		});
 
-		function validateIdCreationRange(
+		function createAndValidateIdRange(
 			compressor: IdCompressor,
 			idCount: number,
 			overrideIndices: Set<number>,
-			lastTakenId = 0 as UnackedLocalId,
-		): UnackedLocalId {
-			const overrides: [SessionSpaceCompressedId, string?][] = [];
+		): void {
+			const overrides: [number, string?][] = [];
 			for (let i = 0; i < idCount; i++) {
 				const override = overrideIndices.has(i) ? v4() : undefined;
 				const id = compressor.generateCompressedId(override);
-				overrides.push([id, override]);
+				assert(isLocalId(id));
+				overrides.push([convertToGenCount(id), override]);
 			}
 			const range = compressor.takeNextCreationRange();
-			let newLastTakenId = lastTakenId;
 			let idsActual = getIds(range);
 			if (overrides.length === 0) {
 				assert.equal(idsActual, undefined);
 			} else {
 				idsActual = expectDefined(idsActual);
-				assert.equal(overrides[0][0], idsActual.first);
-				assert.equal(overrides[overrides.length - 1][0], idsActual.last);
-				newLastTakenId = idsActual.last;
+				assert.equal(overrides[0][0], idsActual.firstGenCount);
+				assert.equal(overrides[overrides.length - 1][0], idsActual.lastGenCount);
 			}
-
-			return newLastTakenId;
 		}
 	});
 

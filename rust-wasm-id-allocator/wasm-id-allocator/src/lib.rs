@@ -38,10 +38,10 @@ pub struct IdCompressor {
 
 const BINARY_BASE: i64 = 2;
 const MAX_SAFE_INTEGER: i64 = BINARY_BASE.pow(53) - 1;
+const MAX_DEFAULT_CLUSTER_CAPACITY: f64 = BINARY_BASE.pow(20) as f64;
 
 #[wasm_bindgen]
 impl IdCompressor {
-    #[wasm_bindgen]
     pub fn get_default_cluster_capacity() -> f64 {
         IdCompressorCore::get_default_cluster_capacity() as f64
     }
@@ -58,9 +58,16 @@ impl IdCompressor {
         })
     }
 
+    pub fn get_cluster_capacity(&self) -> f64 {
+        self.compressor.get_cluster_capacity() as f64
+    }
+
     pub fn set_cluster_capacity(&mut self, new_cluster_capacity: f64) -> Result<(), JsError> {
-        if new_cluster_capacity.fract() != 0.0 {
-            return Err(JsError::new("Non-integer cluster size."));
+        if new_cluster_capacity.fract() != 0.0
+            || new_cluster_capacity < 0.0
+            || new_cluster_capacity > MAX_DEFAULT_CLUSTER_CAPACITY
+        {
+            return Err(JsError::new("Cluster size but be a non-zero integer."));
         }
         self.compressor
             .set_cluster_capacity(new_cluster_capacity as u64)

@@ -84,6 +84,10 @@ impl IdCompressor {
         }
     }
 
+    pub fn get_cluster_capacity(&self) -> u64 {
+        self.cluster_capacity
+    }
+
     pub fn set_cluster_capacity(
         &mut self,
         new_cluster_capacity: u64,

@@ -1,8 +1,8 @@
 {
 	"scripts": {
 		"build:ts": "tsc --project \"tsconfig.json\"",
-		"build:e2e": "npm i --only=dev && npm run build:wasm && npm i && tsc --project \"tsconfig.json\"",
-		"build:wasm": "wasm-pack build --target nodejs --out-dir ../../typescript-id-allocator/dist/wasm ../rust-wasm-id-allocator/wasm-id-allocator",
+		"build:e2e": "npm run build:wasm && npm i && tsc --project \"tsconfig.json\"",
+		"build:wasm": "npm i --only=dev && wasm-pack build --target nodejs --out-dir ../../typescript-id-allocator/dist/wasm ../rust-wasm-id-allocator/wasm-id-allocator",
 		"clean": "rimraf ./dist",
 		"test": "npm run build:ts && mocha ./dist/javascript/test/**/*.js --recursive",
 		"prettier": "prettier --check . --ignore-path ./.prettierignore",

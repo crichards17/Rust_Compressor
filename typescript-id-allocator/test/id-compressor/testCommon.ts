@@ -28,6 +28,10 @@ export function isLocalId(id: CompressedId): id is LocalCompressedId {
 	return id < 0;
 }
 
+export function convertToGenCount(id: LocalCompressedId): number {
+	return -id;
+}
+
 /**
  * Remove `readonly` from all fields.
  */
