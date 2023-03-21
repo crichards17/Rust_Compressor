@@ -82,6 +82,14 @@ export function assertIsStableId(stableId: string): StableId {
 }
 
 /**
+ * Asserts that the given string is a stable ID.
+ */
+export function assertIsSessionId(stableId: string): SessionId {
+	assert(isStableId(stableId), 0x4a3 /* Expected a StableId */);
+	return stableId as SessionId;
+}
+
+/**
  * Returns true iff the given string is a valid Version 4, variant 2 UUID
  * 'xxxxxxxx-xxxx-4xxx-vxxx-xxxxxxxxxxxx'
  */

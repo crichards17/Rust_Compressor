@@ -27,6 +27,7 @@ import { IdCompressor } from "../../IdCompressor";
 import { assertIsStableId, isStableId } from "../../util";
 import {
 	FinalCompressedId,
+	IdCreationRange,
 	LocalCompressedId,
 	OpSpaceCompressedId,
 	SessionId,
@@ -364,17 +365,16 @@ describe("IdCompressor", () => {
 		it("prevents finalizing unacceptably enormous amounts of ID allocation", () => {
 			const compressor1 = createCompressor(Client.Client1);
 			const integerLargerThanHalfMax = Math.round((Number.MAX_SAFE_INTEGER / 3) * 2);
-			const midPoint = -integerLargerThanHalfMax as UnackedLocalId;
 			const largeRange1: IdCreationRange = {
 				sessionId: sessionIds.get(Client.Client2),
-				ids: { first: -1 as UnackedLocalId, last: midPoint },
+				ids: { firstGenCount: 1, lastGenCount: integerLargerThanHalfMax },
 			};
 			compressor1.finalizeCreationRange(largeRange1);
 			const largeRange2: IdCreationRange = {
 				sessionId: sessionIds.get(Client.Client2),
 				ids: {
-					first: (midPoint - 1) as UnackedLocalId,
-					last: (-Number.MAX_SAFE_INTEGER - 2) as UnackedLocalId,
+					firstGenCount: integerLargerThanHalfMax + 1,
+					lastGenCount: Number.MAX_SAFE_INTEGER + 2,
 				},
 			};
 			assert.throws(
@@ -1796,7 +1796,7 @@ function createNetworkTestFunction(
 		it(title, () => {
 			const hasCapacity = typeof testOrCapacity === "number";
 			const capacity = hasCapacity ? testOrCapacity : undefined;
-			const network = IdCompressor.createTestNetwork(capacity);
+			const network = new IdCompressorTestNetwork(capacity);
 			(hasCapacity ? test ?? fail("test must be defined") : testOrCapacity)(network);
 			if (validateAfter) {
 				network.deliverOperations(DestinationClient.All);

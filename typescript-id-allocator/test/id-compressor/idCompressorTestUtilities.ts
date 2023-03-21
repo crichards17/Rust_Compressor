@@ -16,33 +16,23 @@ import {
 	SaveInfo,
 	take,
 	BaseFuzzTestState,
-} from "@fluid-internal/stochastic-test-utils";
+} from "../../copied-utils/stochastic";
 import { ITelemetryLogger } from "@fluidframework/common-definitions";
+import { IdCompressor } from "../../IdCompressor";
 import {
 	FinalCompressedId,
-	SessionId,
-	StableId,
-	SessionSpaceCompressedId,
-	OpSpaceCompressedId,
-} from "@fluidframework/runtime-definitions";
-import type {
 	IdCreationRange,
-	SerializedIdCompressorWithOngoingSession,
+	OpSpaceCompressedId,
 	SerializedIdCompressorWithNoSession,
-} from "@fluidframework/runtime-definitions";
-import {
-	IdCompressor,
-	isLocalId,
-	createSessionId,
-	ensureSessionUuid,
-	NumericUuid,
-	numericUuidFromStableId,
-	stableIdFromNumericUuid,
-	getIds,
-	assertIsStableId,
-	getOrCreate,
-	fail,
-} from "../../id-compressor";
+	SerializedIdCompressorWithOngoingSession,
+	SessionId,
+	SessionSpaceCompressedId,
+	StableId,
+} from "../../types";
+import { assertIsStableId } from "../../util";
+import { assertIsSessionId, createSessionId, fail } from "../../util/utilities";
+import { getIds } from "../../util/idRange";
+import { isLocalId } from "./testCommon";
 
 /**
  * A readonly `Map` which is known to contain a value for every possible key
@@ -87,7 +77,8 @@ export function createCompressor(
 	clusterCapacity = 5,
 	logger?: ITelemetryLogger,
 ): IdCompressor {
-	const compressor = new IdCompressor(sessionIds.get(client), 1024, logger);
+	// TODO: LOGGER
+	const compressor = IdCompressor.create(sessionIds.get(client));
 	compressor.clusterCapacity = clusterCapacity;
 	return compressor;
 }
@@ -103,9 +94,7 @@ function makeSessionIds(): ClientMap<SessionId> {
 	for (let i = 0; i < clients.length; i++) {
 		// Place session uuids roughly in the middle of uuid space to increase odds of encountering interesting
 		// orderings in sorted collections
-		const sessionId = ensureSessionUuid(
-			assertIsStableId(`88888888-8888-4888-b${i}88-888888888888`),
-		);
+		const sessionId = assertIsSessionId(`88888888-8888-4888-b${i}88-888888888888`);
 		stableIds.set(clients[i], sessionId);
 	}
 	return stableIds as ClientMap<SessionId>;
