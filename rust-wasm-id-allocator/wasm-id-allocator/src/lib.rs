@@ -276,22 +276,16 @@ impl InteropIds {
     }
 }
 
+#[cfg(debug_assertions)]
 #[wasm_bindgen]
 pub struct TestOnly {}
 
 #[wasm_bindgen]
 impl TestOnly {
-    #[cfg(debug_assertions)]
     #[wasm_bindgen]
     pub fn increment_uuid(uuid_string: String, offset: f64) -> String {
         (StableId::from(SessionId::from_uuid_string(&uuid_string).unwrap()) + (offset as u64))
             .to_uuid_string()
-    }
-
-    #[cfg(not(debug_assertions))]
-    #[wasm_bindgen]
-    pub fn increment_uuid(uuid_string: String, offset: f64) -> String {
-        String::from("")
     }
 }
 

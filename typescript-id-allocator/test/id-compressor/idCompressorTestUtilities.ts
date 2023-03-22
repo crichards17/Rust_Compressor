@@ -16,9 +16,9 @@ import {
 	SaveInfo,
 	take,
 	BaseFuzzTestState,
-} from "../../copied-utils/stochastic";
+} from "../copied-utils/stochastic";
 import { ITelemetryLogger } from "@fluidframework/common-definitions";
-import { IdCompressor } from "../../IdCompressor";
+import { IdCompressor } from "../../src/IdCompressor";
 import {
 	FinalCompressedId,
 	IdCreationRange,
@@ -28,10 +28,10 @@ import {
 	SessionId,
 	SessionSpaceCompressedId,
 	StableId,
-} from "../../types";
-import { assertIsStableId } from "../../util";
-import { assertIsSessionId, createSessionId, fail } from "../../util/utilities";
-import { getIds } from "../../util/idRange";
+} from "../../src/types";
+import { assertIsStableId } from "../../src/util";
+import { assertIsSessionId, createSessionId, fail } from "../../src/util/utilities";
+import { getIds } from "../../src/util/idRange";
 import { getOrCreate, isLocalId } from "./testCommon";
 
 /**

@@ -9,7 +9,7 @@ import {
 	FinalCompressedId,
 	LocalCompressedId,
 	OpSpaceCompressedId,
-} from "../../types";
+} from "../../src/types";
 
 /**
  * Check if the given value is defined using mocha's `expect`. Return the defined value;

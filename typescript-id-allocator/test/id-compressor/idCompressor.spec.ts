@@ -28,9 +28,9 @@ import {
 	isFinalId,
 	isLocalId,
 } from "./testCommon";
-import { take } from "../../copied-utils/stochastic";
-import { IdCompressor } from "../../IdCompressor";
-import { assertIsStableId, isStableId } from "../../util";
+import { take } from "../copied-utils/stochastic";
+import { IdCompressor } from "../../src/IdCompressor";
+import { assertIsStableId, isStableId } from "../../src/util";
 import {
 	FinalCompressedId,
 	IdCreationRange,
@@ -39,9 +39,9 @@ import {
 	SessionId,
 	SessionSpaceCompressedId,
 	StableId,
-} from "../../types";
-import { getIds } from "../../util/idRange";
-import { createSessionId, fail } from "../../util/utilities";
+} from "../../src/types";
+import { getIds } from "../../src/util/idRange";
+import { createSessionId, fail } from "../../src/util/utilities";
 import { TestOnly } from "wasm-id-allocator";
 
 describe("IdCompressor", () => {

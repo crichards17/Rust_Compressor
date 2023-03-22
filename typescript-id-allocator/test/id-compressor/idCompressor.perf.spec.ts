@@ -13,9 +13,9 @@ import {
 	LocalCompressedId,
 	OpSpaceCompressedId,
 	SessionId,
-} from "../../types";
+} from "../../src/types";
 import { benchmark, BenchmarkType } from "@fluid-tools/benchmark";
-import { take } from "../../copied-utils/stochastic";
+import { take } from "../copied-utils/stochastic";
 import {
 	Client,
 	IdCompressorTestNetwork,
@@ -24,9 +24,9 @@ import {
 	sessionIds,
 	TestIdData,
 } from "./idCompressorTestUtilities";
-import { defaultClusterCapacity, IdCompressor } from "../../IdCompressor";
+import { defaultClusterCapacity, IdCompressor } from "../../src/IdCompressor";
 import { isFinalId, isLocalId, Mutable } from "./testCommon";
-import { createSessionId, fail } from "../../util/utilities";
+import { createSessionId, fail } from "../../src/util/utilities";
 
 describe("IdCompressor Perf", () => {
 	const type = BenchmarkType.Measurement;
