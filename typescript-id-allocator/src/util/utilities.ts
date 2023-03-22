@@ -3,7 +3,6 @@
 import { SessionId, StableId, UuidString } from "../types";
 import { v4, NIL } from "uuid";
 import { assert } from "../copied-utils/assert";
-import { NumericUuid } from "wasm-id-allocator";
 
 const hexadecimalCharCodes = Array.from("09afAF").map((c) => c.charCodeAt(0)) as [
 	zero: number,
@@ -138,5 +137,3 @@ export function isStableId(str: string): str is StableId {
 export function fail(message: string): never {
 	throw new Error(message);
 }
-
-export function numericUuidFromStableId(stableId: StableId): NumericUuid {}

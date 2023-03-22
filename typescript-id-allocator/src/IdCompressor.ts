@@ -1,4 +1,5 @@
 import { IdCompressor as WasmIdCompressor } from "wasm-id-allocator";
+import { assert } from "./copied-utils";
 import {
 	CompressedId,
 	FinalCompressedId,
@@ -14,7 +15,7 @@ import {
 	StableId,
 } from "./types";
 import { currentWrittenVersion } from "./types/persisted-types/0.0.1";
-import { assert, generateStableId } from "./util";
+import { generateStableId } from "./util";
 import { getIds } from "./util/idRange";
 import { createSessionId, fail } from "./util/utilities";
 
