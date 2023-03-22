@@ -4,11 +4,13 @@
  */
 
 import { strict as assert } from "assert";
+import { TestOnly } from "wasm-id-allocator";
 import {
 	CompressedId,
 	FinalCompressedId,
 	LocalCompressedId,
 	OpSpaceCompressedId,
+	StableId,
 } from "../../src/types";
 
 /**
@@ -62,4 +64,8 @@ export function getOrCreate<K, V>(map: Map<K, V>, key: K, defaultValue: (key: K)
 		map.set(key, value);
 	}
 	return value;
+}
+
+export function incrementStableId(stableId: StableId, offset: number): StableId {
+	return TestOnly.increment_uuid(stableId, offset) as StableId;
 }

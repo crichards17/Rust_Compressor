@@ -32,7 +32,7 @@ import {
 import { assertIsStableId } from "../../src/util";
 import { assertIsSessionId, createSessionId, fail } from "../../src/util/utilities";
 import { getIds } from "../../src/util/idRange";
-import { getOrCreate, isLocalId } from "./testCommon";
+import { getOrCreate, incrementStableId, isLocalId } from "./testCommon";
 
 /**
  * A readonly `Map` which is known to contain a value for every possible key
@@ -104,15 +104,6 @@ function makeSessionIds(): ClientMap<SessionId> {
  */
 export const sessionIds = makeSessionIds();
 
-/**
- * An array of session uuids corresponding to all non-local `Client` entries.
- */
-export const sessionNumericUuids = new Map(
-	[...sessionIds.entries()].map(([client, sessionId]) => {
-		return [client, numericUuidFromStableId(sessionId)];
-	}),
-) as ClientMap<NumericUuid>;
-
 /** An immutable view of an `IdCompressor` */
 export interface ReadonlyIdCompressor
 	extends Omit<
@@ -130,7 +121,6 @@ export interface TestIdData {
 	readonly id: SessionSpaceCompressedId;
 	readonly originatingClient: Client;
 	readonly sessionId: SessionId;
-	readonly sessionNumericUuid: NumericUuid;
 	readonly expectedOverride: string | undefined;
 	readonly isSequenced: boolean;
 }
@@ -265,7 +255,6 @@ export class IdCompressorTestNetwork {
 			id,
 			originatingClient,
 			sessionId: sessionIds.get(originatingClient),
-			sessionNumericUuid: sessionNumericUuids.get(originatingClient),
 			expectedOverride,
 			isSequenced,
 		};
@@ -507,7 +496,7 @@ export class IdCompressorTestNetwork {
 				} else {
 					assert.strictEqual(
 						uuidASessionSpace,
-						stableIdFromNumericUuid(idDataA.sessionNumericUuid, idIndex),
+						incrementStableId(idDataA.sessionId, idIndex),
 					);
 				}
 				assert.strictEqual(compressorA.recompress(uuidASessionSpace), sessionSpaceIdA);
