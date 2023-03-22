@@ -42,6 +42,7 @@ import {
 } from "../../types";
 import { getIds } from "../../util/idRange";
 import { createSessionId, fail } from "../../util/utilities";
+import { TestOnly } from "wasm-id-allocator";
 
 describe("IdCompressor", () => {
 	it("detects invalid cluster sizes", () => {
@@ -1173,7 +1174,7 @@ describe("IdCompressor", () => {
 				const compressor2 = network.getCompressor(Client.Client2);
 				const id = network.getIdLog(Client.Client2)[0].id;
 				const uuid = assertIsStableId(compressor2.decompress(id));
-				const nextUuid = stableIdFromNumericUuid(numericUuidFromStableId(uuid), 1);
+				const nextUuid = TestOnly.increment_uuid(uuid, 1);
 				// TODO:#283: Re-assess test when full unification is implemented
 				assert.doesNotThrow(
 					() => network.allocateAndSendIds(Client.Client1, 1, { 0: nextUuid }),
