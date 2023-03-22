@@ -690,11 +690,16 @@ describe("IdCompressor", () => {
 					eventName: "RuntimeIdCompressor:NewCluster",
 				},
 			]);
-			mockLogger.assertMatchNone([
-				{
-					eventName: "RuntimeIdCompressor:FirstCluster",
-				},
-			]);
+			// TODO: use mockLogger.assertMatchNone
+			if (
+				mockLogger.matchAnyEvent([
+					{
+						eventName: "RuntimeIdCompressor:FirstCluster",
+					},
+				])
+			) {
+				assert.fail();
+			}
 		});
 
 		it("correctly logs telemetry events for eager final id allocations", () => {
@@ -1648,6 +1653,7 @@ describe("IdCompressor", () => {
 				const [serializedNoSession, serializedWithSession] = expectSerializes(
 					network.getCompressor(Client.Client1),
 				);
+				assert(compressorEquals());
 				assert(hasOngoingSession(serializedWithSession));
 				assert(!hasOngoingSession(serializedNoSession));
 			});
@@ -1698,6 +1704,7 @@ describe("IdCompressor", () => {
 				expectSerializes(network.getCompressor(Client.Client3));
 			});
 
+			// TODO: test in Rust
 			itNetwork(
 				"packs IDs into a single cluster when a single client generates non-overridden ids",
 				3,
@@ -1758,7 +1765,7 @@ describe("IdCompressor", () => {
 					let deserializedPrev = roundtrip(compressors[0][1], false)[1];
 					for (let i = 1; i < compressors.length; i++) {
 						const deserializedCur = roundtrip(compressors[i][1], false)[1];
-						assert(deserializedPrev.equals(deserializedCur, false));
+						assert(compressorEquals(deserializedPrev, deserializedCur, false));
 						deserializedPrev = deserializedCur;
 					}
 				});

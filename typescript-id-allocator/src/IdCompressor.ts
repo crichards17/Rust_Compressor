@@ -1,4 +1,4 @@
-import { IdCompressor as WasmIdCompressor, TestOnly } from "wasm-id-allocator";
+import { IdCompressor as WasmIdCompressor } from "wasm-id-allocator";
 import { assert } from "./copied-utils";
 import {
 	CompressedId,
