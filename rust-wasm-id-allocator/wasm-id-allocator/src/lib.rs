@@ -226,16 +226,6 @@ impl IdCompressor {
     fn set_error_string(&mut self, error: &str) {
         self.error_string = Some(String::from(error));
     }
-
-    #[cfg(debug_assertions)]
-    pub fn equals(&self, other: &IdCompressor) -> bool {
-        self.compressor == other.compressor
-    }
-
-    #[cfg(not(debug_assertions))]
-    pub fn equals(&self, _: &IdCompressor) -> bool {
-        false
-    }
 }
 
 #[wasm_bindgen]
@@ -287,6 +277,11 @@ impl TestOnly {
     pub fn increment_uuid(uuid_string: String, offset: f64) -> String {
         (StableId::from(SessionId::from_uuid_string(&uuid_string).unwrap()) + (offset as u64))
             .to_uuid_string()
+    }
+
+    #[wasm_bindgen]
+    pub fn compressor_equals(a: &IdCompressor, b: &IdCompressor) -> bool {
+        a.compressor == b.compressor
     }
 }
 

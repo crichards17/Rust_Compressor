@@ -21,6 +21,7 @@ import {
 	generateCompressedIds,
 } from "./idCompressorTestUtilities";
 import {
+	compressorEquals,
 	convertToGenCount,
 	convertToUnackedLocalId,
 	expectDefined,
@@ -1154,10 +1155,8 @@ describe("IdCompressor", () => {
 			compressor1.finalizeCreationRange(range2);
 			compressor2.finalizeCreationRange(range2);
 			assert(
-				IdCompressor.deserialize(
-					compressor1.serialize(false),
-					createSessionId(),
-				).equalsInternal(
+				compressorEquals(
+					IdCompressor.deserialize(compressor1.serialize(false), createSessionId()),
 					IdCompressor.deserialize(compressor2.serialize(false), createSessionId()),
 					false, // don't compare local state
 				),
@@ -1541,7 +1540,7 @@ describe("IdCompressor", () => {
 			// Glass box test, as it knows the order of final IDs
 			assert.equal(
 				compressor.normalizeToSessionSpace(opSpaceIds[0], compressor2.localSessionId),
-				compressor.reservedIdCount + compressor.clusterCapacity,
+				compressor.clusterCapacity,
 			);
 		});
 
@@ -1558,9 +1557,7 @@ describe("IdCompressor", () => {
 			// Glass box test, as it knows the order of final IDs
 			assert.equal(
 				compressor.normalizeToSessionSpace(opSpaceIds[0], compressor2.localSessionId),
-				compressor.reservedIdCount +
-					initialClusterCapacity * 2 +
-					compressor.clusterCapacity,
+				initialClusterCapacity * 2 + compressor.clusterCapacity,
 			);
 		});
 

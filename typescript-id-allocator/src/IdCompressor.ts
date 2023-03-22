@@ -1,4 +1,4 @@
-import { IdCompressor as WasmIdCompressor } from "wasm-id-allocator";
+import { IdCompressor as WasmIdCompressor, TestOnly } from "wasm-id-allocator";
 import { assert } from "./copied-utils";
 import {
 	CompressedId,
@@ -25,7 +25,7 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 	private readonly sessionTokens: Map<SessionId, number> = new Map();
 
 	private constructor(
-		public readonly wasmCompressor: WasmIdCompressor,
+		private readonly wasmCompressor: WasmIdCompressor,
 		public readonly localSessionId: SessionId,
 	) {}
 
@@ -145,13 +145,6 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 			bytes: this.wasmCompressor.serialize(withSession),
 			version: currentWrittenVersion,
 		} as SerializedIdCompressor;
-	}
-
-	/**
-	 * Only for use in tests. Always returns false if underlying WASM is built in release.
-	 */
-	public equalsInternal(other: IdCompressor /* TODO add local state comparison */): boolean {
-		return this.wasmCompressor.equals(other.wasmCompressor);
 	}
 
 	public dispose(): void {

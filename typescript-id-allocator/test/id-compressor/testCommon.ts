@@ -5,6 +5,7 @@
 
 import { strict as assert } from "assert";
 import { TestOnly } from "wasm-id-allocator";
+import { IdCompressor } from "../../src/IdCompressor";
 import {
 	CompressedId,
 	FinalCompressedId,
@@ -68,4 +69,27 @@ export function getOrCreate<K, V>(map: Map<K, V>, key: K, defaultValue: (key: K)
 
 export function incrementStableId(stableId: StableId, offset: number): StableId {
 	return TestOnly.increment_uuid(stableId, offset) as StableId;
+}
+
+/**
+ * Only for use in tests. Always returns false if underlying WASM is built in release.
+ */
+export function compressorEquals(
+	a: ReadonlyIdCompressor,
+	b: ReadonlyIdCompressor,
+	compareLocalState: boolean /* TODO add local state comparison */,
+): boolean {
+	return TestOnly.compressor_equals((a as any).wasmCompressor, (b as any).wasmCompressor);
+}
+
+/** An immutable view of an `IdCompressor` */
+export interface ReadonlyIdCompressor
+	extends Omit<
+		IdCompressor,
+		| "generateCompressedId"
+		| "generateCompressedIdRange"
+		| "takeNextCreationRange"
+		| "finalizeCreationRange"
+	> {
+	readonly clusterCapacity: number;
 }

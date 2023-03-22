@@ -32,7 +32,13 @@ import {
 import { assertIsStableId } from "../../src/util";
 import { assertIsSessionId, createSessionId, fail } from "../../src/util/utilities";
 import { getIds } from "../../src/util/idRange";
-import { getOrCreate, incrementStableId, isLocalId } from "./testCommon";
+import {
+	compressorEquals,
+	getOrCreate,
+	incrementStableId,
+	isLocalId,
+	ReadonlyIdCompressor,
+} from "./testCommon";
 
 /**
  * A readonly `Map` which is known to contain a value for every possible key
@@ -103,18 +109,6 @@ function makeSessionIds(): ClientMap<SessionId> {
  * An array of session ID strings corresponding to all non-local `Client` entries.
  */
 export const sessionIds = makeSessionIds();
-
-/** An immutable view of an `IdCompressor` */
-export interface ReadonlyIdCompressor
-	extends Omit<
-		IdCompressor,
-		| "generateCompressedId"
-		| "generateCompressedIdRange"
-		| "takeNextCreationRange"
-		| "finalizeCreationRange"
-	> {
-	readonly clusterCapacity: number;
-}
 
 /** Information about a generated ID in a network to be validated by tests */
 export interface TestIdData {
@@ -610,7 +604,7 @@ export function expectSerializes(
 		} else {
 			[serialized, deserialized] = roundtrip(compressor, false);
 		}
-		assert.strictEqual(compressor.equalsInternal(deserialized, withSession), true);
+		assert.strictEqual(compressorEquals(compressor, deserialized, withSession), true);
 		return serialized;
 	}
 
