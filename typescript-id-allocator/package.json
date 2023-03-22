@@ -1,9 +1,9 @@
 {
 	"scripts": {
+		"build": "npm run build:wasm && npm run build:ts",
+		"build:release": "npm run build:wasm-release && npm run build:ts-release",
 		"build:ts": "npm i && tsc --project \"tsconfig.json\"",
 		"build:ts-release": "npm i && tsc --project \"tsconfig-release.json\"",
-		"build:e2e": "npm run build:wasm && npm run build:ts",
-		"build:e2e-release": "npm run build:wasm-release && npm run build:ts-release",
 		"build:wasm": "npm i --only=dev && wasm-pack build --debug --target nodejs --out-dir ../../typescript-id-allocator/dist/wasm ../rust-wasm-id-allocator/wasm-id-allocator",
 		"build:wasm-release": "npm i --only=dev && wasm-pack build --target nodejs --out-dir ../../typescript-id-allocator/dist/wasm ../rust-wasm-id-allocator/wasm-id-allocator",
 		"clean": "rimraf ./dist",

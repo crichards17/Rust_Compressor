@@ -280,6 +280,7 @@ impl InteropIds {
 #[wasm_bindgen]
 pub struct TestOnly {}
 
+#[cfg(debug_assertions)]
 #[wasm_bindgen]
 impl TestOnly {
     #[wasm_bindgen]
