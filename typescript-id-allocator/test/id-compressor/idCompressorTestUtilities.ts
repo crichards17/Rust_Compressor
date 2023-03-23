@@ -30,7 +30,6 @@ import {
 	SessionSpaceCompressedId,
 	StableId,
 } from "../../src/types";
-import { assertIsStableId } from "../../src/util";
 import { assertIsSessionId, createSessionId, fail } from "../../src/util/utilities";
 import { getIds } from "../../src/util/idRange";
 import {
