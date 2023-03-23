@@ -1,4 +1,0 @@
-{
-	"mochaExplorer.files": "test/id-compressor/**/*.ts",
-	"mochaExplorer.require": "ts-node/register"
-}
