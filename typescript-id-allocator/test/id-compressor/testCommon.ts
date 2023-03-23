@@ -77,9 +77,13 @@ export function incrementStableId(stableId: StableId, offset: number): StableId 
 export function compressorEquals(
 	a: ReadonlyIdCompressor,
 	b: ReadonlyIdCompressor,
-	compareLocalState: boolean /* TODO add local state comparison */,
+	compareLocalState: boolean,
 ): boolean {
-	return TestOnly.compressor_equals((a as any).wasmCompressor, (b as any).wasmCompressor);
+	return TestOnly.compressor_equals(
+		(a as any).wasmCompressor,
+		(b as any).wasmCompressor,
+		compareLocalState,
+	);
 }
 
 /** An immutable view of an `IdCompressor` */

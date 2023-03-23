@@ -350,7 +350,8 @@ describe("IdCompressor Perf", () => {
 				serialized = compressor.serialize(false);
 			},
 			benchmarkFn: () => {
-				IdCompressor.deserialize(serialized, overrideRemoteSessionId);
+				const compressor = IdCompressor.deserialize(serialized, overrideRemoteSessionId);
+				compressor.dispose();
 			},
 		});
 	}

@@ -235,29 +235,6 @@ impl IdCompressor {
         new_cluster_ref
     }
 
-    pub fn serialize(&self, include_local_state: bool) -> Vec<u8> {
-        if !include_local_state {
-            persistence::v1::serialize(&self)
-        } else {
-            persistence::v1::serialize_with_local(&self)
-        }
-    }
-
-    #[cfg(feature = "uuid-generation")]
-    pub fn deserialize(bytes: &[u8]) -> Result<IdCompressor, DeserializationError> {
-        persistence::deserialize(bytes, || SessionId::new())
-    }
-
-    pub fn deserialize_with_session_id<FMakeSession>(
-        bytes: &[u8],
-        make_session_id: FMakeSession,
-    ) -> Result<IdCompressor, DeserializationError>
-    where
-        FMakeSession: FnOnce() -> SessionId,
-    {
-        persistence::deserialize(bytes, make_session_id)
-    }
-
     pub fn normalize_to_op_space(
         &self,
         id: SessionSpaceId,
@@ -442,6 +419,44 @@ impl IdCompressor {
                     }
                 }
             }
+        }
+    }
+
+    pub fn serialize(&self, include_local_state: bool) -> Vec<u8> {
+        if !include_local_state {
+            persistence::v1::serialize(&self)
+        } else {
+            persistence::v1::serialize_with_local(&self)
+        }
+    }
+
+    #[cfg(feature = "uuid-generation")]
+    pub fn deserialize(bytes: &[u8]) -> Result<IdCompressor, DeserializationError> {
+        persistence::deserialize(bytes, || SessionId::new())
+    }
+
+    pub fn deserialize_with_session_id<FMakeSession>(
+        bytes: &[u8],
+        make_session_id: FMakeSession,
+    ) -> Result<IdCompressor, DeserializationError>
+    where
+        FMakeSession: FnOnce() -> SessionId,
+    {
+        persistence::deserialize(bytes, make_session_id)
+    }
+}
+
+#[cfg(debug_assertions)]
+impl IdCompressor {
+    pub fn equals_test_only(&self, other: &IdCompressor, compare_local_state: bool) -> bool {
+        // TODO these comparisons are likely incorrect for ordered collections
+        if compare_local_state {
+            self == other
+        } else {
+            self.sessions == other.sessions
+                && self.final_space == other.final_space
+                && self.uuid_space == other.uuid_space
+                && self.cluster_capacity == other.cluster_capacity
         }
     }
 }

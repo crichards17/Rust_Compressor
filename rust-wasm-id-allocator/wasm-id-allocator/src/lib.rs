@@ -280,8 +280,13 @@ impl TestOnly {
     }
 
     #[wasm_bindgen]
-    pub fn compressor_equals(a: &IdCompressor, b: &IdCompressor) -> bool {
-        a.compressor == b.compressor
+    pub fn compressor_equals(
+        a: &IdCompressor,
+        b: &IdCompressor,
+        compare_local_state: bool,
+    ) -> bool {
+        a.compressor
+            .equals_test_only(&b.compressor, compare_local_state)
     }
 }
 

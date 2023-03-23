@@ -1157,15 +1157,22 @@ describe("IdCompressor", () => {
 			const compressorResumed = IdCompressor.deserialize(serializedWithSession);
 			compressorResumed.generateCompressedId();
 			const range2 = compressorResumed.takeNextCreationRange();
-			compressor1.finalizeCreationRange(range2);
+			compressorResumed.finalizeCreationRange(range2);
 			compressor2.finalizeCreationRange(range2);
+			const [__, roundtrippedCompressorResumed] = roundtrip(compressorResumed, false);
+			const [___, roundtrippedCompressor2] = roundtrip(compressor2, false);
 			assert(
 				compressorEquals(
-					IdCompressor.deserialize(compressor1.serialize(false), createSessionId()),
-					IdCompressor.deserialize(compressor2.serialize(false), createSessionId()),
+					roundtrippedCompressorResumed,
+					roundtrippedCompressor2,
 					false, // don't compare local state
 				),
 			);
+			compressor1.dispose();
+			compressor2.dispose();
+			compressorResumed.dispose();
+			roundtrippedCompressor2.dispose();
+			roundtrippedCompressorResumed.dispose();
 		});
 	});
 
@@ -1650,12 +1657,7 @@ describe("IdCompressor", () => {
 				network.deliverOperations(Client.Client1);
 				// Some un-acked locals at the end
 				network.allocateAndSendIds(Client.Client1, 4);
-				const [serializedNoSession, serializedWithSession] = expectSerializes(
-					network.getCompressor(Client.Client1),
-				);
-				assert(compressorEquals());
-				assert(hasOngoingSession(serializedWithSession));
-				assert(!hasOngoingSession(serializedNoSession));
+				expectSerializes(network.getCompressor(Client.Client1));
 			});
 
 			itNetwork("can serialize a partially empty cluster", 5, (network) => {
@@ -1766,26 +1768,13 @@ describe("IdCompressor", () => {
 					for (let i = 1; i < compressors.length; i++) {
 						const deserializedCur = roundtrip(compressors[i][1], false)[1];
 						assert(compressorEquals(deserializedPrev, deserializedCur, false));
+						deserializedPrev.dispose();
 						deserializedPrev = deserializedCur;
 					}
 				});
 				expectSerializes(network.getCompressor(Client.Client1));
 				expectSerializes(network.getCompressor(Client.Client2));
 				expectSerializes(network.getCompressor(Client.Client3));
-			});
-
-			itNetwork("stores override indices relative to their clusters", 3, (network) => {
-				network.allocateAndSendIds(Client.Client1, 3, { 0: "cluster1" });
-				network.allocateAndSendIds(Client.Client2, 3, { 0: "cluster2" });
-				network.deliverOperations(Client.Client1);
-				const serialized = network.getCompressor(Client.Client1).serialize(false);
-				assert.equal(serialized.clusters.length, 2);
-				const cluster0 = serialized.clusters[0][2] ?? fail("Expected overrides cluster");
-				const cluster1 = serialized.clusters[1][2] ?? fail("Expected overrides cluster");
-				assert(typeof cluster0 !== "number", "Expected overrides cluster");
-				assert(typeof cluster1 !== "number", "Expected overrides cluster");
-				assert.equal(cluster0[0][0], 0);
-				assert.equal(cluster1[0][0], 0);
 			});
 		});
 	});
