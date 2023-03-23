@@ -267,14 +267,14 @@ describe("IdCompressor", () => {
 		];
 
 		tests.forEach(({ title, overrideIndices, idCount }) => {
-			it(title, () => {
+			itCompressor(title, () => {
 				const compressor = CompressorFactory.createCompressor(Client.Client1);
 				createAndValidateIdRange(compressor, idCount, new Set(overrideIndices));
 			});
 
 			tests.forEach(
 				({ title: title2, overrideIndices: overrideIndices2, idCount: idCount2 }) => {
-					it(`${title2} after a range ${title}`, () => {
+					itCompressor(`${title2} after a range ${title}`, () => {
 						const compressor = CompressorFactory.createCompressor(Client.Client1);
 						createAndValidateIdRange(compressor, idCount, new Set(overrideIndices));
 						createAndValidateIdRange(compressor, idCount2, new Set(overrideIndices2));
@@ -1881,7 +1881,10 @@ function describeNetworkNoValidation(
 function itCompressor(title: string, testFn: () => void): void {
 	it(title, () => {
 		assert.equal(CompressorFactory.compressorCount, 0, "Compressor leakage across tests.");
-		testFn();
-		CompressorFactory.disposeAllCompressors();
+		try {
+			testFn();
+		} finally {
+			CompressorFactory.disposeAllCompressors();
+		}
 	});
 }
