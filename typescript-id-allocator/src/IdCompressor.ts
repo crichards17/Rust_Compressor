@@ -110,6 +110,11 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 		originSessionId: SessionId,
 	): SessionSpaceCompressedId {
 		let session_token = this.getOrCreateSessionToken(originSessionId);
+		if (Object.is(session_token, Number.NaN)) {
+			throw new Error(this.wasmCompressor.get_error_string());
+		} else if (session_token === -1 && id < 0) {
+			fail("No IDs have ever been finalized by the supplied session.");
+		}
 		let normalizedId = this.wasmCompressor.normalize_to_session_space(id, session_token);
 		return this.idOrError<SessionSpaceCompressedId>(normalizedId);
 	}

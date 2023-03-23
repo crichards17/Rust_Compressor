@@ -39,6 +39,7 @@ pub struct IdCompressor {
 const BINARY_BASE: i64 = 2;
 const MAX_SAFE_INTEGER: i64 = BINARY_BASE.pow(53) - 1;
 const MAX_DEFAULT_CLUSTER_CAPACITY: f64 = BINARY_BASE.pow(20) as f64;
+const NAN_UUID_U128: u128 = 0;
 
 #[wasm_bindgen]
 impl IdCompressor {
@@ -80,10 +81,12 @@ impl IdCompressor {
         next_id as f64
     }
 
-    pub fn get_token(&mut self, uuid_string: String) -> Result<f64, JsError> {
+    pub fn get_token(&mut self, uuid_string: String) -> f64 {
         let session_id = match SessionId::from_uuid_string(&uuid_string) {
             Err(e) => {
-                return Err(JsError::new(e.get_error_string()));
+                self.set_error_string(e.get_error_string());
+                // Invalid SessionId string
+                return NAN;
             }
             Ok(session_id) => session_id,
         };
@@ -91,8 +94,8 @@ impl IdCompressor {
             .compressor
             .get_session_token_from_session_id(session_id)
         {
-            Err(e) => Err(JsError::new(e.get_error_string())),
-            Ok(token) => Ok(token as f64),
+            Err(_) => -1.0,
+            Ok(token) => token as f64,
         }
     }
 
@@ -148,16 +151,24 @@ impl IdCompressor {
     }
 
     pub fn normalize_to_session_space(&mut self, op_space_id: f64, originator_token: f64) -> f64 {
-        let session_id = match self
-            .compressor
-            .get_session_id_from_session_token(originator_token as usize)
-        {
-            Err(e) => {
-                self.set_error_string(e.get_error_string());
-                return NAN;
-            }
-            Ok(session_id) => session_id,
-        };
+        let session_id;
+        // TS layer sends NAN token iff passing FinalId and a SessionId it has not tokenized.
+        //  This can occur when normalizing an ID referenced by a client that has not finalized any IDs,
+        //  and thus is not yet in the Sessions list.
+        if originator_token.is_nan() {
+            session_id = SessionId::from_uuid_u128(NAN_UUID_U128);
+        } else {
+            session_id = match self
+                .compressor
+                .get_session_id_from_session_token(originator_token as usize)
+            {
+                Err(e) => {
+                    self.set_error_string(e.get_error_string());
+                    return NAN;
+                }
+                Ok(session_id) => session_id,
+            };
+        }
         match &self
             .compressor
             .normalize_to_session_space(OpSpaceId::from_id(op_space_id as i64), session_id)
