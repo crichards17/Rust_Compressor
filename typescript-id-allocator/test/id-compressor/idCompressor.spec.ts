@@ -524,6 +524,7 @@ describe("IdCompressor", () => {
 			const id = compressor.generateCompressedId();
 			compressor.generateCompressedId(override);
 			const decompressedId = compressor.decompress(id);
+			assert.equal(override, decompressedId);
 			assert.equal(compressor.recompress(decompressedId), id);
 		});
 
