@@ -1843,15 +1843,19 @@ function createNetworkTestFunction(
 		test?: (network: IdCompressorTestNetwork) => void,
 	) => {
 		it(title, () => {
-			const hasCapacity = typeof testOrCapacity === "number";
-			const capacity = hasCapacity ? testOrCapacity : undefined;
-			const network = new IdCompressorTestNetwork(capacity);
-			(hasCapacity ? test ?? fail("test must be defined") : testOrCapacity)(network);
-			if (validateAfter) {
-				network.deliverOperations(DestinationClient.All);
-				network.assertNetworkState();
+			let network: IdCompressorTestNetwork | undefined = undefined;
+			try {
+				const hasCapacity = typeof testOrCapacity === "number";
+				const capacity = hasCapacity ? testOrCapacity : undefined;
+				network = new IdCompressorTestNetwork(capacity);
+				(hasCapacity ? test ?? fail("test must be defined") : testOrCapacity)(network);
+				if (validateAfter) {
+					network.deliverOperations(DestinationClient.All);
+					network.assertNetworkState();
+				}
+			} finally {
+				network?.dispose();
 			}
-			network.dispose();
 		}).timeout(10000);
 	};
 }
