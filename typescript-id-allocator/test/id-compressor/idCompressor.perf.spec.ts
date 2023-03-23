@@ -18,6 +18,7 @@ import { benchmark, BenchmarkType } from "@fluid-tools/benchmark";
 import { take } from "../copied-utils/stochastic";
 import {
 	Client,
+	CompressorFactory,
 	IdCompressorTestNetwork,
 	makeOpGenerator,
 	performFuzzActions,
@@ -29,6 +30,10 @@ import { isFinalId, isLocalId, Mutable } from "./testCommon";
 import { createSessionId, fail } from "../../src/util/utilities";
 
 describe("IdCompressor Perf", () => {
+	afterEach(() => {
+		CompressorFactory.disposeAllCompressors();
+	});
+
 	const type = BenchmarkType.Measurement;
 	const localClient = Client.Client1;
 	const remoteClient = Client.Client2;
