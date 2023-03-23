@@ -69,7 +69,7 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 		}
 		const { firstGenCount: first, lastGenCount: last, overrides } = ids;
 		assert(overrides === undefined, "Overrides not yet supported.");
-		this.wasmCompressor.finalize_range(range.sessionId, first, first - last + 1);
+		this.wasmCompressor.finalize_range(range.sessionId, first, last - first + 1);
 	}
 
 	public takeNextCreationRange(): IdCreationRange {
