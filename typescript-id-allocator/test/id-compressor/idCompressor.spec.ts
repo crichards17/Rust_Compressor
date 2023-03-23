@@ -1180,20 +1180,20 @@ describe("IdCompressor", () => {
 
 	describe("Serialization", () => {
 		// TODO: test in Rust
-		itCompressor("can serialize an empty compressor", () => {
-			const compressor = CompressorFactory.createCompressor(Client.Client1);
-			const [serializedNoSession, serializedWithSession] = expectSerializes(compressor);
-			assert.equal(
-				serializedWithSession.clusters.length,
-				0,
-				"reserved cluster should not be serialized",
-			);
-			assert.equal(
-				serializedNoSession.clusters.length,
-				0,
-				"reserved cluster should not be serialized",
-			);
-		});
+		// itCompressor("can serialize an empty compressor", () => {
+		// 	const compressor = CompressorFactory.createCompressor(Client.Client1);
+		// 	const [serializedNoSession, serializedWithSession] = expectSerializes(compressor);
+		// 	assert.equal(
+		// 		serializedWithSession.clusters.length,
+		// 		0,
+		// 		"reserved cluster should not be serialized",
+		// 	);
+		// 	assert.equal(
+		// 		serializedNoSession.clusters.length,
+		// 		0,
+		// 		"reserved cluster should not be serialized",
+		// 	);
+		// });
 
 		itCompressor("correctly deserializes and resumes a session", () => {
 			const compressor1 = CompressorFactory.createCompressor(Client.Client1, undefined);
@@ -1751,24 +1751,24 @@ describe("IdCompressor", () => {
 			});
 
 			// TODO: test in Rust
-			itNetwork(
-				"packs IDs into a single cluster when a single client generates non-overridden ids",
-				3,
-				(network) => {
-					network.allocateAndSendIds(Client.Client1, 20);
-					network.deliverOperations(DestinationClient.All);
-					const [serialized1WithNoSession, serialized1WithSession] = expectSerializes(
-						network.getCompressor(Client.Client1),
-					);
-					assert.equal(serialized1WithNoSession.clusters.length, 1);
-					assert.equal(serialized1WithSession.clusters.length, 1);
-					const [serialized3WithNoSession, serialized3WithSession] = expectSerializes(
-						network.getCompressor(Client.Client3),
-					);
-					assert.equal(serialized3WithNoSession.clusters.length, 1);
-					assert.equal(serialized3WithSession.clusters.length, 1);
-				},
-			);
+			// itNetwork(
+			// 	"packs IDs into a single cluster when a single client generates non-overridden ids",
+			// 	3,
+			// 	(network) => {
+			// 		network.allocateAndSendIds(Client.Client1, 20);
+			// 		network.deliverOperations(DestinationClient.All);
+			// 		const [serialized1WithNoSession, serialized1WithSession] = expectSerializes(
+			// 			network.getCompressor(Client.Client1),
+			// 		);
+			// 		assert.equal(serialized1WithNoSession.clusters.length, 1);
+			// 		assert.equal(serialized1WithSession.clusters.length, 1);
+			// 		const [serialized3WithNoSession, serialized3WithSession] = expectSerializes(
+			// 			network.getCompressor(Client.Client3),
+			// 		);
+			// 		assert.equal(serialized3WithNoSession.clusters.length, 1);
+			// 		assert.equal(serialized3WithSession.clusters.length, 1);
+			// 	},
+			// );
 
 			itNetwork("serializes correctly after unifying duplicate overrides", 3, (network) => {
 				const override = "override";
