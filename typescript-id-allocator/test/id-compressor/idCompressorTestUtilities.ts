@@ -23,6 +23,7 @@ import {
 	FinalCompressedId,
 	IdCreationRange,
 	OpSpaceCompressedId,
+	SerializedIdCompressor,
 	SerializedIdCompressorWithNoSession,
 	SerializedIdCompressorWithOngoingSession,
 	SessionId,
@@ -75,17 +76,70 @@ export const OriginatingClient = { ...Client, ...SemanticClient };
 export type DestinationClient = Client | MetaClient;
 export const DestinationClient = { ...Client, ...MetaClient };
 
-/**
- * Creates a new compressor with the supplied cluster capacity.
- */
-export function createCompressor(
-	client: Client,
-	clusterCapacity = 5,
-	logger?: ITelemetryLogger,
-): IdCompressor {
-	const compressor = IdCompressor.create(sessionIds.get(client));
-	compressor.clusterCapacity = clusterCapacity;
-	return compressor;
+export class CompressorFactory {
+	private static compressors: IdCompressor[] = [];
+
+	public static get compressorCount(): number {
+		return CompressorFactory.compressors.length;
+	}
+
+	/**
+	 * Creates a new compressor with the supplied cluster capacity.
+	 */
+	public static createCompressor(
+		client: Client,
+		clusterCapacity = 5,
+		logger?: ITelemetryLogger,
+	): IdCompressor {
+		return CompressorFactory.createCompressorWithSession(
+			sessionIds.get(client),
+			clusterCapacity,
+			logger,
+		);
+	}
+
+	/**
+	 * Creates a new compressor with the supplied cluster capacity.
+	 */
+	public static createCompressorWithSession(
+		sessionId: SessionId,
+		clusterCapacity = 5,
+		logger?: ITelemetryLogger,
+	): IdCompressor {
+		const compressor = IdCompressor.create(sessionId);
+		compressor.clusterCapacity = clusterCapacity;
+		CompressorFactory.compressors.push(compressor);
+		return compressor;
+	}
+
+	public static deserialize(serialized: SerializedIdCompressorWithOngoingSession): IdCompressor;
+	public static deserialize(
+		serialized: SerializedIdCompressorWithNoSession,
+		newSessionId: SessionId,
+	): IdCompressor;
+	public static deserialize(
+		serialized: SerializedIdCompressor,
+		sessionId?: SessionId,
+	): IdCompressor {
+		let compressor: IdCompressor;
+		if (sessionId) {
+			compressor = IdCompressor.deserialize(
+				serialized as SerializedIdCompressorWithNoSession,
+				sessionId,
+			);
+		} else {
+			compressor = IdCompressor.deserialize(
+				serialized as SerializedIdCompressorWithOngoingSession,
+			);
+		}
+		CompressorFactory.compressors.push(compressor);
+		return compressor;
+	}
+
+	public static disposeAllCompressors(): void {
+		CompressorFactory.compressors.forEach((compressor) => compressor.dispose());
+		CompressorFactory.compressors = [];
+	}
 }
 
 /**
@@ -151,7 +205,7 @@ export class IdCompressorTestNetwork {
 		const clientIds = new Map<Client, TestIdData[]>();
 		const clientSequencedIds = new Map<Client, TestIdData[]>();
 		for (const client of Object.values(Client)) {
-			const compressor = createCompressor(client, initialClusterSize);
+			const compressor = CompressorFactory.createCompressor(client, initialClusterSize);
 			compressors.set(client, compressor);
 			clientProgress.set(client, 0);
 			clientIds.set(client, []);
@@ -552,9 +606,7 @@ export class IdCompressorTestNetwork {
 	}
 
 	public dispose(): void {
-		this.compressors.forEach((compressor) => {
-			compressor.dispose();
-		});
+		CompressorFactory.disposeAllCompressors();
 	}
 }
 
@@ -580,11 +632,14 @@ export function roundtrip(
 ): [SerializedIdCompressorWithOngoingSession | SerializedIdCompressorWithNoSession, IdCompressor] {
 	if (withSession) {
 		const serialized = compressor.serialize(withSession);
-		return [serialized, IdCompressor.deserialize(serialized)];
+		return [serialized, CompressorFactory.deserialize(serialized)];
 	}
 
 	const nonLocalSerialized = compressor.serialize(withSession);
-	return [nonLocalSerialized, IdCompressor.deserialize(nonLocalSerialized, createSessionId())];
+	return [
+		nonLocalSerialized,
+		CompressorFactory.deserialize(nonLocalSerialized, createSessionId()),
+	];
 }
 
 /**
