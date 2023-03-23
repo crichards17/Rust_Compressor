@@ -929,41 +929,6 @@ export function performFuzzActions(
 }
 
 /**
- * Converts the supplied integer to a uuid.
- */
-export function integerToStableId(num: number | bigint): StableId {
-	const bigintNum = BigInt(num);
-	const upper = bigintNum >> BigInt(74);
-	const middle = (bigintNum & (BigInt(0xfff) << BigInt(62))) >> BigInt(62);
-	const lower = bigintNum & BigInt("0x3fffffffffffffff");
-	const upperString = padToLength(upper.toString(16), "0", 12);
-	const middleString = `4${padToLength(middle.toString(16), "0", 3)}`;
-	const lowerString = padToLength(
-		(BigInt("0x8000000000000000") | BigInt(lower)).toString(16),
-		"0",
-		16,
-	);
-	const uuid = upperString + middleString + lowerString;
-	return assertIsStableId(
-		`${uuid.substr(0, 8)}-${uuid.substr(8, 4)}-${uuid.substr(12, 4)}-${uuid.substr(
-			16,
-			4,
-		)}-${uuid.substr(20)}`,
-	);
-}
-
-/**
- * Pads the strings to a length of 32 with zeroes.
- */
-export function padToUuidLength(str: string): string {
-	return padToLength(str, "0", 32);
-}
-
-function padToLength(str: string, char: string, length: number): string {
-	return char.repeat(length - str.length) + str;
-}
-
-/**
  * Helper to generate a fixed number of IDs.
  */
 export function generateCompressedIds(

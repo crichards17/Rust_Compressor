@@ -29,7 +29,6 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 		public readonly localSessionId: SessionId,
 	) {}
 
-	// TODO: ensure disposal in tests
 	public static create(): IdCompressor;
 	public static create(sessionId: SessionId): IdCompressor;
 	public static create(sessionId?: SessionId): IdCompressor {

@@ -72,7 +72,7 @@ export function incrementStableId(stableId: StableId, offset: number): StableId 
 }
 
 /**
- * Only for use in tests. Always returns false if underlying WASM is built in release.
+ * Only for use in tests.
  */
 export function compressorEquals(
 	a: ReadonlyIdCompressor,
