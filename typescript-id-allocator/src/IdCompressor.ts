@@ -1,4 +1,5 @@
 import { IdCompressor as WasmIdCompressor } from "wasm-id-allocator";
+import { assert } from "./copied-utils";
 import {
 	CompressedId,
 	FinalCompressedId,
@@ -14,21 +15,41 @@ import {
 	StableId,
 } from "./types";
 import { currentWrittenVersion } from "./types/persisted-types/0.0.1";
-import { assert, generateStableId } from "./util";
+import { generateStableId } from "./util";
 import { getIds } from "./util/idRange";
-import { fail } from "./util/utilities";
+import { createSessionId, fail } from "./util/utilities";
+
+export const defaultClusterCapacity = WasmIdCompressor.get_default_cluster_capacity();
 
 export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 	private readonly sessionTokens: Map<SessionId, number> = new Map();
 
 	private constructor(
-		public readonly wasmCompressor: WasmIdCompressor,
+		private readonly wasmCompressor: WasmIdCompressor,
 		public readonly localSessionId: SessionId,
 	) {}
 
-	public static create(): IdCompressor {
-		const localSessionId = generateStableId() as SessionId;
-		return new IdCompressor(new WasmIdCompressor(localSessionId), localSessionId);
+	public static create(): IdCompressor;
+	public static create(sessionId: SessionId): IdCompressor;
+	public static create(sessionId?: SessionId): IdCompressor {
+		const localSessionId = sessionId ?? createSessionId();
+		const compressor = new IdCompressor(new WasmIdCompressor(localSessionId), localSessionId);
+		return compressor;
+	}
+
+	/**
+	 * The size of each newly created ID cluster.
+	 */
+	public get clusterCapacity(): number {
+		return this.wasmCompressor.get_cluster_capacity();
+	}
+
+	/**
+	 * Must only be set with a value upon which consensus has been reached. Value must be greater than zero and less than
+	 * `IdCompressor.maxClusterSize`.
+	 */
+	public set clusterCapacity(value: number) {
+		this.wasmCompressor.set_cluster_capacity(value);
 	}
 
 	private getOrCreateSessionToken(sessionId: SessionId): number {
@@ -47,11 +68,7 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 		}
 		const { firstGenCount: first, lastGenCount: last, overrides } = ids;
 		assert(overrides === undefined, "Overrides not yet supported.");
-		this.wasmCompressor.finalize_range(
-			this.getOrCreateSessionToken(range.sessionId),
-			first,
-			first - last + 1,
-		);
+		this.wasmCompressor.finalize_range(range.sessionId, first, last - first + 1);
 	}
 
 	public takeNextCreationRange(): IdCreationRange {
@@ -69,10 +86,11 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 				},
 			};
 		}
+		wasmRange.free();
 		return range;
 	}
 
-	public generateCompressedId(): SessionSpaceCompressedId {
+	public generateCompressedId(override?: string): SessionSpaceCompressedId {
 		return this.wasmCompressor.generate_next_id() as SessionSpaceCompressedId;
 	}
 
@@ -125,6 +143,10 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 		} as SerializedIdCompressor;
 	}
 
+	public dispose(): void {
+		this.wasmCompressor.free();
+	}
+
 	public static deserialize(serialized: SerializedIdCompressorWithOngoingSession): IdCompressor;
 	public static deserialize(
 		serialized: SerializedIdCompressorWithNoSession,
@@ -143,9 +165,5 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 			WasmIdCompressor.deserialize(serialized.bytes, localSessionId),
 			localSessionId,
 		);
-	}
-
-	public dispose(): void {
-		this.wasmCompressor.free();
 	}
 }

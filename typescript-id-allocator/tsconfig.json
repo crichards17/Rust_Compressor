@@ -1,5 +1,5 @@
 {
-	"exclude": ["dist", "node_modules"],
+	"exclude": ["dist", "lib", "node_modules"],
 	"compilerOptions": {
 		"target": "es2017",
 		"declaration": true,

@@ -22,6 +22,10 @@ pub struct IdCompressor {
 }
 
 impl IdCompressor {
+    pub fn get_default_cluster_capacity() -> u64 {
+        persistence::DEFAULT_CLUSTER_CAPACITY
+    }
+
     #[cfg(feature = "uuid-generation")]
     pub fn new() -> Self {
         let session_id = SessionId::new();
@@ -78,6 +82,10 @@ impl IdCompressor {
             None => Err(SessionTokenError::UnknownSessionId),
             Some(session_space) => Ok(session_space.self_ref().get_index()),
         }
+    }
+
+    pub fn get_cluster_capacity(&self) -> u64 {
+        self.cluster_capacity
     }
 
     pub fn set_cluster_capacity(
@@ -225,29 +233,6 @@ impl IdCompressor {
         self.uuid_space
             .add_cluster(session_id, new_cluster_ref, &self.sessions);
         new_cluster_ref
-    }
-
-    pub fn serialize(&self, include_local_state: bool) -> Vec<u8> {
-        if !include_local_state {
-            persistence::v1::serialize(&self)
-        } else {
-            persistence::v1::serialize_with_local(&self)
-        }
-    }
-
-    #[cfg(feature = "uuid-generation")]
-    pub fn deserialize(bytes: &[u8]) -> Result<IdCompressor, DeserializationError> {
-        persistence::deserialize(bytes, || SessionId::new())
-    }
-
-    pub fn deserialize_with_session_id<FMakeSession>(
-        bytes: &[u8],
-        make_session_id: FMakeSession,
-    ) -> Result<IdCompressor, DeserializationError>
-    where
-        FMakeSession: FnOnce() -> SessionId,
-    {
-        persistence::deserialize(bytes, make_session_id)
     }
 
     pub fn normalize_to_op_space(
@@ -436,6 +421,44 @@ impl IdCompressor {
             }
         }
     }
+
+    pub fn serialize(&self, include_local_state: bool) -> Vec<u8> {
+        if !include_local_state {
+            persistence::v1::serialize(&self)
+        } else {
+            persistence::v1::serialize_with_local(&self)
+        }
+    }
+
+    #[cfg(feature = "uuid-generation")]
+    pub fn deserialize(bytes: &[u8]) -> Result<IdCompressor, DeserializationError> {
+        persistence::deserialize(bytes, || SessionId::new())
+    }
+
+    pub fn deserialize_with_session_id<FMakeSession>(
+        bytes: &[u8],
+        make_session_id: FMakeSession,
+    ) -> Result<IdCompressor, DeserializationError>
+    where
+        FMakeSession: FnOnce() -> SessionId,
+    {
+        persistence::deserialize(bytes, make_session_id)
+    }
+}
+
+#[cfg(debug_assertions)]
+impl IdCompressor {
+    pub fn equals_test_only(&self, other: &IdCompressor, compare_local_state: bool) -> bool {
+        // TODO these comparisons are likely incorrect for ordered collections
+        if compare_local_state {
+            self == other
+        } else {
+            self.sessions == other.sessions
+                && self.final_space == other.final_space
+                && self.uuid_space == other.uuid_space
+                && self.cluster_capacity == other.cluster_capacity
+        }
+    }
 }
 
 pub trait ErrorEnum {
@@ -446,6 +469,7 @@ impl ErrorEnum for UuidGenerationError {
     fn get_error_string(&self) -> &'static str {
         match self {
             UuidGenerationError::InvalidUuidString => "Invalid Uuid String",
+            UuidGenerationError::InvalidVersionOrVariant => "Invalid Version or Variant,",
         }
     }
 }
@@ -529,7 +553,9 @@ impl ErrorEnum for SessionTokenError {
     fn get_error_string(&self) -> &'static str {
         match self {
             SessionTokenError::UnknownSessionToken => "Unknown Session Token.",
-            SessionTokenError::UnknownSessionId => "UnknownSessionId.",
+            SessionTokenError::UnknownSessionId => {
+                "No IDs have ever been finalized by the supplied session."
+            }
         }
     }
 }

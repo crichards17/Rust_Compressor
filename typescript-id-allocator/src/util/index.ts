@@ -5,5 +5,4 @@ export {
 	isStableId,
 	isUuidString,
 	nilUuid,
-	assert,
 } from "./utilities";

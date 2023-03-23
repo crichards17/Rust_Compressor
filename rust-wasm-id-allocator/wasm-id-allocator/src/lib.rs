@@ -38,9 +38,14 @@ pub struct IdCompressor {
 
 const BINARY_BASE: i64 = 2;
 const MAX_SAFE_INTEGER: i64 = BINARY_BASE.pow(53) - 1;
+const MAX_DEFAULT_CLUSTER_CAPACITY: f64 = BINARY_BASE.pow(20) as f64;
 
 #[wasm_bindgen]
 impl IdCompressor {
+    pub fn get_default_cluster_capacity() -> f64 {
+        IdCompressorCore::get_default_cluster_capacity() as f64
+    }
+
     #[wasm_bindgen(constructor)]
     pub fn new(session_id_string: String) -> Option<IdCompressor> {
         let session_id = match SessionId::from_uuid_string(&session_id_string) {
@@ -53,9 +58,16 @@ impl IdCompressor {
         })
     }
 
+    pub fn get_cluster_capacity(&self) -> f64 {
+        self.compressor.get_cluster_capacity() as f64
+    }
+
     pub fn set_cluster_capacity(&mut self, new_cluster_capacity: f64) -> Result<(), JsError> {
-        if new_cluster_capacity.fract() != 0.0 {
-            return Err(JsError::new("Non-integer cluster size."));
+        if new_cluster_capacity.fract() != 0.0
+            || new_cluster_capacity < 0.0
+            || new_cluster_capacity > MAX_DEFAULT_CLUSTER_CAPACITY
+        {
+            return Err(JsError::new("Cluster size but be a non-zero integer."));
         }
         self.compressor
             .set_cluster_capacity(new_cluster_capacity as u64)
@@ -100,14 +112,11 @@ impl IdCompressor {
 
     pub fn finalize_range(
         &mut self,
-        session_token: f64,
+        session_id_str: String,
         range_base_count: f64,
         range_len: f64,
     ) -> Result<(), JsError> {
-        let id = match self
-            .compressor
-            .get_session_id_from_session_token(session_token as usize)
-        {
+        let id = match SessionId::from_uuid_string(&session_id_str) {
             Err(e) => {
                 return Err(JsError::new(e.get_error_string()));
             }
@@ -251,6 +260,30 @@ impl InteropIds {
     #[wasm_bindgen(getter)]
     pub fn count(&self) -> f64 {
         self.count
+    }
+}
+
+#[cfg(debug_assertions)]
+#[wasm_bindgen]
+pub struct TestOnly {}
+
+#[cfg(debug_assertions)]
+#[wasm_bindgen]
+impl TestOnly {
+    #[wasm_bindgen]
+    pub fn increment_uuid(uuid_string: String, offset: f64) -> String {
+        (StableId::from(SessionId::from_uuid_string(&uuid_string).unwrap()) + (offset as u64))
+            .to_uuid_string()
+    }
+
+    #[wasm_bindgen]
+    pub fn compressor_equals(
+        a: &IdCompressor,
+        b: &IdCompressor,
+        compare_local_state: bool,
+    ) -> bool {
+        a.compressor
+            .equals_test_only(&b.compressor, compare_local_state)
     }
 }
 

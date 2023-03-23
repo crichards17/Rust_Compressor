@@ -1,5 +1,5 @@
+import { assert } from "../copied-utils";
 import type { IdCreationRange } from "../types/persisted-types";
-import { assert } from "./utilities";
 
 export function getIds(range: IdCreationRange):
 	| {

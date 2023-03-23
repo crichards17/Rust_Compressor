@@ -198,6 +198,8 @@ pub(crate) mod v1 {
         compressor
     }
 
+    // TODO perst unit tests
+
     #[cfg(test)]
     mod tests {
         use super::*;
