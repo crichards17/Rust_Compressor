@@ -553,7 +553,9 @@ impl ErrorEnum for SessionTokenError {
     fn get_error_string(&self) -> &'static str {
         match self {
             SessionTokenError::UnknownSessionToken => "Unknown Session Token.",
-            SessionTokenError::UnknownSessionId => "UnknownSessionId.",
+            SessionTokenError::UnknownSessionId => {
+                "No IDs have ever been finalized by the supplied session."
+            }
         }
     }
 }
