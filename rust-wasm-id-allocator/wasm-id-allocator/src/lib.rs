@@ -97,16 +97,20 @@ impl IdCompressor {
     }
 
     pub fn take_next_range(&mut self) -> InteropIdRange {
-        let token = self.compressor.get_local_session_token() as f64;
+        let session_id_string =
+            StableId::from(self.compressor.get_local_session_id()).to_uuid_string();
         match self.compressor.take_next_range().range {
             Some((first_local_gen_count, count)) => InteropIdRange {
-                token,
+                session_id_string,
                 ids: Some(InteropIds {
                     first_local_gen_count: first_local_gen_count as f64,
                     count: count as f64,
                 }),
             },
-            None => InteropIdRange { token, ids: None },
+            None => InteropIdRange {
+                session_id_string,
+                ids: None,
+            },
         }
     }
 
@@ -227,15 +231,15 @@ impl IdCompressor {
 
 #[wasm_bindgen]
 pub struct InteropIdRange {
-    token: f64,
+    session_id_string: String,
     ids: Option<InteropIds>,
 }
 
 #[wasm_bindgen]
 impl InteropIdRange {
     #[wasm_bindgen(getter)]
-    pub fn token(&self) -> f64 {
-        self.token
+    pub fn session_id_string(&self) -> String {
+        self.session_id_string.clone()
     }
 
     #[wasm_bindgen(getter)]
@@ -311,7 +315,11 @@ mod tests {
             first_local_gen_count,
             count,
         } = interop_id_range.ids.unwrap();
-        _ = compressor.finalize_range(interop_id_range.token, first_local_gen_count, count)
+        _ = compressor.finalize_range(
+            interop_id_range.session_id_string,
+            first_local_gen_count,
+            count,
+        )
     }
 
     #[test]
@@ -352,7 +360,6 @@ mod tests {
             first_local_gen_count,
             count,
         } = interop_id_range.ids.unwrap();
-        assert_eq!(interop_id_range.token, 0.0);
         assert_eq!(
             LocalId::from_generation_count(first_local_gen_count as u64).id() as f64,
             generated_ids[0]
@@ -376,7 +383,11 @@ mod tests {
             count,
         } = interop_id_range.ids.unwrap();
         assert!(compressor
-            .finalize_range(interop_id_range.token, first_local_gen_count, count)
+            .finalize_range(
+                interop_id_range.session_id_string,
+                first_local_gen_count,
+                count
+            )
             .is_ok());
     }
 
@@ -390,7 +401,13 @@ mod tests {
             assert_eq!(
                 compressor.normalize_to_session_space(
                     op_space_id,
-                    compressor.compressor.get_local_session_token() as f64
+                    compressor
+                        .compressor
+                        .get_session_token_from_session_id(
+                            compressor.compressor.get_local_session_id()
+                        )
+                        .ok()
+                        .unwrap() as f64
                 ),
                 id
             );
@@ -417,7 +434,11 @@ mod tests {
         assert_eq!(
             compressor.normalize_to_session_space(
                 1.0,
-                compressor.compressor.get_local_session_token() as f64
+                compressor
+                    .compressor
+                    .get_session_token_from_session_id(compressor.compressor.get_local_session_id())
+                    .ok()
+                    .unwrap() as f64
             ),
             -2 as f64
         );
