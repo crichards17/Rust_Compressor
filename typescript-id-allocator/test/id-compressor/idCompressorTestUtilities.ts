@@ -438,7 +438,6 @@ export class IdCompressorTestNetwork {
 	public goOfflineThenResume(client: Client): void {
 		const compressor = this.compressors.get(client);
 		const [_, resumedCompressor] = roundtrip(compressor, true);
-		compressor.dispose();
 		this.compressors.set(client, resumedCompressor);
 	}
 
@@ -661,7 +660,6 @@ export function expectSerializes(
 			[serialized, deserialized] = roundtrip(compressor, false);
 		}
 		assert.strictEqual(compressorEquals(compressor, deserialized, withSession), true);
-		deserialized.dispose();
 		return serialized;
 	}
 
