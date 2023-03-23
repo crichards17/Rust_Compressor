@@ -112,14 +112,11 @@ impl IdCompressor {
 
     pub fn finalize_range(
         &mut self,
-        session_token: f64,
+        session_id_str: String,
         range_base_count: f64,
         range_len: f64,
     ) -> Result<(), JsError> {
-        let id = match self
-            .compressor
-            .get_session_id_from_session_token(session_token as usize)
-        {
+        let id = match SessionId::from_uuid_string(&session_id_str) {
             Err(e) => {
                 return Err(JsError::new(e.get_error_string()));
             }
