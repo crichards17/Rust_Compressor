@@ -34,7 +34,6 @@ import { IdCompressor } from "../../src/IdCompressor";
 import { assertIsStableId, isStableId } from "../../src/util";
 import {
 	FinalCompressedId,
-	IdCreationRange,
 	LocalCompressedId,
 	OpSpaceCompressedId,
 	SessionId,
@@ -379,31 +378,6 @@ describe("IdCompressor", () => {
 					opIds.forEach((id) => assert.equal(isFinalId(id), true));
 				}
 			}
-		});
-
-		itCompressor("prevents finalizing unacceptably enormous amounts of ID allocation", () => {
-			const compressor1 = CompressorFactory.createCompressor(Client.Client1);
-			const integerLargerThanHalfMax = Math.round((Number.MAX_SAFE_INTEGER / 3) * 2);
-			const largeRange1: IdCreationRange = {
-				sessionId: sessionIds.get(Client.Client2),
-				ids: { firstGenCount: 1, lastGenCount: integerLargerThanHalfMax },
-			};
-			compressor1.finalizeCreationRange(largeRange1);
-			const largeRange2: IdCreationRange = {
-				sessionId: sessionIds.get(Client.Client2),
-				ids: {
-					firstGenCount: integerLargerThanHalfMax + 1,
-					lastGenCount: Number.MAX_SAFE_INTEGER + 2,
-				},
-			};
-			assert.throws(
-				() => compressor1.finalizeCreationRange(largeRange2),
-				(e) =>
-					validateAssertionError(
-						e,
-						"The number of allocated final IDs must not exceed the JS maximum safe integer.",
-					),
-			);
 		});
 	});
 

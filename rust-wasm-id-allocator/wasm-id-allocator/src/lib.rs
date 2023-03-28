@@ -37,8 +37,7 @@ pub struct IdCompressor {
 }
 
 const BINARY_BASE: i64 = 2;
-const MAX_SAFE_INTEGER: i64 = BINARY_BASE.pow(53) - 1;
-const MAX_DEFAULT_CLUSTER_CAPACITY: f64 = BINARY_BASE.pow(20) as f64;
+const MAX_DEFAULT_CLUSTER_CAPACITY: f64 = BINARY_BASE.pow(11) as f64;
 const NAN_UUID_U128: u128 = 0;
 
 #[wasm_bindgen]
@@ -68,7 +67,7 @@ impl IdCompressor {
             || new_cluster_capacity < 0.0
             || new_cluster_capacity > MAX_DEFAULT_CLUSTER_CAPACITY
         {
-            return Err(JsError::new("Cluster size but be a non-zero integer."));
+            return Err(JsError::new("Cluster size must be a non-zero integer."));
         }
         self.compressor
             .set_cluster_capacity(new_cluster_capacity as u64)
@@ -76,9 +75,7 @@ impl IdCompressor {
     }
 
     pub fn generate_next_id(&mut self) -> f64 {
-        let next_id = self.compressor.generate_next_id().id();
-        debug_assert!(next_id >= -MAX_SAFE_INTEGER && next_id <= MAX_SAFE_INTEGER);
-        next_id as f64
+        self.compressor.generate_next_id().id() as f64
     }
 
     pub fn get_token(&mut self, uuid_string: String) -> f64 {

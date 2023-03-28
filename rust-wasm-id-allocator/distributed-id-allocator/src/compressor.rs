@@ -242,7 +242,7 @@ impl IdCompressor {
                     return Err(NormalizationError::UnknownSessionSpaceId);
                 } else {
                     let local_session_space = self.sessions.deref_session_space(self.local_session);
-                    match local_session_space.try_convert_to_final(local_id) {
+                    match local_session_space.try_convert_to_final(local_id, true) {
                         Some(converted_final) => Ok(OpSpaceId::from(converted_final)),
                         None => Ok(OpSpaceId::from(local_id)),
                     }
@@ -266,7 +266,7 @@ impl IdCompressor {
 
                         match self
                             .get_local_session_space()
-                            .try_convert_to_final(local_to_normalize)
+                            .try_convert_to_final(local_to_normalize, true)
                         {
                             None => return Err(NormalizationError::NoAllocatedFinal),
                             Some(allocated_final) => Ok(allocated_final.into()),
@@ -282,7 +282,7 @@ impl IdCompressor {
                             return Err(NormalizationError::UnknownSessionId);
                         }
                     };
-                    match foreign_session_space.try_convert_to_final(local_to_normalize) {
+                    match foreign_session_space.try_convert_to_final(local_to_normalize, false) {
                         Some(final_id) => Ok(SessionSpaceId::from(final_id)),
                         None => Err(NormalizationError::UnfinalizedForeignLocal),
                     }
