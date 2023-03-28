@@ -56,7 +56,10 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 		let token = this.sessionTokens.get(sessionId);
 		if (token === undefined) {
 			token = this.wasmCompressor.get_token(sessionId);
-			this.sessionTokens.set(sessionId, token);
+			// Will also catch NaN
+			if (token > 0) {
+				this.sessionTokens.set(sessionId, token);
+			}
 		}
 		return token;
 	}
