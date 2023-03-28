@@ -886,7 +886,7 @@ describe("IdCompressor", () => {
 
 	describe("Eager final ID allocation", () => {
 		itCompressor("eagerly allocates final IDs when cluster creation has been finalized", () => {
-			const compressor = CompressorFactory.createCompressor(Client.Client1, 5);
+			const compressor = CompressorFactory.createCompressor(Client.Client1, 3);
 			const localId1 = compressor.generateCompressedId();
 			assert(isLocalId(localId1));
 			const localId2 = compressor.generateCompressedId();
@@ -1035,6 +1035,7 @@ describe("IdCompressor", () => {
 				const rangeA = compressor.takeNextCreationRange();
 				compressor.finalizeCreationRange(rangeA);
 				assert(isFinalId(compressor.generateCompressedId()));
+				assert(isFinalId(compressor.generateCompressedId()));
 
 				// After cluster expansion
 				assert(isLocalId(compressor.generateCompressedId()));
@@ -1116,10 +1117,10 @@ describe("IdCompressor", () => {
 		itCompressor(
 			"generates unique eager finals when there are still outstanding locals after a cluster is expanded",
 			() => {
-				// const compressor = CompressorFactory.createCompressor(Client.Client1, 4 /* must be 4 for the test to make sense */);
-
-				const compressor = CompressorFactory.createCompressor(Client.Client1);
-				compressor.clusterCapacity = 4;
+				const compressor = CompressorFactory.createCompressor(
+					Client.Client1,
+					2 /* must be 2 for the test to make sense */,
+				);
 
 				// Make locals to fill half the future cluster
 				const id1_1 = compressor.generateCompressedId();
@@ -1139,13 +1140,15 @@ describe("IdCompressor", () => {
 
 				// Finalize the first range. This should align the first four locals (i.e. all of range1, and 2/3 of range2)
 				compressor.finalizeCreationRange(range1);
+				assert(isFinalId(compressor.normalizeToOpSpace(id2_2)));
+				assert(isLocalId(compressor.normalizeToOpSpace(id2_3)));
 
 				// Make a single range that should still be overflowing the initial cluster (i.e. be local)
 				const id3_1 = compressor.generateCompressedId();
 				assert(isLocalId(id3_1));
 				const range3 = compressor.takeNextCreationRange();
 
-				// First finalize should expand the cluster and align all outstanding ranges.
+				// Second finalize should expand the cluster and align all outstanding ranges.
 				compressor.finalizeCreationRange(range2);
 
 				// All generated IDs should have aligned finals (even though range3 has not been finalized)
