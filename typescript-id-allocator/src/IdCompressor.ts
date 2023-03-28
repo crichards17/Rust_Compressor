@@ -2,7 +2,6 @@ import { IdCompressor as WasmIdCompressor } from "wasm-id-allocator";
 import { assert } from "./copied-utils";
 import {
 	CompressedId,
-	FinalCompressedId,
 	IdCreationRange,
 	IIdCompressor,
 	IIdCompressorCore,
@@ -56,7 +55,10 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 		let token = this.sessionTokens.get(sessionId);
 		if (token === undefined) {
 			token = this.wasmCompressor.get_token(sessionId);
-			this.sessionTokens.set(sessionId, token);
+			// Will also catch NaN
+			if (token > 0) {
+				this.sessionTokens.set(sessionId, token);
+			}
 		}
 		return token;
 	}
@@ -110,17 +112,20 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 		originSessionId: SessionId,
 	): SessionSpaceCompressedId {
 		let session_token = this.getOrCreateSessionToken(originSessionId);
+		if (Object.is(session_token, Number.NaN)) {
+			throw new Error(this.wasmCompressor.get_error_string());
+		} else if (session_token === -1 && id < 0) {
+			fail("No IDs have ever been finalized by the supplied session.");
+		}
 		let normalizedId = this.wasmCompressor.normalize_to_session_space(id, session_token);
 		return this.idOrError<SessionSpaceCompressedId>(normalizedId);
 	}
 
-	public decompress(id: FinalCompressedId | SessionSpaceCompressedId): string | StableId {
+	public decompress(id: SessionSpaceCompressedId): string | StableId {
 		return this.tryDecompress(id) ?? fail("Could not decompress.");
 	}
 
-	public tryDecompress(
-		id: FinalCompressedId | SessionSpaceCompressedId,
-	): string | StableId | undefined {
+	public tryDecompress(id: SessionSpaceCompressedId): string | StableId | undefined {
 		// TODO: log error string to telemetry if undefined
 		return this.wasmCompressor.decompress(id);
 	}

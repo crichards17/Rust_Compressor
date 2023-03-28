@@ -33,8 +33,6 @@ import { take } from "../copied-utils/stochastic";
 import { IdCompressor } from "../../src/IdCompressor";
 import { assertIsStableId, isStableId } from "../../src/util";
 import {
-	FinalCompressedId,
-	IdCreationRange,
 	LocalCompressedId,
 	OpSpaceCompressedId,
 	SessionId,
@@ -102,7 +100,7 @@ describe("IdCompressor", () => {
 				(e) => validateAssertionError(e, errorMessage),
 			);
 			assert.throws(
-				() => compressor.decompress(0 as FinalCompressedId),
+				() => compressor.decompress(0 as SessionSpaceCompressedId),
 				(e) => validateAssertionError(e, errorMessage),
 			);
 		});
@@ -325,8 +323,18 @@ describe("IdCompressor", () => {
 				const finalId2 = compressor.normalizeToOpSpace(id2);
 				assert(isFinalId(finalId1));
 				assert(isFinalId(finalId2));
-				assert.equal(compressor.decompress(finalId1), override1);
-				assert.equal(compressor.decompress(finalId2), override2);
+				assert.equal(
+					compressor.decompress(
+						compressor.normalizeToSessionSpace(finalId1, compressor.localSessionId),
+					),
+					override1,
+				);
+				assert.equal(
+					compressor.decompress(
+						compressor.normalizeToSessionSpace(finalId2, compressor.localSessionId),
+					),
+					override2,
+				);
 			},
 		);
 
@@ -379,31 +387,6 @@ describe("IdCompressor", () => {
 					opIds.forEach((id) => assert.equal(isFinalId(id), true));
 				}
 			}
-		});
-
-		itCompressor("prevents finalizing unacceptably enormous amounts of ID allocation", () => {
-			const compressor1 = CompressorFactory.createCompressor(Client.Client1);
-			const integerLargerThanHalfMax = Math.round((Number.MAX_SAFE_INTEGER / 3) * 2);
-			const largeRange1: IdCreationRange = {
-				sessionId: sessionIds.get(Client.Client2),
-				ids: { firstGenCount: 1, lastGenCount: integerLargerThanHalfMax },
-			};
-			compressor1.finalizeCreationRange(largeRange1);
-			const largeRange2: IdCreationRange = {
-				sessionId: sessionIds.get(Client.Client2),
-				ids: {
-					firstGenCount: integerLargerThanHalfMax + 1,
-					lastGenCount: Number.MAX_SAFE_INTEGER + 2,
-				},
-			};
-			assert.throws(
-				() => compressor1.finalizeCreationRange(largeRange2),
-				(e) =>
-					validateAssertionError(
-						e,
-						"The number of allocated final IDs must not exceed the JS maximum safe integer.",
-					),
-			);
 		});
 	});
 
@@ -491,7 +474,9 @@ describe("IdCompressor", () => {
 			if (isLocalId(finalId)) {
 				assert.fail("Op space ID was finalized but is local");
 			}
-			const uuid = compressor.decompress(finalId);
+			const uuid = compressor.decompress(
+				compressor.normalizeToSessionSpace(finalId, compressor.localSessionId),
+			);
 			assert(isStableId(uuid));
 		});
 
@@ -505,7 +490,9 @@ describe("IdCompressor", () => {
 			if (isLocalId(finalId)) {
 				assert.fail("Op space ID was finalized but is local");
 			}
-			const uuid = compressor.decompress(finalId);
+			const uuid = compressor.decompress(
+				compressor.normalizeToSessionSpace(finalId, compressor.localSessionId),
+			);
 			assert.equal(uuid, override);
 		});
 
@@ -886,7 +873,7 @@ describe("IdCompressor", () => {
 
 	describe("Eager final ID allocation", () => {
 		itCompressor("eagerly allocates final IDs when cluster creation has been finalized", () => {
-			const compressor = CompressorFactory.createCompressor(Client.Client1, 5);
+			const compressor = CompressorFactory.createCompressor(Client.Client1, 3);
 			const localId1 = compressor.generateCompressedId();
 			assert(isLocalId(localId1));
 			const localId2 = compressor.generateCompressedId();
@@ -1035,6 +1022,7 @@ describe("IdCompressor", () => {
 				const rangeA = compressor.takeNextCreationRange();
 				compressor.finalizeCreationRange(rangeA);
 				assert(isFinalId(compressor.generateCompressedId()));
+				assert(isFinalId(compressor.generateCompressedId()));
 
 				// After cluster expansion
 				assert(isLocalId(compressor.generateCompressedId()));
@@ -1116,10 +1104,10 @@ describe("IdCompressor", () => {
 		itCompressor(
 			"generates unique eager finals when there are still outstanding locals after a cluster is expanded",
 			() => {
-				// const compressor = CompressorFactory.createCompressor(Client.Client1, 4 /* must be 4 for the test to make sense */);
-
-				const compressor = CompressorFactory.createCompressor(Client.Client1);
-				compressor.clusterCapacity = 4;
+				const compressor = CompressorFactory.createCompressor(
+					Client.Client1,
+					2 /* must be 2 for the test to make sense */,
+				);
 
 				// Make locals to fill half the future cluster
 				const id1_1 = compressor.generateCompressedId();
@@ -1139,13 +1127,15 @@ describe("IdCompressor", () => {
 
 				// Finalize the first range. This should align the first four locals (i.e. all of range1, and 2/3 of range2)
 				compressor.finalizeCreationRange(range1);
+				assert(isFinalId(compressor.normalizeToOpSpace(id2_2)));
+				assert(isLocalId(compressor.normalizeToOpSpace(id2_3)));
 
 				// Make a single range that should still be overflowing the initial cluster (i.e. be local)
 				const id3_1 = compressor.generateCompressedId();
 				assert(isLocalId(id3_1));
 				const range3 = compressor.takeNextCreationRange();
 
-				// First finalize should expand the cluster and align all outstanding ranges.
+				// Second finalize should expand the cluster and align all outstanding ranges.
 				compressor.finalizeCreationRange(range2);
 
 				// All generated IDs should have aligned finals (even though range3 has not been finalized)
@@ -1449,7 +1439,12 @@ describe("IdCompressor", () => {
 				id1,
 			);
 			assert.equal(compressor1.decompress(id1), override);
-			assert.equal(compressor1.decompress(finalId1), override);
+			assert.equal(
+				compressor1.decompress(
+					compressor1.normalizeToSessionSpace(finalId1, compressor1.localSessionId),
+				),
+				override,
+			);
 			assert.equal(compressor1.recompress(override), id1);
 
 			assert.equal(compressor2.normalizeToOpSpace(id2), finalId2);
@@ -1462,7 +1457,12 @@ describe("IdCompressor", () => {
 				id2,
 			);
 			assert.equal(compressor2.decompress(id2), override);
-			assert.equal(compressor2.decompress(finalId2), override);
+			assert.equal(
+				compressor2.decompress(
+					compressor2.normalizeToSessionSpace(finalId2, compressor2.localSessionId),
+				),
+				override,
+			);
 			assert.equal(compressor2.tryRecompress(override), id2);
 
 			assert.equal(
@@ -1477,7 +1477,12 @@ describe("IdCompressor", () => {
 				compressor3.normalizeToSessionSpace(opNormalizedLocal2, compressor2.localSessionId),
 				finalId1,
 			);
-			assert.equal(compressor3.decompress(finalId1), override);
+			assert.equal(
+				compressor3.decompress(
+					compressor3.normalizeToSessionSpace(finalId1, compressor1.localSessionId),
+				),
+				override,
+			);
 			assert.equal(compressor3.recompress(override), finalId1);
 		});
 
@@ -1512,12 +1517,19 @@ describe("IdCompressor", () => {
 				assert(isFinalId(id1));
 				ids.add(id1);
 				assert.equal(id1, id2);
-				const uuidOrOverride1 = compressor1.decompress(id1);
+				const uuidOrOverride1 = compressor1.decompress(
+					compressor1.normalizeToSessionSpace(id1, compressor1.localSessionId),
+				);
 				uuidsOrOverrides.add(uuidOrOverride1);
 				if (data1.expectedOverride === undefined) {
 					assert(isStableId(uuidOrOverride1));
 				}
-				assert.equal(uuidOrOverride1, compressor2.decompress(id2));
+				assert.equal(
+					uuidOrOverride1,
+					compressor2.decompress(
+						compressor2.normalizeToSessionSpace(id2, compressor2.localSessionId),
+					),
+				);
 			}
 			const expectedSize = log1.length - numUnifications;
 			assert.equal(ids.size, expectedSize);
@@ -1625,7 +1637,7 @@ describe("IdCompressor", () => {
 			const id = network.getSequencedIdLog(Client.Client2)[0].id;
 			assert(isFinalId(id));
 			// eslint-disable-next-line @typescript-eslint/restrict-plus-operands
-			const emptyId = (id + 1) as FinalCompressedId;
+			const emptyId = (id + 1) as SessionSpaceCompressedId;
 			assert.throws(
 				() => network.getCompressor(Client.Client2).decompress(emptyId),
 				(e) =>

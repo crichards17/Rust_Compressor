@@ -12,6 +12,7 @@ import {
 	FinalCompressedId,
 	LocalCompressedId,
 	OpSpaceCompressedId,
+	SessionSpaceCompressedId,
 	SessionId,
 } from "../../src/types";
 import { benchmark, BenchmarkType } from "@fluid-tools/benchmark";
@@ -212,7 +213,7 @@ describe("IdCompressor Perf", () => {
 			perfCompressor = perfNetwork.getCompressorUnsafeNoProxy(localClient);
 		};
 		const benchmarkFn = () => {
-			perfCompressor!.decompress(idToDecompress);
+			perfCompressor!.decompress(idToDecompress as SessionSpaceCompressedId);
 		};
 		if (local) {
 			benchmark({
@@ -259,7 +260,7 @@ describe("IdCompressor Perf", () => {
 			title: `compress a stable ID to a ${local ? "local" : "final"} ID${titleSuffix}`,
 			before: () => {
 				const idAdded = setupCompressorWithId(local, override, true);
-				stableToCompress = compressor.decompress(idAdded);
+				stableToCompress = compressor.decompress(idAdded as SessionSpaceCompressedId);
 				perfCompressor = perfNetwork.getCompressorUnsafeNoProxy(localClient);
 			},
 			benchmarkFn: () => {

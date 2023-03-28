@@ -552,12 +552,13 @@ export class IdCompressorTestNetwork {
 				if (isLocalId(opSpaceIdA)) {
 					fail("IDs should have been finalized.");
 				}
-				assert.strictEqual(
-					compressorA.normalizeToSessionSpace(opSpaceIdA, compressorA.localSessionId),
-					sessionSpaceIdA,
+				const reNormalizedIdA = compressorA.normalizeToSessionSpace(
+					opSpaceIdA,
+					compressorA.localSessionId,
 				);
+				assert.strictEqual(reNormalizedIdA, sessionSpaceIdA);
 				finalIds.add(opSpaceIdA);
-				const uuidAOpSpace = compressorA.decompress(opSpaceIdA);
+				const uuidAOpSpace = compressorA.decompress(reNormalizedIdA);
 
 				assert.strictEqual(uuidASessionSpace, uuidAOpSpace);
 
@@ -576,7 +577,9 @@ export class IdCompressorTestNetwork {
 					if (isLocalId(opSpaceIdB)) {
 						fail("IDs should have been finalized.");
 					}
-					const uuidBOpSpace = compressorB.decompress(opSpaceIdB);
+					const uuidBOpSpace = compressorB.decompress(
+						opSpaceIdB as SessionSpaceCompressedId,
+					);
 					assert.strictEqual(uuidAOpSpace, uuidBOpSpace);
 				}
 
