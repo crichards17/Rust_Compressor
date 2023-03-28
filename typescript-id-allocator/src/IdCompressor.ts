@@ -2,7 +2,6 @@ import { IdCompressor as WasmIdCompressor } from "wasm-id-allocator";
 import { assert } from "./copied-utils";
 import {
 	CompressedId,
-	FinalCompressedId,
 	IdCreationRange,
 	IIdCompressor,
 	IIdCompressorCore,
@@ -122,13 +121,11 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 		return this.idOrError<SessionSpaceCompressedId>(normalizedId);
 	}
 
-	public decompress(id: FinalCompressedId | SessionSpaceCompressedId): string | StableId {
+	public decompress(id: SessionSpaceCompressedId): string | StableId {
 		return this.tryDecompress(id) ?? fail("Could not decompress.");
 	}
 
-	public tryDecompress(
-		id: FinalCompressedId | SessionSpaceCompressedId,
-	): string | StableId | undefined {
+	public tryDecompress(id: SessionSpaceCompressedId): string | StableId | undefined {
 		// TODO: log error string to telemetry if undefined
 		return this.wasmCompressor.decompress(id);
 	}

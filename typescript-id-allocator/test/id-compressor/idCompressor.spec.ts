@@ -33,7 +33,6 @@ import { take } from "../copied-utils/stochastic";
 import { IdCompressor } from "../../src/IdCompressor";
 import { assertIsStableId, isStableId } from "../../src/util";
 import {
-	FinalCompressedId,
 	LocalCompressedId,
 	OpSpaceCompressedId,
 	SessionId,
@@ -101,7 +100,7 @@ describe("IdCompressor", () => {
 				(e) => validateAssertionError(e, errorMessage),
 			);
 			assert.throws(
-				() => compressor.decompress(0 as FinalCompressedId),
+				() => compressor.decompress(0 as SessionSpaceCompressedId),
 				(e) => validateAssertionError(e, errorMessage),
 			);
 		});
@@ -324,8 +323,18 @@ describe("IdCompressor", () => {
 				const finalId2 = compressor.normalizeToOpSpace(id2);
 				assert(isFinalId(finalId1));
 				assert(isFinalId(finalId2));
-				assert.equal(compressor.decompress(finalId1), override1);
-				assert.equal(compressor.decompress(finalId2), override2);
+				assert.equal(
+					compressor.decompress(
+						compressor.normalizeToSessionSpace(finalId1, compressor.localSessionId),
+					),
+					override1,
+				);
+				assert.equal(
+					compressor.decompress(
+						compressor.normalizeToSessionSpace(finalId2, compressor.localSessionId),
+					),
+					override2,
+				);
 			},
 		);
 
@@ -465,7 +474,9 @@ describe("IdCompressor", () => {
 			if (isLocalId(finalId)) {
 				assert.fail("Op space ID was finalized but is local");
 			}
-			const uuid = compressor.decompress(finalId);
+			const uuid = compressor.decompress(
+				compressor.normalizeToSessionSpace(finalId, compressor.localSessionId),
+			);
 			assert(isStableId(uuid));
 		});
 
@@ -479,7 +490,9 @@ describe("IdCompressor", () => {
 			if (isLocalId(finalId)) {
 				assert.fail("Op space ID was finalized but is local");
 			}
-			const uuid = compressor.decompress(finalId);
+			const uuid = compressor.decompress(
+				compressor.normalizeToSessionSpace(finalId, compressor.localSessionId),
+			);
 			assert.equal(uuid, override);
 		});
 
@@ -1426,7 +1439,12 @@ describe("IdCompressor", () => {
 				id1,
 			);
 			assert.equal(compressor1.decompress(id1), override);
-			assert.equal(compressor1.decompress(finalId1), override);
+			assert.equal(
+				compressor1.decompress(
+					compressor1.normalizeToSessionSpace(finalId1, compressor1.localSessionId),
+				),
+				override,
+			);
 			assert.equal(compressor1.recompress(override), id1);
 
 			assert.equal(compressor2.normalizeToOpSpace(id2), finalId2);
@@ -1439,7 +1457,12 @@ describe("IdCompressor", () => {
 				id2,
 			);
 			assert.equal(compressor2.decompress(id2), override);
-			assert.equal(compressor2.decompress(finalId2), override);
+			assert.equal(
+				compressor2.decompress(
+					compressor2.normalizeToSessionSpace(finalId2, compressor2.localSessionId),
+				),
+				override,
+			);
 			assert.equal(compressor2.tryRecompress(override), id2);
 
 			assert.equal(
@@ -1454,7 +1477,12 @@ describe("IdCompressor", () => {
 				compressor3.normalizeToSessionSpace(opNormalizedLocal2, compressor2.localSessionId),
 				finalId1,
 			);
-			assert.equal(compressor3.decompress(finalId1), override);
+			assert.equal(
+				compressor3.decompress(
+					compressor3.normalizeToSessionSpace(finalId1, compressor1.localSessionId),
+				),
+				override,
+			);
 			assert.equal(compressor3.recompress(override), finalId1);
 		});
 
@@ -1489,12 +1517,19 @@ describe("IdCompressor", () => {
 				assert(isFinalId(id1));
 				ids.add(id1);
 				assert.equal(id1, id2);
-				const uuidOrOverride1 = compressor1.decompress(id1);
+				const uuidOrOverride1 = compressor1.decompress(
+					compressor1.normalizeToSessionSpace(id1, compressor1.localSessionId),
+				);
 				uuidsOrOverrides.add(uuidOrOverride1);
 				if (data1.expectedOverride === undefined) {
 					assert(isStableId(uuidOrOverride1));
 				}
-				assert.equal(uuidOrOverride1, compressor2.decompress(id2));
+				assert.equal(
+					uuidOrOverride1,
+					compressor2.decompress(
+						compressor2.normalizeToSessionSpace(id2, compressor2.localSessionId),
+					),
+				);
 			}
 			const expectedSize = log1.length - numUnifications;
 			assert.equal(ids.size, expectedSize);
@@ -1602,7 +1637,7 @@ describe("IdCompressor", () => {
 			const id = network.getSequencedIdLog(Client.Client2)[0].id;
 			assert(isFinalId(id));
 			// eslint-disable-next-line @typescript-eslint/restrict-plus-operands
-			const emptyId = (id + 1) as FinalCompressedId;
+			const emptyId = (id + 1) as SessionSpaceCompressedId;
 			assert.throws(
 				() => network.getCompressor(Client.Client2).decompress(emptyId),
 				(e) =>
