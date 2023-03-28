@@ -24,6 +24,13 @@
     // unused_results
 )]
 
+// macro_rules! log {
+//     ( $( $t:tt )* ) => {
+//         #[cfg(test)]
+//         web_sys::console::log_1(&format!( $( $t )* ).into());
+//     }
+// }
+
 use distributed_id_allocator::compressor::{ErrorEnum, IdCompressor as IdCompressorCore, IdRange};
 use id_types::{OpSpaceId, SessionId, SessionSpaceId, StableId};
 use std::f64::NAN;
