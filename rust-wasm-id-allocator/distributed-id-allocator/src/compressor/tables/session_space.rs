@@ -135,9 +135,20 @@ impl SessionSpace {
         }
     }
 
-    pub fn try_convert_to_final(&self, search_local: LocalId) -> Option<FinalId> {
+    pub fn try_convert_to_final(
+        &self,
+        search_local: LocalId,
+        include_allocated: bool,
+    ) -> Option<FinalId> {
+        let last_valid_local: fn(current_cluster: &IdCluster) -> u64 = if include_allocated {
+            |current_cluster| current_cluster.capacity - 1
+        } else {
+            |current_cluster| current_cluster.count - 1
+        };
+
         match self.cluster_chain.binary_search_by(|current_cluster| {
-            let cluster_last_local = current_cluster.base_local_id - (current_cluster.count - 1);
+            let cluster_last_local =
+                current_cluster.base_local_id - last_valid_local(current_cluster);
             if cluster_last_local > search_local {
                 return Ordering::Less;
             } else if current_cluster.base_local_id < search_local {
