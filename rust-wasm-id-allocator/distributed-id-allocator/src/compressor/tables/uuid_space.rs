@@ -25,8 +25,7 @@ impl UuidSpace {
         new_cluster_ref: ClusterRef,
         sessions: &Sessions,
     ) {
-        let base_stable = session_id
-            .stable_from_local_offset(sessions.deref_cluster(new_cluster_ref).base_local_id);
+        let base_stable = session_id + sessions.deref_cluster(new_cluster_ref).base_local_id;
         self.uuid_to_cluster.insert(base_stable, new_cluster_ref);
     }
 
@@ -47,8 +46,7 @@ impl UuidSpace {
                 let result_session_id = sessions
                     .deref_session_space(cluster_match.session_creator)
                     .session_id();
-                let cluster_min_stable =
-                    result_session_id.stable_from_local_offset(cluster_match.base_local_id);
+                let cluster_min_stable = result_session_id + cluster_match.base_local_id;
                 let cluster_max_stable = cluster_min_stable + cluster_match.capacity;
                 if query >= cluster_min_stable && query <= cluster_max_stable {
                     let originator_local =
