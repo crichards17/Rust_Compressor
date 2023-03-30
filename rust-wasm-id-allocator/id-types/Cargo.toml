@@ -10,6 +10,7 @@ uuid-generation = ["uuid/v4"]
 [dependencies.serde]
 version = "1.0.152"
 default-features = false
+features = ["derive"]
 
 [dependencies.uuid]
 version = "1.2.2"

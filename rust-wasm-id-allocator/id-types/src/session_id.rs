@@ -1,69 +1,12 @@
-use super::{LocalId, StableId};
-use uuid::Uuid;
+use super::StableId;
 
 #[derive(Eq, PartialEq, Hash, Copy, Clone, Debug)]
 pub struct SessionId {
-    // doc as not a uuid
-    id: u128,
+    id: StableId,
 }
 
-impl SessionId {
-    // xxxxxxxx-xxxx-Mxxx-Nxxx-xxxxxxxxxxxx
-    const UPPER_MASK: u128 = 0xFFFFFFFFFFFF << (20 * 4);
-    const MIDDIE_BITTIES_MASK: u128 = 0xFFF << (16 * 4);
-    // Note: leading character should be 3 to mask at 0011
-    // Verified: The more-significant half of the N nibble is used to denote the variant (10xx)
-    const LOWER_MASK: u128 = 0x3FFFFFFFFFFFFFFF;
-
-    #[cfg(feature = "uuid-generation")]
-    pub fn new() -> SessionId {
-        // todo doc restriction on upper bits and debug assert
-        SessionId::from_uuid(Uuid::new_v4())
+impl From<StableId> for SessionId {
+    fn from(value: StableId) -> Self {
+        SessionId { id: value }
     }
-
-    pub(crate) fn from_uuid(uuid: uuid::Uuid) -> SessionId {
-        let as_u128 = uuid.as_u128();
-        SessionId::from_uuid_u128(as_u128)
-    }
-
-    pub fn from_uuid_u128(as_u128: u128) -> SessionId {
-        let upper_masked = as_u128 & SessionId::UPPER_MASK;
-        let middie_bitties_masked = as_u128 & SessionId::MIDDIE_BITTIES_MASK;
-        let lower_masked = as_u128 & SessionId::LOWER_MASK;
-
-        let upper_masked = upper_masked >> 6;
-        let middie_bitties_masked = middie_bitties_masked >> 2;
-
-        let id = upper_masked | middie_bitties_masked | lower_masked;
-
-        SessionId { id }
-    }
-
-    pub fn from_uuid_string(uuid_string: &str) -> Result<SessionId, UuidGenerationError> {
-        match Uuid::try_parse(uuid_string) {
-            Err(_) => Err(UuidGenerationError::InvalidUuidString),
-            Ok(uuid) => {
-                if uuid.get_variant() != uuid::Variant::RFC4122 || uuid.get_version_num() != 4 {
-                    Err(UuidGenerationError::InvalidVersionOrVariant)
-                } else {
-                    Ok(SessionId::from_uuid(uuid))
-                }
-            }
-        }
-    }
-
-    pub(crate) fn id(&self) -> u128 {
-        self.id
-    }
-
-    pub fn stable_from_local_offset(&self, offset_local: LocalId) -> StableId {
-        let new_id = self.id + (offset_local.to_generation_count() - 1) as u128;
-        StableId::new(new_id)
-    }
-}
-
-#[derive(Debug)]
-pub enum UuidGenerationError {
-    InvalidUuidString,
-    InvalidVersionOrVariant,
 }
