@@ -6,7 +6,7 @@ use id_types::{FinalId, LocalId, SessionId};
 use std::cmp::Ordering;
 use std::collections::HashMap;
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(Debug)]
 pub struct Sessions {
     session_map: HashMap<SessionId, SessionSpaceRef>,
     session_list: Vec<SessionSpace>,
@@ -73,9 +73,43 @@ impl Sessions {
     pub fn get_session_spaces(&self) -> impl Iterator<Item = &SessionSpace> {
         self.session_list.iter()
     }
+
+    #[cfg(debug_assertions)]
+    pub(crate) fn equals_test_only(&self, other: &Sessions) -> bool {
+        let mut filtered_a = self
+            .session_list
+            .iter()
+            .filter(|&session_space| session_space.cluster_chain.len() > 0);
+        let mut filtered_b = other
+            .session_list
+            .iter()
+            .filter(|&session_space| session_space.cluster_chain.len() > 0);
+        loop {
+            let session_space_a = filtered_a.next();
+            let session_space_b = filtered_b.next();
+            if session_space_a.is_none() != session_space_b.is_none() {
+                return false;
+            }
+            if session_space_a.is_none() && session_space_b.is_none() {
+                return true;
+            }
+            let session_space_a = session_space_a.unwrap();
+            let session_space_b = session_space_b.unwrap();
+            if session_space_a.session_id != session_space_b.session_id
+                || session_space_a.cluster_chain != session_space_b.cluster_chain
+            {
+                return false;
+            }
+            if !self.session_map.contains_key(&session_space_a.session_id)
+                || !other.session_map.contains_key(&session_space_b.session_id)
+            {
+                return false;
+            }
+        }
+    }
 }
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(Debug)]
 pub struct SessionSpace {
     session_id: SessionId,
     self_ref: SessionSpaceRef,
@@ -184,7 +218,7 @@ impl SessionSpace {
     }
 }
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(Debug)]
 pub struct IdCluster {
     pub(crate) session_creator: SessionSpaceRef,
     pub(crate) base_final_id: FinalId,
@@ -225,6 +259,19 @@ impl IdCluster {
     }
 }
 
+impl PartialEq for IdCluster {
+    fn eq(&self, other: &Self) -> bool {
+        self.base_final_id == other.base_final_id
+            && self.base_local_id == other.base_local_id
+            && self.capacity == other.capacity
+            && self.count == other.count
+    }
+
+    fn ne(&self, other: &Self) -> bool {
+        !self.eq(other)
+    }
+}
+
 // Maps to an index in the session_list
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct SessionSpaceRef {
@@ -241,8 +288,26 @@ impl SessionSpaceRef {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ClusterRef {
     session_space_ref: SessionSpaceRef,
     cluster_chain_index: usize,
+}
+
+#[cfg(debug_assertions)]
+impl ClusterRef {
+    pub(crate) fn equals_test_only(
+        &self,
+        other: &ClusterRef,
+        sessions_self: &Sessions,
+        sessions_other: &Sessions,
+    ) -> bool {
+        let session_id_a = sessions_self
+            .deref_session_space(self.session_space_ref)
+            .session_id();
+        let session_id_b = sessions_other
+            .deref_session_space(other.session_space_ref)
+            .session_id();
+        session_id_a == session_id_b && self.cluster_chain_index == other.cluster_chain_index
+    }
 }

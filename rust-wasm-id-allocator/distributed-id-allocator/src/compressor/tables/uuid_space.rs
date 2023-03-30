@@ -7,7 +7,7 @@ use id_types::{LocalId, SessionId, StableId};
 use std::collections::BTreeMap;
 use std::ops::Bound;
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(Debug)]
 pub struct UuidSpace {
     uuid_to_cluster: BTreeMap<StableId, ClusterRef>,
 }
@@ -59,5 +59,30 @@ impl UuidSpace {
                 }
             }
         }
+    }
+
+    #[cfg(debug_assertions)]
+    pub(crate) fn equals_test_only(
+        &self,
+        other: &UuidSpace,
+        sessions_self: &Sessions,
+        sessions_other: &Sessions,
+    ) -> bool {
+        if self.uuid_to_cluster.len() != other.uuid_to_cluster.len() {
+            return false;
+        }
+        for (stable_id, cluster_ref_self) in &self.uuid_to_cluster {
+            let cluster_ref_other = match other.uuid_to_cluster.get(&stable_id) {
+                None => {
+                    return false;
+                }
+                Some(cluster_ref_other) => cluster_ref_other,
+            };
+            if !cluster_ref_self.equals_test_only(cluster_ref_other, sessions_self, sessions_other)
+            {
+                return false;
+            }
+        }
+        true
     }
 }

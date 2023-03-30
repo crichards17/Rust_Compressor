@@ -8,7 +8,7 @@ Vec will contain references to cluster chains
 use super::session_space::{ClusterRef, IdCluster, Sessions};
 use std::cmp::Ordering;
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(Debug)]
 pub struct FinalSpace {
     // Sorted on final ID. Stores references to clusters held in some session space table.
     clusters: Vec<ClusterRef>,
@@ -79,5 +79,24 @@ impl FinalSpace {
         self.clusters
             .iter()
             .map(|cluster_ref| sessions.deref_cluster(*cluster_ref))
+    }
+
+    #[cfg(debug_assertions)]
+    pub(crate) fn equals_test_only(
+        &self,
+        other: &FinalSpace,
+        sessions_self: &Sessions,
+        sessions_other: &Sessions,
+    ) -> bool {
+        if self.clusters.len() != other.clusters.len() {
+            return false;
+        }
+        for i in 0..self.clusters.len() {
+            if !self.clusters[i].equals_test_only(&other.clusters[i], sessions_self, sessions_other)
+            {
+                return false;
+            }
+        }
+        return true;
     }
 }
