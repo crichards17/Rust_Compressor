@@ -8,7 +8,7 @@ use self::tables::uuid_space::UuidSpace;
 use id_types::session_id::UuidGenerationError;
 use id_types::*;
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(Debug)]
 pub struct IdCompressor {
     session_id: SessionId,
     local_session: SessionSpaceRef,
@@ -43,7 +43,6 @@ impl IdCompressor {
             final_space: FinalSpace::new(),
             uuid_space: UuidSpace::new(),
             session_space_normalizer: SessionSpaceNormalizer::new(),
-            // TODO: Refactor to consumer-passed cluster_capacity value
             cluster_capacity: persistence::DEFAULT_CLUSTER_CAPACITY,
         }
     }
@@ -374,7 +373,6 @@ impl IdCompressor {
             None => {
                 let session_as_stable = StableId::from(self.session_id);
                 if id >= session_as_stable {
-                    // TODO: WARN: UUID math
                     let gen_count_equivalent = id - session_as_stable + 1;
                     if gen_count_equivalent <= self.generated_id_count as u128 {
                         // Is a locally generated ID, with or without a finalized cluster
@@ -445,14 +443,27 @@ impl IdCompressor {
 #[cfg(debug_assertions)]
 impl IdCompressor {
     pub fn equals_test_only(&self, other: &IdCompressor, compare_local_state: bool) -> bool {
-        // TODO these comparisons are likely incorrect for ordered collections
-        if compare_local_state {
-            self == other
+        if !(self.sessions.equals_test_only(&other.sessions)
+            && self.final_space.equals_test_only(
+                &other.final_space,
+                &self.sessions,
+                &other.sessions,
+            )
+            && self
+                .uuid_space
+                .equals_test_only(&other.uuid_space, &self.sessions, &other.sessions)
+            && self.cluster_capacity == other.cluster_capacity)
+        {
+            false
+        } else if compare_local_state
+            && !(self.session_id == other.session_id
+                && self.generated_id_count == other.generated_id_count
+                && self.next_range_base_generation_count == other.next_range_base_generation_count
+                && self.session_space_normalizer == other.session_space_normalizer)
+        {
+            false
         } else {
-            self.sessions == other.sessions
-                && self.final_space == other.final_space
-                && self.uuid_space == other.uuid_space
-                && self.cluster_capacity == other.cluster_capacity
+            true
         }
     }
 }
@@ -748,8 +759,15 @@ mod tests {
             offset += 1;
         }
         // Serialize Deserialize
-        let serialized = compressor.serialize(true);
-        assert_eq!(compressor, IdCompressor::deserialize(&serialized).unwrap());
+        let serialized_local = compressor.serialize(true);
+        assert!(compressor
+            .equals_test_only(&IdCompressor::deserialize(&serialized_local).unwrap(), true));
+
+        let serialized_no_local = compressor.serialize(false);
+        assert!(compressor.equals_test_only(
+            &IdCompressor::deserialize(&serialized_no_local).unwrap(),
+            false
+        ));
     }
 
     #[test]

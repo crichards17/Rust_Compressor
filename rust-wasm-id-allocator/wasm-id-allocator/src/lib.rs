@@ -37,7 +37,7 @@ use std::f64::NAN;
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub struct IdCompressor {
     compressor: IdCompressorCore,
     error_string: Option<String>,
@@ -535,6 +535,8 @@ mod tests {
             IdCompressor::deserialize(&serialized_local, String::from(_STABLE_ID_1))
                 .ok()
                 .unwrap();
-        assert_eq!(compressor, compressor_serialized_deserialized)
+        assert!(compressor
+            .compressor
+            .equals_test_only(&compressor_serialized_deserialized.compressor, false))
     }
 }
