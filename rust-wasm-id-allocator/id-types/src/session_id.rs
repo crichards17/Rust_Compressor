@@ -1,3 +1,5 @@
+use uuid::Uuid;
+
 use crate::LocalId;
 
 use super::StableId;
@@ -7,15 +9,43 @@ pub struct SessionId {
     id: StableId,
 }
 
-impl From<StableId> for SessionId {
-    fn from(value: StableId) -> Self {
-        SessionId { id: value }
+impl SessionId {
+    #[cfg(feature = "uuid-generation")]
+    pub fn new() -> SessionId {
+        SessionId {
+            id: StableId::from(Uuid::new_v4()),
+        }
+    }
+
+    pub fn from_uuid_string(uuid_string: &str) -> Result<SessionId, UuidGenerationError> {
+        match Uuid::try_parse(uuid_string) {
+            Err(_) => Err(UuidGenerationError::InvalidUuidString),
+            Ok(uuid) => {
+                if uuid.get_variant() != uuid::Variant::RFC4122 || uuid.get_version_num() != 4 {
+                    Err(UuidGenerationError::InvalidVersionOrVariant)
+                } else {
+                    Ok(SessionId {
+                        id: StableId::from(uuid),
+                    })
+                }
+            }
+        }
+    }
+
+    pub fn to_uuid_string(&self) -> String {
+        Uuid::from(self.id).to_string()
     }
 }
 
-impl From<SessionId> for StableId {
+impl From<Uuid> for SessionId {
+    fn from(value: Uuid) -> Self {
+        SessionId { id: value.into() }
+    }
+}
+
+impl From<SessionId> for Uuid {
     fn from(value: SessionId) -> Self {
-        value.id
+        value.id.into()
     }
 }
 
@@ -24,4 +54,10 @@ impl std::ops::Add<LocalId> for SessionId {
     fn add(self, rhs: LocalId) -> Self::Output {
         self.id + rhs
     }
+}
+
+#[derive(Debug)]
+pub enum UuidGenerationError {
+    InvalidUuidString,
+    InvalidVersionOrVariant,
 }
