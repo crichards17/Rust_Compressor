@@ -43,7 +43,6 @@ impl IdCompressor {
             final_space: FinalSpace::new(),
             uuid_space: UuidSpace::new(),
             session_space_normalizer: SessionSpaceNormalizer::new(),
-            // TODO: Refactor to consumer-passed cluster_capacity value
             cluster_capacity: persistence::DEFAULT_CLUSTER_CAPACITY,
         }
     }
@@ -374,7 +373,6 @@ impl IdCompressor {
             None => {
                 let session_as_stable = StableId::from(self.session_id);
                 if id >= session_as_stable {
-                    // TODO: WARN: UUID math
                     let gen_count_equivalent = id - session_as_stable + 1;
                     if gen_count_equivalent <= self.generated_id_count as u128 {
                         // Is a locally generated ID, with or without a finalized cluster
@@ -445,7 +443,6 @@ impl IdCompressor {
 #[cfg(debug_assertions)]
 impl IdCompressor {
     pub fn equals_test_only(&self, other: &IdCompressor, compare_local_state: bool) -> bool {
-        // TODO these comparisons are likely incorrect for ordered collections
         if !(self.sessions.equals_test_only(&other.sessions)
             && self.final_space.equals_test_only(
                 &other.final_space,
