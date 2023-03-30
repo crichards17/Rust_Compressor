@@ -455,13 +455,13 @@ impl IdCompressor {
             && self
                 .uuid_space
                 .equals_test_only(&other.uuid_space, &self.sessions, &other.sessions)
-            && self.next_range_base_generation_count == other.next_range_base_generation_count
             && self.cluster_capacity == other.cluster_capacity)
         {
             false
         } else if compare_local_state
             && !(self.session_id == other.session_id
                 && self.generated_id_count == other.generated_id_count
+                && self.next_range_base_generation_count == other.next_range_base_generation_count
                 && self.session_space_normalizer == other.session_space_normalizer)
         {
             false

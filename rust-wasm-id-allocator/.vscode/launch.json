@@ -1,26 +1,23 @@
 {
-    "version": "0.2.0",
-    "configurations": [
-        {
-            "name": "Debug wasm-id-allocator",
-            "type": "lldb",
-            "request": "launch",
-            "cargo": {
-                "args": [
-                    "test",
-                    "--no-run",
-                    "--lib",
-                    "--package=wasm-id-allocator"
-                ],
-                "filter": {
-                    "name": "wasm-id-allocator",
-                    "kind": "cdylib"
-                }
-            },
-            "args": [
-                "name_of_the_unit_test"
-            ],
-            "cwd": "${workspaceFolder}"
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug Rust",
+      "type": "lldb",
+      "request": "launch",
+      "cargo": {
+        "args": [
+          "test",
+          "--no-run",
+          "--lib",
+          "--package=distributed-id-allocator"
+        ],
+        "filter": {
+          "name": "distributed-id-allocator"
         }
-    ]
+      },
+      "args": ["test_complex"],
+      "cwd": "${workspaceFolder}"
+    }
+  ]
 }

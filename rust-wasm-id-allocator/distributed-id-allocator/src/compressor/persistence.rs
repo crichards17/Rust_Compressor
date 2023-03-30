@@ -48,7 +48,7 @@ pub(crate) mod v1 {
 
     use crate::{
         compressor::tables::{
-            session_space::{IdCluster, SessionSpaceRef},
+            session_space::IdCluster,
             session_space_normalizer::persistence::v1::{
                 get_normalizer_from_persistent, get_persistent_normalizer, PersistenceNormalizer,
             },
@@ -150,10 +150,10 @@ pub(crate) mod v1 {
             }
         };
         compressor.cluster_capacity = persistent_compressor.cluster_capacity;
-        for session_uuid_u128 in persistent_compressor.session_uuid_u128s {
+        for session_uuid_u128 in &persistent_compressor.session_uuid_u128s {
             compressor
                 .sessions
-                .get_or_create(SessionId::from_uuid_u128(session_uuid_u128));
+                .get_or_create(SessionId::from_uuid_u128(*session_uuid_u128));
         }
 
         for cluster_data in persistent_compressor.cluster_data {
@@ -165,7 +165,7 @@ pub(crate) mod v1 {
                 None => FinalId::from_id(0),
             };
             let session_space_ref =
-                SessionSpaceRef::create_from_index(cluster_data.session_index as usize);
+                compressor.sessions.get_or_create(SessionId::from_uuid_u128(persistent_compressor.session_uuid_u128s[cluster_data.session_index as usize]));
             let session_space = compressor.sessions.deref_session_space(session_space_ref);
             let base_local_id = match session_space.get_tail_cluster() {
                 Some(cluster_ref) => {
