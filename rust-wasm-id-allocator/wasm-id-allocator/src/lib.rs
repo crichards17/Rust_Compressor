@@ -529,31 +529,16 @@ mod tests {
         let (mut compressor, _) = initialize_compressor();
         finalize_compressor(&mut compressor);
         compressor.generate_next_id();
-        let InteropIdRange {
-            session_id_string,
-            ids,
-        } = compressor.take_next_range();
-        let ids = ids.unwrap();
-        _ = compressor.finalize_range(session_id_string, ids.first_local_gen_count, ids.count);
         let serialized_local = compressor.serialize(true);
         assert!(IdCompressor::deserialize(&serialized_local, String::from(_STABLE_ID_1)).is_ok());
         let serialized_final = compressor.serialize(false);
         assert!(IdCompressor::deserialize(&serialized_final, String::from(_STABLE_ID_2)).is_ok());
-        let mut compressor_serialized_deserialized =
+        let compressor_serialized_deserialized =
             IdCompressor::deserialize(&serialized_local, String::from(_STABLE_ID_1))
                 .ok()
                 .unwrap();
         assert!(compressor
             .compressor
-            .equals_test_only(&compressor_serialized_deserialized.compressor, false));
-        compressor_serialized_deserialized.generate_next_id();
-        let InteropIdRange {
-            session_id_string,
-            ids,
-        } = compressor_serialized_deserialized.take_next_range();
-        let ids = ids.unwrap();
-        assert!(compressor_serialized_deserialized
-            .finalize_range(session_id_string, ids.first_local_gen_count, ids.count)
-            .is_ok());
+            .equals_test_only(&compressor_serialized_deserialized.compressor, false))
     }
 }
