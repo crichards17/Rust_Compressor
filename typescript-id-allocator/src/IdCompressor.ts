@@ -147,8 +147,7 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 		return {
 			bytes: this.wasmCompressor.serialize(withSession),
 			version: currentWrittenVersion,
-			hasLocalState: withSession,
-		} as unknown as SerializedIdCompressor;
+		} as SerializedIdCompressor;
 	}
 
 	public dispose(): void {
