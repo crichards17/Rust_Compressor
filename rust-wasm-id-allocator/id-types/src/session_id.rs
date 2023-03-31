@@ -1,8 +1,8 @@
+use thiserror::Error;
 use uuid::Uuid;
 
-use crate::LocalId;
-
 use super::StableId;
+use crate::LocalId;
 
 #[derive(Eq, PartialEq, Hash, Copy, Clone, Debug)]
 pub struct SessionId {
@@ -72,8 +72,10 @@ impl std::ops::Add<LocalId> for SessionId {
     }
 }
 
-#[derive(Debug)]
+#[derive(Error, Debug)]
 pub enum UuidGenerationError {
+    #[error("Invalid Uuid String")]
     InvalidUuidString,
+    #[error("Invalid Version or Variant")]
     InvalidVersionOrVariant,
 }
