@@ -32,6 +32,10 @@ impl SessionId {
         }
     }
 
+    pub fn from_uuid_u128(uuid_u128: u128) -> SessionId {
+        uuid::Builder::from_u128(uuid_u128).into_uuid().into()
+    }
+
     pub fn to_uuid_string(&self) -> String {
         Uuid::from(self.id).to_string()
     }
@@ -43,9 +47,21 @@ impl From<Uuid> for SessionId {
     }
 }
 
+impl From<SessionId> for String {
+    fn from(value: SessionId) -> Self {
+        value.id.into()
+    }
+}
+
 impl From<SessionId> for Uuid {
     fn from(value: SessionId) -> Self {
         value.id.into()
+    }
+}
+
+impl From<SessionId> for StableId {
+    fn from(value: SessionId) -> Self {
+        value.id
     }
 }
 

@@ -7,27 +7,29 @@ pub struct StableId {
 }
 
 impl StableId {
-    // xxxxxxxx-xxxx-Mxxx-Nxxx-xxxxxxxxxxxx
-    const VERSION_MASK: u128 = 0x4 << (19 * 4); // Version 4
-    const VARIANT_MASK: u128 = 0x8 << (15 * 4); // Variant RFC4122 (1 0 x x)
-    const UPPER_MASK: u128 = 0xFFFFFFFFFFFF << (20 * 4);
-    // Upper mask when version/variant bits are removed
-    const STRIPPED_UPPER_MASK: u128 = StableId::UPPER_MASK >> 6;
-    const MIDDIE_BITTIES_MASK: u128 = 0xFFF << (16 * 4);
-    // Middie mask when version/variant bits are removed
-    const STRIPPED_MIDDIE_BITTIES_MASK: u128 = StableId::MIDDIE_BITTIES_MASK >> 2;
-    // Note: leading character should be 3 to mask at 0011
-    // The more-significant half of the N nibble is used to denote the variant (10xx)
-    const LOWER_MASK: u128 = 0x3FFFFFFFFFFFFFFF;
-
     pub fn null() -> StableId {
         StableId { id: 0 }
     }
+}
 
-    fn from_uuid_u128(as_u128: u128) -> StableId {
-        let upper_masked = as_u128 & StableId::UPPER_MASK;
-        let middie_bitties_masked = as_u128 & StableId::MIDDIE_BITTIES_MASK;
-        let lower_masked = as_u128 & StableId::LOWER_MASK;
+// xxxxxxxx-xxxx-Mxxx-Nxxx-xxxxxxxxxxxx
+const VERSION_MASK: u128 = 0x4 << (19 * 4); // Version 4
+const VARIANT_MASK: u128 = 0x8 << (15 * 4); // Variant RFC4122 (1 0 x x)
+const UPPER_MASK: u128 = 0xFFFFFFFFFFFF << (20 * 4);
+// Upper mask when version/variant bits are removed
+const STRIPPED_UPPER_MASK: u128 = UPPER_MASK >> 6;
+const MIDDIE_BITTIES_MASK: u128 = 0xFFF << (16 * 4);
+// Middie mask when version/variant bits are removed
+const STRIPPED_MIDDIE_BITTIES_MASK: u128 = MIDDIE_BITTIES_MASK >> 2;
+// Note: leading character should be 3 to mask at 0011
+// The more-significant half of the N nibble is used to denote the variant (10xx)
+const LOWER_MASK: u128 = 0x3FFFFFFFFFFFFFFF;
+
+impl From<u128> for StableId {
+    fn from(uuid_u128: u128) -> Self {
+        let upper_masked = uuid_u128 & UPPER_MASK;
+        let middie_bitties_masked = uuid_u128 & MIDDIE_BITTIES_MASK;
+        let lower_masked = uuid_u128 & LOWER_MASK;
 
         let upper_masked = upper_masked >> 6;
         let middie_bitties_masked = middie_bitties_masked >> 2;
@@ -36,30 +38,35 @@ impl StableId {
 
         StableId { id }
     }
+}
 
-    fn to_uuid_u128(&self) -> u128 {
+impl From<StableId> for u128 {
+    fn from(value: StableId) -> Self {
         // bitwise reverse transform
-        let upper_masked = (self.id & StableId::STRIPPED_UPPER_MASK) << 6;
-        let middie_bitties_masked = (self.id & StableId::STRIPPED_MIDDIE_BITTIES_MASK) << 2;
-        let lower_masked = self.id & StableId::LOWER_MASK;
-        let transformed_id = upper_masked
-            | StableId::VERSION_MASK
-            | middie_bitties_masked
-            | StableId::VARIANT_MASK
-            | lower_masked;
+        let upper_masked = (value.id & STRIPPED_UPPER_MASK) << 6;
+        let middie_bitties_masked = (value.id & STRIPPED_MIDDIE_BITTIES_MASK) << 2;
+        let lower_masked = value.id & LOWER_MASK;
+        let transformed_id =
+            upper_masked | VERSION_MASK | middie_bitties_masked | VARIANT_MASK | lower_masked;
         transformed_id
     }
 }
 
 impl From<Uuid> for StableId {
     fn from(value: Uuid) -> Self {
-        StableId::from_uuid_u128(value.as_u128())
+        value.as_u128().into()
     }
 }
 
 impl From<StableId> for Uuid {
     fn from(value: StableId) -> Self {
-        uuid::Builder::from_u128(value.to_uuid_u128()).into_uuid()
+        uuid::Builder::from_u128(value.into()).into_uuid()
+    }
+}
+
+impl From<StableId> for String {
+    fn from(value: StableId) -> Self {
+        Uuid::from(value).to_string()
     }
 }
 
@@ -106,7 +113,7 @@ mod tests {
     fn test_uuid_increment_spillover() {
         let uuid = Uuid::from_u128(0xe507602db1504fccBfffffffffffffff);
         let mut stable_id = StableId::from(uuid);
-        assert_eq!(stable_id.to_uuid_u128(), 0xe507602db1504fccBfffffffffffffff);
+        assert_eq!(u128::from(stable_id), 0xe507602db1504fccBfffffffffffffff);
         stable_id = stable_id + 1;
         let uuid = Uuid::from(stable_id);
         assert_eq!(uuid.get_variant(), uuid::Variant::RFC4122);

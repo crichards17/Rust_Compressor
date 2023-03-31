@@ -58,7 +58,6 @@ pub(crate) mod v1 {
     use id_types::{FinalId, LocalId, SessionId, StableId};
     use postcard::to_allocvec;
     use serde::{Deserialize, Serialize};
-    use uuid::Uuid;
 
     #[derive(Deserialize, Serialize)]
     pub(super) struct PersistentCompressor {
@@ -91,7 +90,7 @@ pub(crate) mod v1 {
 
     pub(crate) fn serialize_with_local(compressor: &IdCompressor) -> Vec<u8> {
         let local_state = LocalState {
-            session_uuid_u128: Uuid::from(compressor.session_id).as_u128(),
+            session_uuid_u128: StableId::from(compressor.session_id).into(),
             generated_id_count: compressor.generated_id_count,
             next_range_base_generation_count: compressor.next_range_base_generation_count,
             persistent_normalizer: get_persistent_normalizer(&compressor.session_space_normalizer),
@@ -108,7 +107,7 @@ pub(crate) mod v1 {
         let session_uuid_u128s: Vec<u128> = compressor
             .sessions
             .get_session_spaces()
-            .map(|session_space| Uuid::from(session_space.session_id()).as_u128())
+            .map(|session_space| StableId::from(session_space.session_id()).into())
             .collect();
 
         let cluster_data: Vec<ClusterData> = compressor

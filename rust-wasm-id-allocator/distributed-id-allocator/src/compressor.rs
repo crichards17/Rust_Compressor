@@ -354,7 +354,7 @@ impl IdCompressor {
                             .sessions
                             .deref_session_space(containing_cluster.session_creator)
                             .session_id()
-                            .stable_from_local_offset(aligned_local))
+                            + aligned_local)
                     }
                     None => Err(DecompressionError::UnallocatedFinalId),
                 }
@@ -363,7 +363,7 @@ impl IdCompressor {
                 if !self.session_space_normalizer.contains(local_id) {
                     return Err(DecompressionError::UnobtainableId);
                 }
-                Ok(self.session_id.stable_from_local_offset(local_id))
+                Ok(self.session_id + local_id)
             }
         }
     }
@@ -638,7 +638,7 @@ mod tests {
 
     impl TestSessionSpaceId for SessionSpaceId {
         fn unwrap_uuid_str(&self, compressor: &IdCompressor) -> String {
-            compressor.decompress(*self).unwrap().to_uuid_string()
+            compressor.decompress(*self).unwrap().into()
         }
     }
 
