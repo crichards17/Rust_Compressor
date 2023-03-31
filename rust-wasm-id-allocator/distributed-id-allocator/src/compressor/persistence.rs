@@ -1,4 +1,5 @@
 use id_types::SessionId;
+use thiserror::Error;
 
 use super::IdCompressor;
 use postcard::from_bytes;
@@ -19,7 +20,7 @@ where
     };
     match versioned_persistent_compressor {
         VersionedPersistentCompressor::V1(persistent_compressor) => {
-            Ok(v1::deserialize(persistent_compressor, make_session_id))
+            v1::deserialize(persistent_compressor, make_session_id)
         }
     }
 }
@@ -29,19 +30,14 @@ enum VersionedPersistentCompressor {
     V1(v1::PersistentCompressor),
 }
 
-#[derive(Debug)]
+#[derive(Error, Debug)]
 pub enum DeserializationError {
+    #[error("{}", 0.to_string())]
     PostcardError(postcard::Error),
+    #[error("Cannot resume existing session.")]
+    InvalidResumedSession,
+    #[error("Unknown deserialization error.")]
     UnknownError,
-}
-
-impl DeserializationError {
-    pub fn get_error_string(&self) -> String {
-        match self {
-            DeserializationError::PostcardError(e) => e.to_string(),
-            DeserializationError::UnknownError => String::from("Unknown deserialization error."),
-        }
-    }
 }
 
 pub(crate) mod v1 {
@@ -58,6 +54,8 @@ pub(crate) mod v1 {
     use id_types::{FinalId, LocalId, SessionId, StableId};
     use postcard::to_allocvec;
     use serde::{Deserialize, Serialize};
+
+    use super::DeserializationError;
 
     #[derive(Deserialize, Serialize)]
     pub(super) struct PersistentCompressor {
@@ -131,12 +129,16 @@ pub(crate) mod v1 {
     pub(super) fn deserialize<FMakeSession>(
         persistent_compressor: PersistentCompressor,
         make_session_id: FMakeSession,
-    ) -> IdCompressor
+    ) -> Result<IdCompressor, DeserializationError>
     where
         FMakeSession: FnOnce() -> SessionId,
     {
+        let with_local_state: bool;
         let mut compressor = match persistent_compressor.local_state {
-            None => IdCompressor::new_with_session_id(make_session_id()),
+            None => {
+                with_local_state = false;
+                IdCompressor::new_with_session_id(make_session_id())
+            }
             Some(local_state) => {
                 let mut compressor = IdCompressor::new_with_session_id(SessionId::from_uuid_u128(
                     local_state.session_uuid_u128,
@@ -146,14 +148,17 @@ pub(crate) mod v1 {
                     local_state.next_range_base_generation_count;
                 compressor.session_space_normalizer =
                     get_normalizer_from_persistent(local_state.persistent_normalizer);
+                with_local_state = true;
                 compressor
             }
         };
         compressor.cluster_capacity = persistent_compressor.cluster_capacity;
         for session_uuid_u128 in &persistent_compressor.session_uuid_u128s {
-            compressor
-                .sessions
-                .get_or_create(SessionId::from_uuid_u128(*session_uuid_u128));
+            let session_id = SessionId::from_uuid_u128(*session_uuid_u128);
+            if !with_local_state && session_id == compressor.session_id {
+                return Err(DeserializationError::InvalidResumedSession);
+            }
+            compressor.sessions.get_or_create(session_id);
         }
 
         for cluster_data in persistent_compressor.cluster_data {
@@ -196,7 +201,7 @@ pub(crate) mod v1 {
                 &compressor.sessions,
             );
         }
-        compressor
+        Ok(compressor)
     }
 
     // TODO perst unit tests

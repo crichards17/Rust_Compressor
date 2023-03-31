@@ -18,3 +18,7 @@ features = [
     "macro-diagnostics", # Enable better diagnostics for compile-time UUIDs
     "js"
 ]
+
+[dependencies.thiserror]
+version = "1.0"
+

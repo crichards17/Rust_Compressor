@@ -1,3 +1,5 @@
+use std::error::Error;
+use thiserror::Error;
 pub(crate) mod persistence;
 pub(crate) mod tables;
 use self::persistence::DeserializationError;
@@ -5,7 +7,6 @@ use self::tables::final_space::FinalSpace;
 use self::tables::session_space::{ClusterRef, SessionSpace, SessionSpaceRef, Sessions};
 use self::tables::session_space_normalizer::SessionSpaceNormalizer;
 use self::tables::uuid_space::UuidSpace;
-use id_types::session_id::UuidGenerationError;
 use id_types::*;
 
 #[derive(Debug)]
@@ -55,10 +56,7 @@ impl IdCompressor {
         self.sessions.deref_session_space(self.local_session)
     }
 
-    pub fn get_session_id_from_session_token(
-        &self,
-        index: usize,
-    ) -> Result<SessionId, impl ErrorEnum> {
+    pub fn get_session_id_from_session_token(&self, index: usize) -> Result<SessionId, impl Error> {
         if index >= self.sessions.get_sessions_count() {
             return Err(SessionTokenError::UnknownSessionToken);
         }
@@ -72,7 +70,7 @@ impl IdCompressor {
     pub fn get_session_token_from_session_id(
         &self,
         session_id: SessionId,
-    ) -> Result<usize, impl ErrorEnum> {
+    ) -> Result<usize, impl Error> {
         match self.sessions.get(session_id) {
             None => Err(SessionTokenError::UnknownSessionId),
             Some(session_space) => Ok(session_space.self_ref().get_index()),
@@ -429,7 +427,7 @@ impl IdCompressor {
         persistence::deserialize(bytes, || SessionId::new())
     }
 
-    pub fn deserialize_with_session_id<FMakeSession>(
+    pub fn deserialize_with_session_id_generator<FMakeSession>(
         bytes: &[u8],
         make_session_id: FMakeSession,
     ) -> Result<IdCompressor, DeserializationError>
@@ -468,134 +466,77 @@ impl IdCompressor {
     }
 }
 
-pub trait ErrorEnum {
-    fn get_error_string(&self) -> &'static str;
-}
-
-impl ErrorEnum for UuidGenerationError {
-    fn get_error_string(&self) -> &'static str {
-        match self {
-            UuidGenerationError::InvalidUuidString => "Invalid Uuid String",
-            UuidGenerationError::InvalidVersionOrVariant => "Invalid Version or Variant,",
-        }
-    }
-}
-
 // TODO: comment each one about how it can happen
-#[derive(Debug)]
+#[derive(Error, Debug)]
 pub enum DecompressionError {
+    #[error("UnfinalizedId")]
     UnfinalizedId,
+    #[error("UnallocatedFinalId")]
     UnallocatedFinalId,
+    #[error("UnobtainableId")]
     UnobtainableId,
+    #[error("UngeneratedFinalId")]
     UngeneratedFinalId,
+    #[error("NoAlignedLocal")]
     NoAlignedLocal,
 }
 
-impl ErrorEnum for DecompressionError {
-    fn get_error_string(&self) -> &'static str {
-        match self {
-            DecompressionError::UnfinalizedId => "UnfinalizedId",
-            DecompressionError::UnallocatedFinalId => "UnallocatedFinalId",
-            DecompressionError::UnobtainableId => "UnobtainableId",
-            DecompressionError::UngeneratedFinalId => "UngeneratedFinalId",
-            DecompressionError::NoAlignedLocal => "NoAlignedLocal",
-        }
-    }
-}
-
-#[derive(Debug)]
+#[derive(Error, Debug)]
 pub enum RecompressionError {
+    #[error("UnallocatedStableId")]
     UnallocatedStableId,
+    #[error("UngeneratedStableId")]
     UngeneratedStableId,
+    #[error("UnfinalizedForeignId")]
     UnfinalizedForeignId,
+    #[error("NoAllocatedFinal")]
     NoAllocatedFinal,
 }
 
-impl ErrorEnum for RecompressionError {
-    fn get_error_string(&self) -> &'static str {
-        match self {
-            RecompressionError::UnallocatedStableId => "UnallocatedStableId",
-            RecompressionError::UngeneratedStableId => "UngeneratedStableId",
-            RecompressionError::UnfinalizedForeignId => "UnfinalizedForeignId",
-            RecompressionError::NoAllocatedFinal => "NoAllocatedFinal",
-        }
-    }
-}
-
-#[derive(Debug)]
+#[derive(Error, Debug)]
 pub enum FinalizationError {
+    #[error("Ranges finalized out of order.")]
     RangeFinalizedOutOfOrder,
+    #[error("Invalid ID range")]
     InvalidRange,
 }
 
-impl ErrorEnum for FinalizationError {
-    fn get_error_string(&self) -> &'static str {
-        match self {
-            FinalizationError::RangeFinalizedOutOfOrder => "RangeFinalizedOutOfOrder.",
-            FinalizationError::InvalidRange => "Invalid Range.",
-        }
-    }
-}
-
-#[derive(Debug, PartialEq)]
+#[derive(Error, Debug, PartialEq)]
 pub enum ClusterCapacityError {
+    #[error("Cluster size must be a non-zero integer.")]
     InvalidClusterCapacity,
 }
 
-impl ErrorEnum for ClusterCapacityError {
-    fn get_error_string(&self) -> &'static str {
-        match self {
-            ClusterCapacityError::InvalidClusterCapacity => "Invalid cluster capacity.",
-        }
-    }
-}
-
-#[derive(Debug, PartialEq)]
+#[derive(Error, Debug, PartialEq)]
 pub enum SessionTokenError {
+    #[error("Unknown session token.")]
     UnknownSessionToken,
+    #[error("No IDs have ever been finalized by the supplied session.")]
     UnknownSessionId,
 }
 
-impl ErrorEnum for SessionTokenError {
-    fn get_error_string(&self) -> &'static str {
-        match self {
-            SessionTokenError::UnknownSessionToken => "Unknown Session Token.",
-            SessionTokenError::UnknownSessionId => {
-                "No IDs have ever been finalized by the supplied session."
-            }
-        }
-    }
-}
-
-#[derive(Debug)]
+#[derive(Error, Debug)]
 pub enum NormalizationError {
+    #[error("UnknownSessionSpaceId")]
     UnknownSessionSpaceId,
+    #[error("UnknownSessionId")]
     UnknownSessionId,
+    #[error("UngeneratedId")]
     UngeneratedId,
+    #[error("UnfinalizedForeignLocal")]
     UnfinalizedForeignLocal,
+    #[error("UnFinalizedForeignFinal")]
     UnFinalizedForeignFinal,
+    #[error("NoFinalizedRanges")]
     NoFinalizedRanges,
+    #[error("NoAlignedLocal")]
     NoAlignedLocal,
+    #[error("NoSessionIdProvided")]
     NoSessionIdProvided,
+    #[error("NoAllocatedFinal")]
     NoAllocatedFinal,
+    #[error("UnallocatedLocal")]
     UnallocatedLocal,
-}
-
-impl NormalizationError {
-    pub fn get_error_string(&self) -> &'static str {
-        match self {
-            NormalizationError::UnknownSessionSpaceId => "UnknownSessionSpaceId",
-            NormalizationError::UnknownSessionId => "UnknownSessionId",
-            NormalizationError::UngeneratedId => "UngeneratedId",
-            NormalizationError::UnfinalizedForeignLocal => "UnfinalizedForeignLocal",
-            NormalizationError::UnFinalizedForeignFinal => "UnFinalizedForeignFinal",
-            NormalizationError::NoFinalizedRanges => "NoFinalizedRanges",
-            NormalizationError::NoAlignedLocal => "NoAlignedLocal",
-            NormalizationError::NoSessionIdProvided => "NoSessionIdProvided",
-            NormalizationError::NoAllocatedFinal => "NoAllocatedFinal",
-            NormalizationError::UnallocatedLocal => "UnallocatedLocal",
-        }
-    }
 }
 
 pub struct IdRange {
@@ -829,5 +770,21 @@ mod tests {
         // Finalize ranges out of order
         assert!(compressor.finalize_range(&out_range_2).is_err());
         assert!(compressor.finalize_range(&out_range_1).is_ok());
+    }
+
+    #[test]
+    fn deserialize_and_resume() {
+        let mut compressor_1 = IdCompressor::new();
+        let mut compressor_2 = IdCompressor::new();
+        _ = compressor_1.generate_next_id();
+        let out_range = compressor_1.take_next_range();
+        _ = compressor_1.finalize_range(&out_range);
+        _ = compressor_2.finalize_range(&out_range);
+        let serialized_1 = compressor_1.serialize(true);
+        let mut compressor_resumed = IdCompressor::deserialize(&serialized_1).ok().unwrap();
+        assert!(compressor_resumed.session_id == compressor_1.session_id);
+        _ = compressor_resumed.generate_next_id();
+        let out_range_2 = compressor_resumed.take_next_range();
+        assert!(compressor_resumed.finalize_range(&out_range_2).is_ok())
     }
 }
