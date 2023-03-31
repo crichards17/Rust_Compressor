@@ -22,17 +22,17 @@ export const defaultClusterCapacity = WasmIdCompressor.get_default_cluster_capac
 
 export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 	private readonly sessionTokens: Map<SessionId, number> = new Map();
+	public readonly localSessionId: SessionId;
 
-	private constructor(
-		private readonly wasmCompressor: WasmIdCompressor,
-		public readonly localSessionId: SessionId,
-	) {}
+	private constructor(private readonly wasmCompressor: WasmIdCompressor) {
+		this.localSessionId = wasmCompressor.get_local_session_id() as SessionId;
+	}
 
 	public static create(): IdCompressor;
 	public static create(sessionId: SessionId): IdCompressor;
 	public static create(sessionId?: SessionId): IdCompressor {
 		const localSessionId = sessionId ?? createSessionId();
-		const compressor = new IdCompressor(new WasmIdCompressor(localSessionId), localSessionId);
+		const compressor = new IdCompressor(new WasmIdCompressor(localSessionId));
 		return compressor;
 	}
 
@@ -147,7 +147,8 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 		return {
 			bytes: this.wasmCompressor.serialize(withSession),
 			version: currentWrittenVersion,
-		} as SerializedIdCompressor;
+			hasLocalState: withSession,
+		} as unknown as SerializedIdCompressor;
 	}
 
 	public dispose(): void {
@@ -168,9 +169,6 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 			"Unknown serialized compressor version found.",
 		);
 		const localSessionId = sessionId ?? (generateStableId() as SessionId);
-		return new IdCompressor(
-			WasmIdCompressor.deserialize(serialized.bytes, localSessionId),
-			localSessionId,
-		);
+		return new IdCompressor(WasmIdCompressor.deserialize(serialized.bytes, localSessionId));
 	}
 }

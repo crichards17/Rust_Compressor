@@ -66,6 +66,10 @@ impl IdCompressor {
         })
     }
 
+    pub fn get_local_session_id(&self) -> String {
+        self.compressor.get_local_session_id().to_uuid_string()
+    }
+
     pub fn get_cluster_capacity(&self) -> f64 {
         self.compressor.get_cluster_capacity() as f64
     }
