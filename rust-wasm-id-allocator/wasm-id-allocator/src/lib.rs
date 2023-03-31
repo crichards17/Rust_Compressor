@@ -104,8 +104,7 @@ impl IdCompressor {
     }
 
     pub fn take_next_range(&mut self) -> InteropIdRange {
-        let session_id_string =
-            StableId::from(self.compressor.get_local_session_id()).to_uuid_string();
+        let session_id_string: String = self.compressor.get_local_session_id().into();
         match self.compressor.take_next_range().range {
             Some((first_local_gen_count, count)) => InteropIdRange {
                 session_id_string,
@@ -190,7 +189,7 @@ impl IdCompressor {
             .compressor
             .decompress(SessionSpaceId::from_id(id_to_decompress as i64))
         {
-            Ok(stable_id) => Some(stable_id.to_uuid_string()),
+            Ok(stable_id) => Some(String::from(*stable_id)),
             Err(e) => {
                 self.set_error_string(e.get_error_string());
                 None
@@ -292,7 +291,7 @@ impl TestOnly {
     #[wasm_bindgen]
     pub fn increment_uuid(uuid_string: String, offset: f64) -> String {
         (StableId::from(SessionId::from_uuid_string(&uuid_string).unwrap()) + (offset as u64))
-            .to_uuid_string()
+            .into()
     }
 
     #[wasm_bindgen]
@@ -361,10 +360,10 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
     fn get_token_invalid_uuid() {
         let (mut compressor, _) = initialize_compressor();
-        _ = compressor.get_token(String::from("not_a_uuid")); // Errors at SessionId::from_uuid_string()
+        let token_nan = compressor.get_token(String::from("not_a_uuid"));
+        assert!(token_nan.is_nan())
     }
 
     #[test]
@@ -486,7 +485,7 @@ mod tests {
             let expected_offset = ((id * -1.0) - 1.0) as u64;
             assert_eq!(
                 compressor.decompress(id).unwrap(),
-                (base_stable + expected_offset).to_uuid_string()
+                String::from(base_stable + expected_offset)
             );
         }
     }
@@ -510,8 +509,8 @@ mod tests {
     fn recompress() {
         let (mut compressor, _) = initialize_compressor();
         finalize_compressor(&mut compressor);
-        let session_id = (StableId::from(SessionId::from_uuid_string(_STABLE_ID_1).unwrap()) + 1)
-            .to_uuid_string();
+        let session_id =
+            (StableId::from(SessionId::from_uuid_string(_STABLE_ID_1).unwrap()) + 1).into();
         assert!(compressor.recompress(session_id).is_some());
     }
 

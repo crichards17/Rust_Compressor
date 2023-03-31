@@ -90,7 +90,7 @@ pub(crate) mod v1 {
 
     pub(crate) fn serialize_with_local(compressor: &IdCompressor) -> Vec<u8> {
         let local_state = LocalState {
-            session_uuid_u128: StableId::from(compressor.session_id).to_uuid_u128(),
+            session_uuid_u128: StableId::from(compressor.session_id).into(),
             generated_id_count: compressor.generated_id_count,
             next_range_base_generation_count: compressor.next_range_base_generation_count,
             persistent_normalizer: get_persistent_normalizer(&compressor.session_space_normalizer),
@@ -107,7 +107,7 @@ pub(crate) mod v1 {
         let session_uuid_u128s: Vec<u128> = compressor
             .sessions
             .get_session_spaces()
-            .map(|session_space| StableId::from(session_space.session_id()).to_uuid_u128())
+            .map(|session_space| StableId::from(session_space.session_id()).into())
             .collect();
 
         let cluster_data: Vec<ClusterData> = compressor
@@ -164,8 +164,9 @@ pub(crate) mod v1 {
                 Some(cluster) => cluster.base_final_id + cluster.capacity,
                 None => FinalId::from_id(0),
             };
-            let session_space_ref =
-                compressor.sessions.get_or_create(SessionId::from_uuid_u128(persistent_compressor.session_uuid_u128s[cluster_data.session_index as usize]));
+            let session_space_ref = compressor.sessions.get_or_create(SessionId::from_uuid_u128(
+                persistent_compressor.session_uuid_u128s[cluster_data.session_index as usize],
+            ));
             let session_space = compressor.sessions.deref_session_space(session_space_ref);
             let base_local_id = match session_space.get_tail_cluster() {
                 Some(cluster_ref) => {

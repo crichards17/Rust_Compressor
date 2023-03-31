@@ -5,16 +5,16 @@ edition = "2021"
 
 [features]
 default = ["uuid-generation"]
-uuid-generation = ["uuid/v4"]
+uuid-generation = ["uuid/v4", "uuid/fast-rng"]
 
 [dependencies.serde]
 version = "1.0.152"
 default-features = false
+features = ["derive"]
 
 [dependencies.uuid]
 version = "1.2.2"
 features = [
-    "fast-rng",          # Use a faster (but still sufficiently random) RNG
     "macro-diagnostics", # Enable better diagnostics for compile-time UUIDs
     "js"
 ]
