@@ -14,9 +14,8 @@ import {
 	StableId,
 } from "./types";
 import { currentWrittenVersion } from "./types/persisted-types/0.0.1";
-import { generateStableId } from "./util";
 import { getIds } from "./util/idRange";
-import { createSessionId, fail } from "./util/utilities";
+import { createSessionId, fail, isNaN } from "./util/utilities";
 
 export const defaultClusterCapacity = WasmIdCompressor.get_default_cluster_capacity();
 
@@ -51,26 +50,17 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 		this.wasmCompressor.set_cluster_capacity(value);
 	}
 
-	private getOrCreateSessionToken(sessionId: SessionId): number {
-		let token = this.sessionTokens.get(sessionId);
-		if (token === undefined) {
-			token = this.wasmCompressor.get_token(sessionId);
-			// Will also catch NaN
-			if (token > 0) {
-				this.sessionTokens.set(sessionId, token);
-			}
-		}
-		return token;
-	}
-
 	public finalizeCreationRange(range: IdCreationRange): void {
-		const ids = getIds(range);
-		if (ids === undefined) {
-			return;
+		const { sessionId } = range;
+		if (isNaN(this.sessionTokens.get(sessionId))) {
+			this.sessionTokens.delete(sessionId);
 		}
-		const { firstGenCount: first, lastGenCount: last, overrides } = ids;
-		assert(overrides === undefined, "Overrides not yet supported.");
-		this.wasmCompressor.finalize_range(range.sessionId, first, last - first + 1);
+		const ids = getIds(range);
+		if (ids !== undefined) {
+			const { firstGenCount: first, lastGenCount: last, overrides } = ids;
+			assert(overrides === undefined, "Overrides not yet supported.");
+			this.wasmCompressor.finalize_range(sessionId, first, last - first + 1);
+		}
 	}
 
 	public takeNextCreationRange(): IdCreationRange {
@@ -97,8 +87,8 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 	}
 
 	private idOrError<TId extends CompressedId>(idNum: number): TId {
-		if (Object.is(idNum, Number.NaN)) {
-			throw new Error(this.wasmCompressor.get_error_string());
+		if (isNaN(idNum)) {
+			throw new Error(this.wasmCompressor.get_normalization_error_string());
 		}
 		return idNum as TId;
 	}
@@ -111,12 +101,15 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 		id: OpSpaceCompressedId,
 		originSessionId: SessionId,
 	): SessionSpaceCompressedId {
-		let session_token = this.getOrCreateSessionToken(originSessionId);
-		if (Object.is(session_token, Number.NaN)) {
-			throw new Error(this.wasmCompressor.get_error_string());
-		} else if (session_token === -1 && id < 0) {
-			fail("No IDs have ever been finalized by the supplied session.");
+		let session_token = this.sessionTokens.get(originSessionId);
+		if (session_token === undefined) {
+			session_token = this.wasmCompressor.get_token(originSessionId);
+			this.sessionTokens.set(originSessionId, session_token);
 		}
+		assert(
+			!isNaN(session_token) || id >= 0,
+			"No IDs have ever been finalized by the supplied session.",
+		);
 		let normalizedId = this.wasmCompressor.normalize_to_session_space(id, session_token);
 		return this.idOrError<SessionSpaceCompressedId>(normalizedId);
 	}
@@ -141,6 +134,10 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 		return this.wasmCompressor.recompress(uncompressed) as SessionSpaceCompressedId | undefined;
 	}
 
+	public dispose(): void {
+		this.wasmCompressor.free();
+	}
+
 	public serialize(withSession: true): SerializedIdCompressorWithOngoingSession;
 	public serialize(withSession: false): SerializedIdCompressorWithNoSession;
 	public serialize(withSession: boolean): SerializedIdCompressor {
@@ -148,10 +145,6 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 			bytes: this.wasmCompressor.serialize(withSession),
 			version: currentWrittenVersion,
 		} as SerializedIdCompressor;
-	}
-
-	public dispose(): void {
-		this.wasmCompressor.free();
 	}
 
 	public static deserialize(serialized: SerializedIdCompressorWithOngoingSession): IdCompressor;
@@ -167,7 +160,7 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 			serialized.version === currentWrittenVersion,
 			"Unknown serialized compressor version found.",
 		);
-		const localSessionId = sessionId ?? (generateStableId() as SessionId);
+		const localSessionId = sessionId ?? createSessionId();
 		return new IdCompressor(WasmIdCompressor.deserialize(serialized.bytes, localSessionId));
 	}
 }

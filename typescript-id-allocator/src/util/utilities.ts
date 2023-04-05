@@ -137,3 +137,7 @@ export function isStableId(str: string): str is StableId {
 export function fail(message: string): never {
 	throw new Error(message);
 }
+
+export function isNaN(num: any): boolean {
+	return Object.is(num, Number.NaN);
+}

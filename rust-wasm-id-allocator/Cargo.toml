@@ -5,3 +5,4 @@ members = ["./distributed-id-allocator", "./wasm-id-allocator", "./id-types"]
 opt-level = 2
 lto = true
 codegen-units = 1
+panic = 'abort'
