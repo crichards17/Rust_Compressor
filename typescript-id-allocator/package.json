@@ -6,6 +6,7 @@
 		"build:ts-release": "npm i && tsc --project \"tsconfig-release.json\"",
 		"build:wasm": "npm i --only=dev && wasm-pack build --debug --target nodejs --out-dir ../../typescript-id-allocator/dist/wasm ../rust-wasm-id-allocator/wasm-id-allocator",
 		"build:wasm-release": "npm i --only=dev && wasm-pack build --target nodejs --out-dir ../../typescript-id-allocator/dist/wasm ../rust-wasm-id-allocator/wasm-id-allocator",
+		"bench": "mocha --timeout 999999 --perfMode --parentProcess --fgrep @Benchmark --reporter @fluid-tools/benchmark/dist/MochaReporter.js ./dist/**/*.spec.js",
 		"clean": "rimraf ./dist",
 		"test": "npm run build:ts && mocha ./dist/javascript/test/**/*.js --recursive",
 		"prettier": "prettier --check . --ignore-path ./.prettierignore",
