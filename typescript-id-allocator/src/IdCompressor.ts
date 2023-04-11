@@ -67,10 +67,10 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 	public takeNextCreationRange(): IdCreationRange {
 		const wasmRange = this.wasmCompressor.take_next_range();
 		let range: IdCreationRange;
-		if (wasmRange.ids === undefined) {
+		if (wasmRange === undefined) {
 			range = { sessionId: this.localSessionId };
 		} else {
-			const { first_local_gen_count, count } = wasmRange.ids;
+			const { first_local_gen_count, count } = wasmRange;
 			range = {
 				sessionId: this.localSessionId,
 				ids: {
@@ -78,8 +78,8 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 					lastGenCount: first_local_gen_count + count - 1,
 				},
 			};
+			wasmRange.free();
 		}
-		wasmRange.free();
 		return range;
 	}
 

@@ -97,20 +97,13 @@ impl IdCompressor {
             .unwrap_or(NAN))
     }
 
-    pub fn take_next_range(&mut self) -> InteropIdRange {
-        let session_id_string: String = self.compressor.get_local_session_id().into();
+    pub fn take_next_range(&mut self) -> Option<InteropIds> {
         match self.compressor.take_next_range().range {
-            Some((first_local_gen_count, count)) => InteropIdRange {
-                session_id_string,
-                ids: Some(InteropIds {
-                    first_local_gen_count: first_local_gen_count as f64,
-                    count: count as f64,
-                }),
-            },
-            None => InteropIdRange {
-                session_id_string,
-                ids: None,
-            },
+            Some((first_local_gen_count, count)) => Some(InteropIds {
+                first_local_gen_count: first_local_gen_count as f64,
+                count: count as f64,
+            }),
+            None => None,
         }
     }
 
@@ -211,25 +204,6 @@ impl IdCompressor {
 }
 
 #[wasm_bindgen]
-pub struct InteropIdRange {
-    session_id_string: String,
-    ids: Option<InteropIds>,
-}
-
-#[wasm_bindgen]
-impl InteropIdRange {
-    #[wasm_bindgen(getter)]
-    pub fn session_id_string(&self) -> String {
-        self.session_id_string.clone()
-    }
-
-    #[wasm_bindgen(getter)]
-    pub fn ids(&self) -> Option<InteropIds> {
-        self.ids
-    }
-}
-
-#[wasm_bindgen]
 #[derive(Clone, Copy)]
 pub struct InteropIds {
     first_local_gen_count: f64,
@@ -303,9 +277,9 @@ mod tests {
         let InteropIds {
             first_local_gen_count,
             count,
-        } = interop_id_range.ids.unwrap();
+        } = interop_id_range.unwrap();
         _ = compressor.finalize_range(
-            interop_id_range.session_id_string,
+            compressor.get_local_session_id().into(),
             first_local_gen_count,
             count,
         )
@@ -348,7 +322,7 @@ mod tests {
         let InteropIds {
             first_local_gen_count,
             count,
-        } = interop_id_range.ids.unwrap();
+        } = interop_id_range.unwrap();
         assert_eq!(
             LocalId::from_generation_count(first_local_gen_count as u64).id() as f64,
             generated_ids[0]
@@ -360,7 +334,7 @@ mod tests {
     fn take_next_range_empty() {
         let mut compressor = IdCompressor::new(String::from(_STABLE_ID_1)).ok().unwrap();
         let interop_id_range = compressor.take_next_range();
-        assert!(interop_id_range.ids.is_none());
+        assert!(interop_id_range.is_none());
     }
 
     #[test]
@@ -370,10 +344,10 @@ mod tests {
         let InteropIds {
             first_local_gen_count,
             count,
-        } = interop_id_range.ids.unwrap();
+        } = interop_id_range.unwrap();
         assert!(compressor
             .finalize_range(
-                interop_id_range.session_id_string,
+                compressor.get_local_session_id().into(),
                 first_local_gen_count,
                 count
             )
