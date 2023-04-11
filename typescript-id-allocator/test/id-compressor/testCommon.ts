@@ -3,24 +3,9 @@
  * Licensed under the MIT License.
  */
 
-import { strict as assert } from "assert";
 import { TestOnly } from "wasm-id-allocator";
 import { IdCompressor } from "../../src/IdCompressor";
-import {
-	CompressedId,
-	FinalCompressedId,
-	LocalCompressedId,
-	OpSpaceCompressedId,
-	StableId,
-} from "../../src/types";
-
-/**
- * Check if the given value is defined using mocha's `expect`. Return the defined value;
- */
-export function expectDefined<T>(value: T | undefined): T {
-	assert.notStrictEqual(value, undefined);
-	return value as T;
-}
+import { CompressedId, FinalCompressedId, LocalCompressedId, StableId } from "../../src/types";
 
 /**
  * @returns true if the supplied ID is a final ID.
@@ -34,16 +19,6 @@ export function isFinalId(id: CompressedId): id is FinalCompressedId {
  */
 export function isLocalId(id: CompressedId): id is LocalCompressedId {
 	return id < 0;
-}
-
-export function convertToGenCount(id: LocalCompressedId): number {
-	assert(id < 0);
-	return -id;
-}
-
-export function convertToUnackedLocalId(genCount: number): LocalCompressedId & OpSpaceCompressedId {
-	assert(genCount > 0);
-	return -genCount as LocalCompressedId & OpSpaceCompressedId;
 }
 
 /**
