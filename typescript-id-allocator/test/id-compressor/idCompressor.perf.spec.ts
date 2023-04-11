@@ -133,7 +133,7 @@ describe("IdCompressor Perf", () => {
 		let lastFinalizedGenCount2 = 0;
 		benchmark({
 			type,
-			title: `finalize a range of IDs (cluster size =${clusterSize})`,
+			title: `finalize a range of IDs (cluster size = ${clusterSize})`,
 			before: () => {
 				setupCompressors(clusterSize, false, true);
 			},
