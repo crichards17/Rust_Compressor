@@ -248,27 +248,35 @@ impl InteropIds {
     }
 }
 
-#[cfg(debug_assertions)]
 #[wasm_bindgen]
 pub struct TestOnly {}
 
-#[cfg(debug_assertions)]
 #[wasm_bindgen]
 impl TestOnly {
     #[wasm_bindgen]
-    pub fn increment_uuid(uuid_string: String, offset: f64) -> String {
-        (StableId::from(SessionId::from_uuid_string(&uuid_string).unwrap()) + (offset as u64))
-            .into()
+    pub fn increment_uuid(_uuid_string: String, _offset: f64) -> Result<String, JsError> {
+        #[cfg(debug_assertions)]
+        return Ok(
+            (StableId::from(SessionId::from_uuid_string(&_uuid_string).unwrap())
+                + (_offset as u64))
+                .into(),
+        );
+        #[cfg(not(debug_assertions))]
+        Err(JsError::new("Not supported in release."))
     }
 
     #[wasm_bindgen]
     pub fn compressor_equals(
-        a: &IdCompressor,
-        b: &IdCompressor,
-        compare_local_state: bool,
-    ) -> bool {
-        a.compressor
-            .equals_test_only(&b.compressor, compare_local_state)
+        _a: &IdCompressor,
+        _b: &IdCompressor,
+        _compare_local_state: bool,
+    ) -> Result<bool, JsError> {
+        #[cfg(debug_assertions)]
+        return Ok(_a
+            .compressor
+            .equals_test_only(&_b.compressor, _compare_local_state));
+        #[cfg(not(debug_assertions))]
+        Err(JsError::new("Not supported in release."))
     }
 }
 
