@@ -37,49 +37,12 @@ export interface SerializedIdCompressorWithOngoingSession extends SerializedIdCo
 /**
  * Data describing a range of session-local IDs (from a remote or local session).
  *
- * A range is composed of local IDs that were generated. Some of these may have overrides.
- *
- * @example
- * Suppose an IdCompressor generated a sequence of local IDs as follows:
- * ```
- * compressor.generateLocalId()
- * compressor.generateLocalId('0093cf29-9454-4034-8940-33b1077b41c3')
- * compressor.generateLocalId()
- * compressor.generateLocalId('0ed545f8-e97e-4dc1-acf9-c4a783258bdf')
- * compressor.generateLocalId()
- * compressor.generateLocalId()
- * compressor.takeNextCreationRange()
- * ```
- * This would result in the following range:
- * ```
- * {
- *     firstGenCount: 1,
- *     lastGenCount: 6,
- *     overrides: [[2, '0093cf29-9454-4034-8940-33b1077b41c3'], [4, '0ed545f8-e97e-4dc1-acf9-c4a783258bdf']]
- * }
- * ```
+ * A range is composed of local IDs that were generated.
  */
 export interface IdCreationRange {
 	readonly sessionId: SessionId;
-	readonly ids?: IdCreationRange.Ids;
-}
-
-// eslint-disable-next-line @typescript-eslint/no-namespace
-export namespace IdCreationRange {
-	export type Ids =
-		| {
-				readonly firstGenCount: number;
-				readonly lastGenCount: number;
-		  }
-		| ({
-				readonly firstGenCount?: number;
-				readonly lastGenCount?: number;
-		  } & HasOverrides);
-
-	export interface HasOverrides {
-		readonly overrides: Overrides;
-	}
-
-	export type Override = readonly [associatedGenCount: number, override: string];
-	export type Overrides = readonly [Override, ...Override[]];
+	readonly ids?: {
+		readonly firstGenCount: number;
+		readonly lastGenCount: number;
+	};
 }
