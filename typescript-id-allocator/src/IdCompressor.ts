@@ -123,7 +123,15 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 
 	public tryDecompress(id: SessionSpaceCompressedId): StableId | undefined {
 		// TODO: log error string to telemetry if undefined
-		return this.wasmCompressor.decompress(id) as StableId;
+		const uuidBytes = this.wasmCompressor.decompress(id);
+		if (uuidBytes === undefined) {
+			return undefined;
+		}
+		let uuidString = "";
+		for (let i = 0; i < 36; i++) {
+			uuidString += String.fromCharCode(uuidBytes[i]);
+		}
+		return uuidString as StableId;
 	}
 
 	public recompress(uncompressed: StableId): SessionSpaceCompressedId {

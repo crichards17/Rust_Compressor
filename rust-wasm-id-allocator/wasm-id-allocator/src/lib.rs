@@ -169,12 +169,13 @@ impl IdCompressor {
         error
     }
 
-    pub fn decompress(&mut self, id_to_decompress: f64) -> Option<String> {
-        Some(String::from(
-            self.compressor
-                .decompress(SessionSpaceId::from_id(id_to_decompress as i64))
-                .ok()?,
-        ))
+    pub fn decompress(&mut self, id_to_decompress: f64) -> Option<Vec<u8>> {
+        let stable_id = self
+            .compressor
+            .decompress(SessionSpaceId::from_id(id_to_decompress as i64))
+            .ok()?;
+        let uuid_arr: [u8; 36] = stable_id.into();
+        Some(Vec::from(uuid_arr))
     }
 
     pub fn recompress(&mut self, id_to_recompress: String) -> Option<f64> {
@@ -428,10 +429,9 @@ mod tests {
         let base_stable = StableId::from(session_id);
         for id in generated_ids {
             let expected_offset = ((id * -1.0) - 1.0) as u64;
-            assert_eq!(
-                compressor.decompress(id).unwrap(),
-                String::from(base_stable + expected_offset)
-            );
+            let buff = compressor.decompress(id).unwrap();
+            let uuid_str = String::from_utf8(buff).unwrap();
+            assert_eq!(uuid_str, String::from(base_stable + expected_offset));
         }
     }
 

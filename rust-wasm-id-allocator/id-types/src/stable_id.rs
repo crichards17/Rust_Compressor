@@ -25,6 +25,14 @@ const STRIPPED_MIDDIE_BITTIES_MASK: u128 = MIDDIE_BITTIES_MASK >> 2;
 // The more-significant half of the N nibble is used to denote the variant (10xx)
 const LOWER_MASK: u128 = 0x3FFFFFFFFFFFFFFF;
 
+impl From<StableId> for [u8; 36] {
+    fn from(id: StableId) -> Self {
+        let mut uuid_arr: [u8; 36] = ['0' as u8; 36];
+        Uuid::from(id).as_hyphenated().encode_lower(&mut uuid_arr);
+        uuid_arr
+    }
+}
+
 impl From<u128> for StableId {
     fn from(uuid_u128: u128) -> Self {
         let upper_masked = uuid_u128 & UPPER_MASK;
