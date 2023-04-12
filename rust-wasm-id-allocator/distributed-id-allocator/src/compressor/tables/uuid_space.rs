@@ -59,6 +59,38 @@ impl UuidSpace {
         }
     }
 
+    pub fn range_collides(
+        &self,
+        originator: SessionId,
+        sessions: &Sessions,
+        range_base: StableId,
+        range_max: StableId,
+    ) -> bool {
+        let mut range = self
+            .uuid_to_cluster
+            .range((
+                Bound::Excluded(StableId::null()),
+                Bound::Included(range_max),
+            ))
+            .rev();
+        match range.next() {
+            None => return false,
+            Some((_, &cluster_ref)) => {
+                let cluster_match = sessions.deref_cluster(cluster_ref);
+                let result_session_id = sessions
+                    .deref_session_space(cluster_match.session_creator)
+                    .session_id();
+                let cluster_max_stable =
+                    result_session_id + cluster_match.base_local_id + cluster_match.capacity;
+                if originator != result_session_id && range_base <= cluster_max_stable {
+                    return true;
+                } else {
+                    return false;
+                }
+            }
+        }
+    }
+
     #[cfg(debug_assertions)]
     pub(crate) fn equals_test_only(
         &self,
