@@ -157,6 +157,15 @@ impl IdCompressor {
         };
 
         let range_base_local = LocalId::from_generation_count(range_base_gen_count);
+        let range_base_stable = StableId::from(session_id) + range_base_local;
+        if self.uuid_space.range_can_collide(
+            session_id,
+            &self.sessions,
+            range_base_stable,
+            range_base_stable + range_len + self.cluster_capacity,
+        ) {
+            return Err(FinalizationError::ClusterCollision);
+        }
         let session_space_ref = self.sessions.get_or_create(session_id);
         let tail_cluster_ref = match self
             .sessions
@@ -499,6 +508,8 @@ pub enum FinalizationError {
     RangeFinalizedOutOfOrder,
     #[error("Invalid ID range")]
     InvalidRange,
+    #[error("Cluster collision detected.")]
+    ClusterCollision,
 }
 
 #[derive(Error, Debug, PartialEq)]
@@ -770,6 +781,36 @@ mod tests {
         // Finalize ranges out of order
         assert!(compressor.finalize_range(&out_range_2).is_err());
         assert!(compressor.finalize_range(&out_range_1).is_ok());
+    }
+
+    #[test]
+    fn test_finalize_range_collision() {
+        let mut compressor_1 = IdCompressor::new();
+        _ = compressor_1.set_cluster_capacity(10);
+
+        let mut compressor_2 = IdCompressor::new_with_session_id(
+            Uuid::from(StableId::from(compressor_1.session_id) + 3).into(),
+        );
+        _ = compressor_2.set_cluster_capacity(10);
+
+        _ = compressor_1.generate_next_id();
+        let range_1 = compressor_1.take_next_range();
+        _ = compressor_1.finalize_range(&range_1);
+
+        _ = compressor_2.generate_next_id();
+        let range_2 = compressor_2.take_next_range();
+        _ = compressor_2.finalize_range(&range_2);
+
+        assert!(compressor_1.finalize_range(&range_2).is_err());
+        assert!(compressor_2.finalize_range(&range_1).is_err());
+
+        _ = compressor_1.generate_next_id();
+        let range_1b = compressor_1.take_next_range();
+        assert!(compressor_1.finalize_range(&range_1b).is_ok());
+
+        _ = compressor_2.generate_next_id();
+        let range_2b = compressor_2.take_next_range();
+        assert!(compressor_2.finalize_range(&range_2b).is_ok());
     }
 
     #[test]
