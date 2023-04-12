@@ -1,4 +1,5 @@
 import { IdCompressor as WasmIdCompressor } from "wasm-id-allocator";
+import * as wasmModule from "wasm-id-allocator";
 import { assert } from "./copied-utils";
 import {
 	CompressedId,
@@ -21,9 +22,11 @@ export const defaultClusterCapacity = WasmIdCompressor.get_default_cluster_capac
 export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 	private readonly sessionTokens: Map<SessionId, number> = new Map();
 	public readonly localSessionId: SessionId;
+	private readonly heap: WebAssembly.Memory;
 
 	private constructor(private readonly wasmCompressor: WasmIdCompressor) {
 		this.localSessionId = wasmCompressor.get_local_session_id() as SessionId;
+		this.heap = (wasmModule as any).__wasm.memory;
 	}
 
 	public static create(): IdCompressor;
@@ -123,7 +126,20 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 
 	public tryDecompress(id: SessionSpaceCompressedId): StableId | undefined {
 		// TODO: log error string to telemetry if undefined
-		return this.wasmCompressor.decompress(id) as StableId;
+		const ptr = this.wasmCompressor.decompress(id);
+		if (ptr === undefined) {
+			return undefined;
+		}
+		try {
+			const buff = new Uint8Array(this.heap.buffer, ptr.str_ptr, 36);
+			let uuidString = "";
+			for (let i = 0; i < 36; i++) {
+				uuidString += String.fromCharCode(buff[i]);
+			}
+			return ptr === undefined ? undefined : (uuidString as StableId);
+		} finally {
+			ptr?.free();
+		}
 	}
 
 	public recompress(uncompressed: StableId): SessionSpaceCompressedId {

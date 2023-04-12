@@ -47,6 +47,8 @@ pub struct IdCompressor {
 const MAX_DEFAULT_CLUSTER_CAPACITY: f64 = 2_i32.pow(11) as f64;
 const NAN_UUID_U128: u128 = 0;
 
+static mut UUID_ARR: [u8; 36] = ['0' as u8; 36];
+
 #[wasm_bindgen]
 impl IdCompressor {
     pub fn get_default_cluster_capacity() -> f64 {
@@ -169,12 +171,17 @@ impl IdCompressor {
         error
     }
 
-    pub fn decompress(&mut self, id_to_decompress: f64) -> Option<String> {
-        Some(String::from(
-            self.compressor
-                .decompress(SessionSpaceId::from_id(id_to_decompress as i64))
-                .ok()?,
-        ))
+    pub fn decompress(&mut self, id_to_decompress: f64) -> Option<InteropUuidStr> {
+        let stable_id = self
+            .compressor
+            .decompress(SessionSpaceId::from_id(id_to_decompress as i64))
+            .ok()?;
+        let ptr;
+        unsafe {
+            stable_id.write_uuid_to_buffer(&mut UUID_ARR);
+            ptr = UUID_ARR.as_ptr();
+        }
+        Some(InteropUuidStr { str_ptr: ptr })
     }
 
     pub fn recompress(&mut self, id_to_recompress: String) -> Option<f64> {
@@ -200,6 +207,20 @@ impl IdCompressor {
             })?,
             error_string: None,
         })
+    }
+}
+
+#[wasm_bindgen]
+#[derive(Clone, Copy)]
+pub struct InteropUuidStr {
+    str_ptr: *const u8,
+}
+
+#[wasm_bindgen]
+impl InteropUuidStr {
+    #[wasm_bindgen(getter)]
+    pub fn str_ptr(&self) -> f64 {
+        self.str_ptr as usize as f64
     }
 }
 
@@ -428,8 +449,14 @@ mod tests {
         let base_stable = StableId::from(session_id);
         for id in generated_ids {
             let expected_offset = ((id * -1.0) - 1.0) as u64;
+            let buff = compressor.decompress(id).unwrap();
+            let uuid_str;
+            unsafe {
+                let buff = std::slice::from_raw_parts(buff.str_ptr, 36);
+                uuid_str = std::str::from_utf8(buff).ok()
+            }
             assert_eq!(
-                compressor.decompress(id).unwrap(),
+                uuid_str.unwrap(),
                 String::from(base_stable + expected_offset)
             );
         }
