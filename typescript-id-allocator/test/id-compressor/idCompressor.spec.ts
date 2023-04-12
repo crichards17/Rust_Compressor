@@ -326,7 +326,7 @@ describe("IdCompressor", () => {
 				generateCompressedIds(compressor, idCount);
 				const range = compressor.takeNextCreationRange();
 				if (range.ids !== undefined) {
-					assert.equal(range.ids.lastGenCount - range.ids.firstGenCount + 1, idCount);
+					assert.equal(range.ids.count, idCount);
 				} else {
 					assert.equal(idCount, 0);
 				}

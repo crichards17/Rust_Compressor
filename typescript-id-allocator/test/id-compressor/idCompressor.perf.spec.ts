@@ -143,17 +143,17 @@ describe("IdCompressor Perf", () => {
 				const isFirstClient = session === session1;
 				const firstGenCount =
 					(isFirstClient ? lastFinalizedGenCount1 : lastFinalizedGenCount2) + 1;
-				const lastGenCount = firstGenCount + numIds;
 				const range: IdCreationRange = {
 					sessionId: session,
 					ids: {
 						firstGenCount,
-						lastGenCount,
+						count: numIds,
 					},
 				};
 
 				perfCompressor!.finalizeCreationRange(range);
 
+				const lastGenCount = firstGenCount + numIds;
 				if (isFirstClient) {
 					lastFinalizedGenCount1 = lastGenCount;
 				} else {

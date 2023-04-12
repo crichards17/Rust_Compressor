@@ -1,4 +1,4 @@
-import { IdCompressor as WasmIdCompressor } from "wasm-id-allocator";
+import { IdCompressor as WasmIdCompressor, InteropIds } from "wasm-id-allocator";
 import { assert } from "./copied-utils";
 import {
 	CompressedId,
@@ -55,32 +55,31 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 			this.sessionTokens.delete(sessionId);
 		}
 		if (ids !== undefined) {
-			const { firstGenCount, lastGenCount } = ids;
-			this.wasmCompressor.finalize_range(
-				sessionId,
-				firstGenCount,
-				lastGenCount - firstGenCount + 1,
-			);
+			this.wasmCompressor.finalize_range(sessionId, ids.firstGenCount, ids.count);
 		}
 	}
 
 	public takeNextCreationRange(): IdCreationRange {
-		const wasmRange = this.wasmCompressor.take_next_range();
-		let range: IdCreationRange;
-		if (wasmRange === undefined) {
-			range = { sessionId: this.localSessionId };
-		} else {
-			const { first_local_gen_count, count } = wasmRange;
-			range = {
-				sessionId: this.localSessionId,
-				ids: {
-					firstGenCount: first_local_gen_count,
-					lastGenCount: first_local_gen_count + count - 1,
-				},
-			};
-			wasmRange.free();
+		let wasmRange: InteropIds | undefined;
+		try {
+			wasmRange = this.wasmCompressor.take_next_range();
+			let range: IdCreationRange;
+			if (wasmRange === undefined) {
+				range = { sessionId: this.localSessionId };
+			} else {
+				const { first_local_gen_count, count } = wasmRange;
+				range = {
+					sessionId: this.localSessionId,
+					ids: {
+						firstGenCount: first_local_gen_count,
+						count,
+					},
+				};
+			}
+			return range;
+		} finally {
+			wasmRange?.free();
 		}
-		return range;
 	}
 
 	public generateCompressedId(): SessionSpaceCompressedId {

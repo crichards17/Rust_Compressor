@@ -43,6 +43,6 @@ export interface IdCreationRange {
 	readonly sessionId: SessionId;
 	readonly ids?: {
 		readonly firstGenCount: number;
-		readonly lastGenCount: number;
+		readonly count: number;
 	};
 }
