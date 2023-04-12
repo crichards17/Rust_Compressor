@@ -158,7 +158,8 @@ impl IdCompressor {
 
         let range_base_local = LocalId::from_generation_count(range_base_gen_count);
         let range_base_stable = StableId::from(session_id) + range_base_local;
-        if self.uuid_space.range_can_collide(
+        // Checks collision for the maximum new-cluster span (the condition in which the current tail cluster is exactly full)
+        if self.uuid_space.range_collides(
             session_id,
             &self.sessions,
             range_base_stable,

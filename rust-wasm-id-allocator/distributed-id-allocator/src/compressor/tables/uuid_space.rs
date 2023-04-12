@@ -59,7 +59,7 @@ impl UuidSpace {
         }
     }
 
-    pub fn range_can_collide(
+    pub fn range_collides(
         &self,
         originator: SessionId,
         sessions: &Sessions,
