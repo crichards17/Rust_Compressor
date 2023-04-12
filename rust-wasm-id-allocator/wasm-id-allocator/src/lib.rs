@@ -170,12 +170,11 @@ impl IdCompressor {
     }
 
     pub fn decompress(&mut self, id_to_decompress: f64) -> Option<Vec<u8>> {
-        let mut uuid_arr: [u8; 36] = ['0' as u8; 36];
         let stable_id = self
             .compressor
             .decompress(SessionSpaceId::from_id(id_to_decompress as i64))
             .ok()?;
-        stable_id.write_uuid_to_buffer(&mut uuid_arr);
+        let uuid_arr: [u8; 36] = stable_id.into();
         Some(Vec::from(uuid_arr))
     }
 
@@ -431,15 +430,8 @@ mod tests {
         for id in generated_ids {
             let expected_offset = ((id * -1.0) - 1.0) as u64;
             let buff = compressor.decompress(id).unwrap();
-            let uuid_str;
-            unsafe {
-                let buff = std::slice::from_raw_parts(buff.str_ptr, 36);
-                uuid_str = std::str::from_utf8(buff).ok()
-            }
-            assert_eq!(
-                uuid_str.unwrap(),
-                String::from(base_stable + expected_offset)
-            );
+            let uuid_str = String::from_utf8(buff).unwrap();
+            assert_eq!(uuid_str, String::from(base_stable + expected_offset));
         }
     }
 
