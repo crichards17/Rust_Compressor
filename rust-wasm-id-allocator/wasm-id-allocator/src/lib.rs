@@ -47,8 +47,6 @@ pub struct IdCompressor {
 const MAX_DEFAULT_CLUSTER_CAPACITY: f64 = 2_i32.pow(11) as f64;
 const NAN_UUID_U128: u128 = 0;
 
-static mut UUID_ARR: [u8; 36] = ['0' as u8; 36];
-
 #[wasm_bindgen]
 impl IdCompressor {
     pub fn get_default_cluster_capacity() -> f64 {
@@ -171,17 +169,14 @@ impl IdCompressor {
         error
     }
 
-    pub fn decompress(&mut self, id_to_decompress: f64) -> Option<InteropUuidStr> {
+    pub fn decompress(&mut self, id_to_decompress: f64) -> Option<Vec<u8>> {
+        let mut uuid_arr: [u8; 36] = ['0' as u8; 36];
         let stable_id = self
             .compressor
             .decompress(SessionSpaceId::from_id(id_to_decompress as i64))
             .ok()?;
-        let ptr;
-        unsafe {
-            stable_id.write_uuid_to_buffer(&mut UUID_ARR);
-            ptr = UUID_ARR.as_ptr();
-        }
-        Some(InteropUuidStr { str_ptr: ptr })
+        stable_id.write_uuid_to_buffer(&mut uuid_arr);
+        Some(Vec::from(uuid_arr))
     }
 
     pub fn recompress(&mut self, id_to_recompress: String) -> Option<f64> {
@@ -207,20 +202,6 @@ impl IdCompressor {
             })?,
             error_string: None,
         })
-    }
-}
-
-#[wasm_bindgen]
-#[derive(Clone, Copy)]
-pub struct InteropUuidStr {
-    str_ptr: *const u8,
-}
-
-#[wasm_bindgen]
-impl InteropUuidStr {
-    #[wasm_bindgen(getter)]
-    pub fn str_ptr(&self) -> f64 {
-        self.str_ptr as usize as f64
     }
 }
 
