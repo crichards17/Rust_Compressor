@@ -104,7 +104,7 @@ export class CompressorFactory {
 		clusterCapacity = 5,
 		logger?: ITelemetryLogger,
 	): IdCompressor {
-		const compressor = IdCompressor.create(sessionId);
+		const compressor = IdCompressor.create(sessionId, logger);
 		compressor.clusterCapacity = clusterCapacity;
 		CompressorFactory.compressors.push(compressor);
 		return compressor;

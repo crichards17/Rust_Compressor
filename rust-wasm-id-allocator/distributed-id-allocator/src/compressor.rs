@@ -20,6 +20,7 @@ pub struct IdCompressor {
     uuid_space: UuidSpace,
     session_space_normalizer: SessionSpaceNormalizer,
     cluster_capacity: u64,
+    telemetry_stats: IdStats,
 }
 
 impl IdCompressor {
@@ -45,6 +46,7 @@ impl IdCompressor {
             uuid_space: UuidSpace::new(),
             session_space_normalizer: SessionSpaceNormalizer::new(),
             cluster_capacity: persistence::DEFAULT_CLUSTER_CAPACITY,
+            telemetry_stats: IdStats::EMPTY,
         }
     }
 
@@ -106,6 +108,7 @@ impl IdCompressor {
             self.generated_id_count - tail_cluster.base_local_id.to_generation_count();
         if tail_cluster.capacity > cluster_offset {
             // Space in the cluster: eager final
+            self.telemetry_stats.eager_final_count += 1;
             return (tail_cluster.base_final_id + cluster_offset).into();
         } else {
             // Not space, return next local
@@ -114,6 +117,7 @@ impl IdCompressor {
     }
 
     fn generate_next_local_id(&mut self) -> LocalId {
+        self.telemetry_stats.local_id_count += 1;
         let new_local = LocalId::from_id(-(self.generated_id_count as i64));
         self.session_space_normalizer.add_local_range(new_local, 1);
         return new_local;
@@ -144,11 +148,11 @@ impl IdCompressor {
             id: session_id,
             range,
         }: &IdRange,
-    ) -> Result<(), FinalizationError> {
+    ) -> Result<Option<IdStats>, FinalizationError> {
         // Check if the block has IDs
         let (range_base_gen_count, range_len) = match range {
             None => {
-                return Ok(());
+                return Ok(None);
             }
             Some((_, 0)) => {
                 return Err(FinalizationError::InvalidRange);
@@ -179,6 +183,7 @@ impl IdCompressor {
                 if range_base_local != -1 {
                     return Err(FinalizationError::RangeFinalizedOutOfOrder);
                 }
+                self.telemetry_stats.cluster_creation_count += 1;
                 self.add_empty_cluster(
                     session_space_ref,
                     range_base_local,
@@ -200,10 +205,12 @@ impl IdCompressor {
             let new_claimed_final_count = overflow + self.cluster_capacity;
             if self.final_space.is_last(tail_cluster_ref) {
                 // Tail_cluster is the last cluster, and so can be expanded.
+                self.telemetry_stats.expansion_count += 1;
                 tail_cluster.capacity += new_claimed_final_count;
                 tail_cluster.count += range_len;
             } else {
                 // Tail_cluster is not the last cluster. Fill and overflow to new.
+                self.telemetry_stats.cluster_creation_count += 1;
                 tail_cluster.count = tail_cluster.capacity;
                 let new_cluster_ref = self.add_empty_cluster(
                     session_space_ref,
@@ -214,7 +221,9 @@ impl IdCompressor {
                 self.sessions.deref_cluster_mut(new_cluster_ref).count += overflow;
             }
         }
-        Ok(())
+        let stats = self.telemetry_stats;
+        self.telemetry_stats = IdStats::EMPTY;
+        Ok(Some(stats))
     }
 
     fn add_empty_cluster(
@@ -476,6 +485,29 @@ impl IdCompressor {
     }
 }
 
+pub struct IdRange {
+    pub id: SessionId,
+    // (First LocalID in the range as generation count, count of IDs)
+    pub range: Option<(u64, u64)>,
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct IdStats {
+    pub eager_final_count: u64,
+    pub local_id_count: u64,
+    pub expansion_count: u64,
+    pub cluster_creation_count: u64,
+}
+
+impl IdStats {
+    const EMPTY: IdStats = IdStats {
+        eager_final_count: 0,
+        local_id_count: 0,
+        expansion_count: 0,
+        cluster_creation_count: 0,
+    };
+}
+
 // TODO: comment each one about how it can happen
 #[derive(Error, Debug)]
 pub enum DecompressionError {
@@ -549,12 +581,6 @@ pub enum NormalizationError {
     NoAllocatedFinal,
     #[error("UnallocatedLocal")]
     UnallocatedLocal,
-}
-
-pub struct IdRange {
-    pub id: SessionId,
-    // (First LocalID in the range as generation count, count of IDs)
-    pub range: Option<(u64, u64)>,
 }
 
 #[cfg(test)]

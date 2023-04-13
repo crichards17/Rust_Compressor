@@ -588,20 +588,13 @@ describe("IdCompressor", () => {
 
 			mockLogger.assertMatch([
 				{
-					eventName: "RuntimeIdCompressor:FirstCluster",
-					sessionId: "88888888-8888-4888-b088-888888888888",
-				},
-				{
-					eventName: "RuntimeIdCompressor:NewCluster",
-					sessionId: "88888888-8888-4888-b088-888888888888",
-					clusterCapacity: 5,
-					clusterCount: 1,
-				},
-				{
-					eventName: "RuntimeIdCompressor:IdCompressorStatus",
-					sessionId: "88888888-8888-4888-b088-888888888888",
+					eventName: "RuntimeIdCompressor:IdCompressorFinalizeStatus",
 					eagerFinalIdCount: 0,
 					localIdCount: 1,
+					rangeSize: 1,
+					clusterCapacity: 5,
+					clusterChange: "Creation",
+					sessionId: sessionIds.get(Client.Client1),
 				},
 			]);
 		});
@@ -609,16 +602,14 @@ describe("IdCompressor", () => {
 		itCompressor("emits new cluster event on second cluster", () => {
 			// Fill the first cluster
 			const mockLogger = new MockLogger();
-			const compressor = CompressorFactory.createCompressor(Client.Client1, 5, mockLogger);
-			for (let i = 0; i < 5; i++) {
-				compressor.generateCompressedId();
-			}
+			const compressor = CompressorFactory.createCompressor(Client.Client1, 1, mockLogger);
+			compressor.generateCompressedId();
 			const range = compressor.takeNextCreationRange();
 			compressor.finalizeCreationRange(range);
 
 			// Create another cluster with a different client so that expansion doesn't happen
 			const mockLogger2 = new MockLogger();
-			const compressor2 = CompressorFactory.createCompressor(Client.Client2, 5, mockLogger2);
+			const compressor2 = CompressorFactory.createCompressor(Client.Client2, 1, mockLogger2);
 			compressor2.finalizeCreationRange(range);
 			compressor2.generateCompressedId();
 			const range2 = compressor2.takeNextCreationRange();
@@ -627,29 +618,28 @@ describe("IdCompressor", () => {
 			// Make sure we emitted the FirstCluster event
 			mockLogger.assertMatchAny([
 				{
-					eventName: "RuntimeIdCompressor:FirstCluster",
+					clusterChange: "Creation",
 				},
 			]);
 			mockLogger.clear();
 
-			// Trigger a new cluster creation and make sure FirstCluster isn't emitted
+			// Fill the one remaining spot and make sure no clusters are created/expanded
 			compressor.generateCompressedId();
 			compressor.finalizeCreationRange(compressor.takeNextCreationRange());
 			mockLogger.assertMatchAny([
 				{
-					eventName: "RuntimeIdCompressor:NewCluster",
+					clusterChange: "None",
 				},
 			]);
-			// TODO: use mockLogger.assertMatchNone
-			if (
-				mockLogger.matchAnyEvent([
-					{
-						eventName: "RuntimeIdCompressor:FirstCluster",
-					},
-				])
-			) {
-				assert.fail();
-			}
+
+			// Trigger a new cluster creation
+			compressor.generateCompressedId();
+			compressor.finalizeCreationRange(compressor.takeNextCreationRange());
+			mockLogger.assertMatchAny([
+				{
+					clusterChange: "Creation",
+				},
+			]);
 		});
 
 		itCompressor("correctly logs telemetry events for eager final id allocations", () => {
@@ -661,10 +651,11 @@ describe("IdCompressor", () => {
 			compressor.finalizeCreationRange(compressor.takeNextCreationRange());
 			mockLogger.assertMatchAny([
 				{
-					eventName: "RuntimeIdCompressor:IdCompressorStatus",
+					eventName: "RuntimeIdCompressor:IdCompressorFinalizeStatus",
 					eagerFinalIdCount: 0,
 					localIdCount: 1,
-					sessionId: "88888888-8888-4888-b088-888888888888",
+					clusterChange: "Creation",
+					sessionId: sessionIds.get(Client.Client1),
 				},
 			]);
 			mockLogger.clear();
@@ -676,10 +667,11 @@ describe("IdCompressor", () => {
 			compressor.finalizeCreationRange(compressor.takeNextCreationRange());
 			mockLogger.assertMatchAny([
 				{
-					eventName: "RuntimeIdCompressor:IdCompressorStatus",
+					eventName: "RuntimeIdCompressor:IdCompressorFinalizeStatus",
 					eagerFinalIdCount: 2,
 					localIdCount: 0,
-					sessionId: "88888888-8888-4888-b088-888888888888",
+					clusterChange: "None",
+					sessionId: sessionIds.get(Client.Client1),
 				},
 			]);
 		});
@@ -693,15 +685,16 @@ describe("IdCompressor", () => {
 			compressor.finalizeCreationRange(compressor.takeNextCreationRange());
 			mockLogger.assertMatchAny([
 				{
-					eventName: "RuntimeIdCompressor:IdCompressorStatus",
+					eventName: "RuntimeIdCompressor:IdCompressorFinalizeStatus",
 					eagerFinalIdCount: 0,
 					localIdCount: 1,
-					sessionId: "88888888-8888-4888-b088-888888888888",
+					clusterChange: "Creation",
+					sessionId: sessionIds.get(Client.Client1),
 				},
 			]);
 			mockLogger.clear();
 
-			for (let i = 0; i < 4; i++) {
+			for (let i = 0; i < 5; i++) {
 				const id = compressor.generateCompressedId();
 				assert(isFinalId(id));
 			}
@@ -709,10 +702,11 @@ describe("IdCompressor", () => {
 			compressor.finalizeCreationRange(compressor.takeNextCreationRange());
 			mockLogger.assertMatchAny([
 				{
-					eventName: "RuntimeIdCompressor:IdCompressorStatus",
-					eagerFinalIdCount: 4,
+					eventName: "RuntimeIdCompressor:IdCompressorFinalizeStatus",
+					eagerFinalIdCount: 5,
 					localIdCount: 0,
-					sessionId: "88888888-8888-4888-b088-888888888888",
+					clusterChange: "None",
+					sessionId: sessionIds.get(Client.Client1),
 				},
 			]);
 			mockLogger.clear();
@@ -725,17 +719,11 @@ describe("IdCompressor", () => {
 			compressor.finalizeCreationRange(compressor.takeNextCreationRange());
 			mockLogger.assertMatch([
 				{
-					eventName: "RuntimeIdCompressor:ClusterExpansion",
-					sessionId: "88888888-8888-4888-b088-888888888888",
-					previousCapacity: 5,
-					newCapacity: 12,
-					overflow: 2,
-				},
-				{
-					eventName: "RuntimeIdCompressor:IdCompressorStatus",
-					eagerFinalIdCount: 2,
-					localIdCount: 0,
-					sessionId: "88888888-8888-4888-b088-888888888888",
+					eventName: "RuntimeIdCompressor:IdCompressorFinalizeStatus",
+					eagerFinalIdCount: 0,
+					localIdCount: 2,
+					clusterChange: "Expansion",
+					sessionId: sessionIds.get(Client.Client1),
 				},
 			]);
 		});
@@ -752,9 +740,7 @@ describe("IdCompressor", () => {
 			mockLogger.assertMatchAny([
 				{
 					eventName: "RuntimeIdCompressor:SerializedIdCompressorSize",
-					size: 137,
-					clusterCount: 1,
-					sessionCount: 1,
+					size: 27,
 				},
 			]);
 		});
