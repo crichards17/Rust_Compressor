@@ -27,11 +27,17 @@ The first form is called a _session space ID_ (unique within the session scope),
 There are two ID spaces:
 
 1. Session space: IDs are unique within the session scope.
-2. Op space: IDs are normalized to their most final form, as unique as possible within the entire system.
+2. Op space: IDs are normalized to their most final form, as unique as possible within the entire system. Not all IDs in op space exist in their final form. Op space is defined as the space where IDs are as final as possible, meaning any IDs that have a final form are normalized to that final form, while any other IDs that have not yet been ordered by the central service are left in their session space form.
 
 ## Normalization
 
 The process of moving between session space and op space is called normalization.
+
+## Usage Guidelines
+
+- Expose only session space IDs to application authors. This means that application developers don't need to manage multiple ID spaces or worry about converting IDs between session space and op space. This simplifies the data management process and reduces the chances of errors or inconsistencies.
+- Use op space IDs for serialized forms, such as sending information over the wire or storing it in a file. This is because op space IDs are unique within the entire system, whereas session space IDs are unique only within a specific session. When persisting data, it's crucial to ensure that IDs remain unique across different sessions, clients, or machines to avoid collisions or conflicts.
+- When serializing op space IDs, annotate the entire context (e.g., file or network operation) with the session ID. This is necessary because not all IDs in op space are in their final form. Some IDs might still be negative integers, which represent their session space form and are unique only within that specific session. Annotating the entire context with the session ID ensures that recipients of the serialized data can correctly interpret and process the non-finalized IDs.
 
 ## Efficiency Properties
 
@@ -50,25 +56,6 @@ Clusters are efficient to store, requiring only two integers: the base positive 
 ### Normalization Process
 
 The normalization process involves a simple binary search on the cluster table stored by all allocators.
-
-## Usage Guidelines
-
-- Expose only session space IDs to application authors. This means that application developers don't need to manage multiple ID spaces or worry about converting IDs between session space and op space. This simplifies the data management process and reduces the chances of errors or inconsistencies.
-- Use op space IDs for serialized forms, such as sending information over the wire or storing it in a file. This is because op space IDs are unique within the entire system, whereas session space IDs are unique only within a specific session. When persisting data, it's crucial to ensure that IDs remain unique across different sessions, clients, or machines to avoid collisions or conflicts.
-
-## Implementation Details
-
-### ID Generation API
-
-The generation API returns either a negative integer (representing an offset from the session ID) or an eager final ID (if a cluster was previously allocated and has room for more IDs).
-
-### Op Space
-
-IDs in op space are as final as possible. Not all IDs in op space are positive integers; some might be session space IDs (negative integers).
-
-### Serialization
-
-When serializing op space IDs, annotate the entire context (e.g., file or network operation) with the session ID, so recipients can interpret session space negative IDs and convert them to corresponding final IDs.
 
 # Building the repo
 
