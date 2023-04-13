@@ -138,6 +138,13 @@ export class CompressorFactory {
 		CompressorFactory.compressors.forEach((compressor) => compressor.dispose());
 		CompressorFactory.compressors = [];
 	}
+
+	public static disposeCompressor(compressor: IdCompressor): void {
+		const index = CompressorFactory.compressors.indexOf(compressor);
+		assert(index >= 0, "Compressor not found in factory collection.");
+		CompressorFactory.compressors.splice(index, 1);
+		compressor.dispose();
+	}
 }
 
 /**
@@ -384,6 +391,8 @@ export class IdCompressorTestNetwork {
 		const compressor = this.compressors.get(client);
 		const [_, resumedCompressor] = roundtrip(compressor, true);
 		this.compressors.set(client, resumedCompressor);
+		// Eagerly dispose for performance
+		CompressorFactory.disposeCompressor(compressor);
 	}
 
 	/**
@@ -586,6 +595,8 @@ export function expectSerializes(
 			[serialized, deserialized] = roundtrip(compressor, false);
 		}
 		assert.strictEqual(compressorEquals(compressor, deserialized, withSession), true);
+		// Eagerly dispose for performance
+		CompressorFactory.disposeCompressor(deserialized);
 		return serialized;
 	}
 
