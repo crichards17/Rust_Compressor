@@ -18,6 +18,9 @@ import { createSessionId, fail, isNaN } from "./util/utilities";
 
 export const defaultClusterCapacity = WasmIdCompressor.get_default_cluster_capacity();
 
+/**
+ * See {@link IIdCompressor} and {@link IIdCompressorCore}
+ */
 export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 	private readonly sessionTokens: Map<SessionId, number> = new Map();
 	public readonly localSessionId: SessionId;
