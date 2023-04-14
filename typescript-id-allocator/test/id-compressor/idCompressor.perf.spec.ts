@@ -129,8 +129,8 @@ describe("IdCompressor Perf", () => {
 		const session1 = "8150a099-5302-4672-b5f3-7a4492b59418" as SessionId;
 		const session2 = "f2ded886-92da-4248-967b-eb96ee04cf51" as SessionId;
 		let session: SessionId = session1;
-		let lastFinalizedGenCount1 = 0;
-		let lastFinalizedGenCount2 = 0;
+		let nextFirstFinalizedGenCount1 = 1;
+		let nextFirstFinalizedGenCount2 = 1;
 		benchmark({
 			type,
 			title: `finalize a range of IDs (cluster size = ${clusterSize})`,
@@ -141,8 +141,9 @@ describe("IdCompressor Perf", () => {
 				// Create a range with as minimal overhead as possible, as we'd like for this code to not exist
 				// in the timing loop at all (but benchmark forces us to do so)
 				const isFirstClient = session === session1;
-				const firstGenCount =
-					(isFirstClient ? lastFinalizedGenCount1 : lastFinalizedGenCount2) + 1;
+				const firstGenCount = isFirstClient
+					? nextFirstFinalizedGenCount1
+					: nextFirstFinalizedGenCount2;
 				const range: IdCreationRange = {
 					sessionId: session,
 					ids: {
@@ -155,9 +156,9 @@ describe("IdCompressor Perf", () => {
 
 				const lastGenCount = firstGenCount + numIds;
 				if (isFirstClient) {
-					lastFinalizedGenCount1 = lastGenCount;
+					nextFirstFinalizedGenCount1 = lastGenCount;
 				} else {
-					lastFinalizedGenCount2 = lastGenCount;
+					nextFirstFinalizedGenCount2 = lastGenCount;
 				}
 				// Alternate clients to sidestep optimization that packs them all into last cluster
 				session = isFirstClient ? session1 : session2;

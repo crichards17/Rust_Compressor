@@ -1,4 +1,4 @@
-import { IdCompressor as WasmIdCompressor, InteropIds } from "wasm-id-allocator";
+import { IdCompressor as WasmIdCompressor, InteropIds, InteropIdStats } from "wasm-id-allocator";
 import { assert } from "./copied-utils";
 import {
 	CompressedId,
@@ -15,6 +15,7 @@ import {
 } from "./types";
 import { currentWrittenVersion } from "./types/persisted-types/0.0.1";
 import { createSessionId, fail, isNaN } from "./util/utilities";
+import { ITelemetryLogger } from "@fluidframework/common-definitions";
 
 export const defaultClusterCapacity = WasmIdCompressor.get_default_cluster_capacity();
 
@@ -25,15 +26,33 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 	private readonly sessionTokens: Map<SessionId, number> = new Map();
 	public readonly localSessionId: SessionId;
 
-	private constructor(private readonly wasmCompressor: WasmIdCompressor) {
+	private constructor(
+		private readonly wasmCompressor: WasmIdCompressor,
+		private readonly logger?: ITelemetryLogger,
+	) {
 		this.localSessionId = wasmCompressor.get_local_session_id() as SessionId;
 	}
 
-	public static create(): IdCompressor;
-	public static create(sessionId: SessionId): IdCompressor;
-	public static create(sessionId?: SessionId): IdCompressor {
-		const localSessionId = sessionId ?? createSessionId();
-		const compressor = new IdCompressor(new WasmIdCompressor(localSessionId));
+	public static create(logger?: ITelemetryLogger): IdCompressor;
+	public static create(sessionId: SessionId, logger?: ITelemetryLogger): IdCompressor;
+	public static create(
+		sessionIdOrLogger?: SessionId | ITelemetryLogger,
+		loggerOrUndefined?: ITelemetryLogger,
+	): IdCompressor {
+		let localSessionId: SessionId;
+		let logger: ITelemetryLogger | undefined;
+		if (sessionIdOrLogger === undefined) {
+			localSessionId = createSessionId();
+		} else {
+			if (typeof sessionIdOrLogger === "string") {
+				localSessionId = sessionIdOrLogger;
+				logger = loggerOrUndefined;
+			} else {
+				localSessionId = createSessionId();
+				logger = loggerOrUndefined;
+			}
+		}
+		const compressor = new IdCompressor(new WasmIdCompressor(localSessionId), logger);
 		return compressor;
 	}
 
@@ -58,7 +77,44 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 			this.sessionTokens.delete(sessionId);
 		}
 		if (ids !== undefined) {
-			this.wasmCompressor.finalize_range(sessionId, ids.firstGenCount, ids.count);
+			let idStats: InteropIdStats | undefined;
+			try {
+				idStats = this.wasmCompressor.finalize_range(
+					sessionId,
+					ids.firstGenCount,
+					ids.count,
+				);
+
+				// Log telemetry
+				if (
+					idStats !== undefined &&
+					sessionId === this.localSessionId &&
+					this.logger !== undefined
+				) {
+					const {
+						eager_final_count,
+						cluster_creation_count,
+						expansion_count,
+						local_id_count,
+					} = idStats;
+					this.logger.sendTelemetryEvent({
+						eventName: "RuntimeIdCompressor:IdCompressorFinalizeStatus",
+						eagerFinalIdCount: eager_final_count,
+						localIdCount: local_id_count,
+						rangeSize: ids.count,
+						clusterCapacity: this.wasmCompressor.get_cluster_capacity(),
+						clusterChange:
+							cluster_creation_count > 0
+								? "Creation"
+								: expansion_count > 0
+								? "Expansion"
+								: "None",
+						sessionId: this.localSessionId,
+					});
+				}
+			} finally {
+				idStats?.free();
+			}
 		}
 	}
 
@@ -124,7 +180,6 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 	}
 
 	public tryDecompress(id: SessionSpaceCompressedId): StableId | undefined {
-		// TODO: log error string to telemetry if undefined
 		const uuidBytes = this.wasmCompressor.decompress(id);
 		if (uuidBytes === undefined) {
 			return undefined;
@@ -141,7 +196,6 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 	}
 
 	public tryRecompress(uncompressed: StableId): SessionSpaceCompressedId | undefined {
-		// TODO: log error string to telemetry if undefined
 		return this.wasmCompressor.recompress(uncompressed) as SessionSpaceCompressedId | undefined;
 	}
 
@@ -152,8 +206,13 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 	public serialize(withSession: true): SerializedIdCompressorWithOngoingSession;
 	public serialize(withSession: false): SerializedIdCompressorWithNoSession;
 	public serialize(withSession: boolean): SerializedIdCompressor {
+		const bytes = this.wasmCompressor.serialize(withSession);
+		this.logger?.sendTelemetryEvent({
+			eventName: "RuntimeIdCompressor:SerializedIdCompressorSize",
+			size: bytes.length,
+		});
 		return {
-			bytes: this.wasmCompressor.serialize(withSession),
+			bytes,
 			version: currentWrittenVersion,
 		} as SerializedIdCompressor;
 	}

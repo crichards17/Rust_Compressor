@@ -112,11 +112,18 @@ impl IdCompressor {
         session_id_str: String,
         range_base_count: f64,
         range_len: f64,
-    ) -> Result<(), JsError> {
-        Ok(self.compressor.finalize_range(&IdRange {
+    ) -> Result<Option<InteropIdStats>, JsError> {
+        self.compressor.finalize_range(&IdRange {
             id: SessionId::from_uuid_string(&session_id_str)?,
             range: Some((range_base_count as u64, range_len as u64)),
-        })?)
+        })?;
+        let stats = self.compressor.get_telemetry_stats();
+        Ok(Some(InteropIdStats {
+            eager_final_count: stats.eager_final_count as f64,
+            local_id_count: stats.local_id_count as f64,
+            expansion_count: stats.expansion_count as f64,
+            cluster_creation_count: stats.cluster_creation_count as f64,
+        }))
     }
 
     pub fn normalize_to_op_space(&mut self, session_space_id: f64) -> f64 {
@@ -202,6 +209,14 @@ impl IdCompressor {
             error_string: None,
         })
     }
+}
+
+#[wasm_bindgen]
+pub struct InteropIdStats {
+    pub eager_final_count: f64,
+    pub local_id_count: f64,
+    pub expansion_count: f64,
+    pub cluster_creation_count: f64,
 }
 
 #[wasm_bindgen]
