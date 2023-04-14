@@ -20,7 +20,7 @@ pub struct IdCompressor {
     uuid_space: UuidSpace,
     session_space_normalizer: SessionSpaceNormalizer,
     cluster_capacity: u64,
-    telemetry_stats: IdStats,
+    telemetry_stats: TelemetryStats,
 }
 
 impl IdCompressor {
@@ -46,7 +46,7 @@ impl IdCompressor {
             uuid_space: UuidSpace::new(),
             session_space_normalizer: SessionSpaceNormalizer::new(),
             cluster_capacity: persistence::DEFAULT_CLUSTER_CAPACITY,
-            telemetry_stats: IdStats::EMPTY,
+            telemetry_stats: TelemetryStats::EMPTY,
         }
     }
 
@@ -123,6 +123,12 @@ impl IdCompressor {
         return new_local;
     }
 
+    pub fn get_telemetry_stats(&mut self) -> TelemetryStats {
+        let stats = self.telemetry_stats;
+        self.telemetry_stats = TelemetryStats::EMPTY;
+        stats
+    }
+
     pub fn take_next_range(&mut self) -> IdRange {
         let count = self.generated_id_count - (self.next_range_base_generation_count - 1);
         IdRange {
@@ -148,11 +154,11 @@ impl IdCompressor {
             id: session_id,
             range,
         }: &IdRange,
-    ) -> Result<Option<IdStats>, FinalizationError> {
+    ) -> Result<(), FinalizationError> {
         // Check if the block has IDs
         let (range_base_gen_count, range_len) = match range {
             None => {
-                return Ok(None);
+                return Ok(());
             }
             Some((_, 0)) => {
                 return Err(FinalizationError::InvalidRange);
@@ -221,9 +227,7 @@ impl IdCompressor {
                 self.sessions.deref_cluster_mut(new_cluster_ref).count += overflow;
             }
         }
-        let stats = self.telemetry_stats;
-        self.telemetry_stats = IdStats::EMPTY;
-        Ok(Some(stats))
+        Ok(())
     }
 
     fn add_empty_cluster(
@@ -492,15 +496,15 @@ pub struct IdRange {
 }
 
 #[derive(Debug, Copy, Clone)]
-pub struct IdStats {
+pub struct TelemetryStats {
     pub eager_final_count: u64,
     pub local_id_count: u64,
     pub expansion_count: u64,
     pub cluster_creation_count: u64,
 }
 
-impl IdStats {
-    const EMPTY: IdStats = IdStats {
+impl TelemetryStats {
+    const EMPTY: TelemetryStats = TelemetryStats {
         eager_final_count: 0,
         local_id_count: 0,
         expansion_count: 0,
