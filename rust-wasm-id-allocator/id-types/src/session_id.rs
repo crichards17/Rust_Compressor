@@ -4,7 +4,7 @@ use uuid::Uuid;
 use super::StableId;
 use crate::LocalId;
 
-#[derive(Eq, PartialEq, Hash, Copy, Clone, Debug)]
+#[derive(Eq, PartialEq, PartialOrd, Ord, Hash, Copy, Clone, Debug)]
 pub struct SessionId {
     id: StableId,
 }
