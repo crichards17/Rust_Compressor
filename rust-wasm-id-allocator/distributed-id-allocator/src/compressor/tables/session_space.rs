@@ -76,14 +76,19 @@ impl Sessions {
 
     #[cfg(debug_assertions)]
     pub(crate) fn equals_test_only(&self, other: &Sessions) -> bool {
-        let mut filtered_a = self
-            .session_list
-            .iter()
-            .filter(|&session_space| session_space.cluster_chain.len() > 0);
-        let mut filtered_b = other
-            .session_list
-            .iter()
-            .filter(|&session_space| session_space.cluster_chain.len() > 0);
+        fn get_sorted_sessions(session_space: &Sessions) -> impl Iterator<Item = &SessionSpace> {
+            let mut filtered: Vec<&SessionSpace> = session_space
+                .session_list
+                .iter()
+                .filter(|&session_space| session_space.cluster_chain.len() > 0)
+                .collect();
+            filtered.sort_by(|session_space_a, session_space_b| {
+                session_space_a.session_id.cmp(&session_space_b.session_id)
+            });
+            filtered.into_iter()
+        }
+        let mut filtered_a = get_sorted_sessions(self);
+        let mut filtered_b = get_sorted_sessions(other);
         loop {
             let session_space_a = filtered_a.next();
             let session_space_b = filtered_b.next();
