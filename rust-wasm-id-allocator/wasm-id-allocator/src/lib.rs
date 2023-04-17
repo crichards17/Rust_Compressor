@@ -14,22 +14,20 @@
     unused_comparisons,
     unused_parens,
     while_true,
-    // missing_debug_implementations,
-    // missing_docs,
+    missing_docs,
     trivial_casts,
     trivial_numeric_casts,
     unused_extern_crates,
     unused_import_braces,
     unused_qualifications,
-    // unused_results
+    unused_results
 )]
 
-// macro_rules! log {
-//     ( $( $t:tt )* ) => {
-//         #[cfg(test)]
-//         web_sys::console::log_1(&format!( $( $t )* ).into());
-//     }
-// }
+//! This crate contains logic and structs for adapting the distributed ID allocator crate to WASM.
+//! It adjusts data representations and usage patterns to a form suitable for interop between JavaScript and WASM.
+//! For example, numeric types are converted to and from F64, as that type can natively pass across the interop boundary without additional marshalling logic.
+//! Additionally, APIs used in hot paths have their error logic queried separately to avoid passing complex data types back and forth during the common use case.
+
 use distributed_id_allocator::compressor::{
     ClusterCapacityError, IdCompressor as IdCompressorCore, IdRange,
 };
@@ -37,8 +35,16 @@ use id_types::{OpSpaceId, SessionId, SessionSpaceId, StableId};
 use std::f64::NAN;
 use wasm_bindgen::prelude::*;
 
+// macro_rules! log {
+//     ( $( $t:tt )* ) => {
+//         #[cfg(test)]
+//         web_sys::console::log_1(&format!( $( $t )* ).into());
+//     }
+// }
+
 #[wasm_bindgen]
 #[derive(Debug)]
+/// A wrapper compressor for efficient API translation from/into WASM.
 pub struct IdCompressor {
     compressor: IdCompressorCore,
     error_string: Option<String>,
@@ -49,11 +55,14 @@ const NAN_UUID_U128: u128 = 0;
 
 #[wasm_bindgen]
 impl IdCompressor {
+    /// Returns the default cluster capacity. This static is exposed on the compressor to comply with wasm-bindgen.
     pub fn get_default_cluster_capacity() -> f64 {
         IdCompressorCore::get_default_cluster_capacity() as f64
     }
 
     #[wasm_bindgen(constructor)]
+    /// Creates a new compressor with the supplied session ID.
+    /// The ID string should be a valid v4 UUID string.
     pub fn new(session_id_string: String) -> Result<IdCompressor, JsError> {
         Ok(IdCompressor {
             compressor: IdCompressorCore::new_with_session_id(SessionId::from_uuid_string(
@@ -63,14 +72,20 @@ impl IdCompressor {
         })
     }
 
+    /// Returns the local session ID as a UUID string.
+    /// Should not be called frequently due to marshalling costs.
     pub fn get_local_session_id(&self) -> String {
         self.compressor.get_local_session_id().to_uuid_string()
     }
 
+    /// Returns the current cluster capacity.
+    /// See [`distributed_id_allocator::compressor::IdCompressor] for more.
     pub fn get_cluster_capacity(&self) -> f64 {
         self.compressor.get_cluster_capacity() as f64
     }
 
+    /// Sets the current cluster capacity.
+    /// See [`distributed_id_allocator::compressor::IdCompressor] for more.
     pub fn set_cluster_capacity(&mut self, new_cluster_capacity: f64) -> Result<(), JsError> {
         if new_cluster_capacity.fract() != 0.0 || new_cluster_capacity < 0.0 {
             return Err(JsError::new(
@@ -85,18 +100,27 @@ impl IdCompressor {
             .set_cluster_capacity(new_cluster_capacity as u64)?)
     }
 
+    /// Generates a new ID.
+    /// See [`distributed_id_allocator::compressor::IdCompressor`] for more.
     pub fn generate_next_id(&mut self) -> f64 {
         self.compressor.generate_next_id().id() as f64
     }
 
-    pub fn get_token(&mut self, uuid_string: String) -> Result<f64, JsError> {
+    /// Returns a number token associated with the supplied session UID string.
+    /// Returns NAN if the session ID has never been associated with a finalization by this compressor.
+    /// Throws an error if the UUID string is not well formed.
+    /// This API exists as an optimization to avoid repeatedly passing strings across the interop boundary and allows a user
+    /// to instead cheaply pass a number representing that string. The result can be cached to avoid future calls to this method.
+    pub fn get_token(&mut self, session_uuid_string: String) -> Result<f64, JsError> {
         Ok(self
             .compressor
-            .get_session_token_from_session_id(SessionId::from_uuid_string(&uuid_string)?)
+            .get_session_token_from_session_id(SessionId::from_uuid_string(&session_uuid_string)?)
             .map(|x| x as f64)
             .unwrap_or(NAN))
     }
 
+    /// Returns a range of IDs (if any) created by this session.
+    /// See [`distributed_id_allocator::compressor::IdCompressor`] for more.
     pub fn take_next_range(&mut self) -> Option<InteropIds> {
         match self.compressor.take_next_range().range {
             Some((first_local_gen_count, count)) => Some(InteropIds {
@@ -107,18 +131,20 @@ impl IdCompressor {
         }
     }
 
+    /// Finalizes a range of IDs.
+    /// See [`distributed_id_allocator::compressor::IdCompressor`] for more.
     pub fn finalize_range(
         &mut self,
         session_id_str: String,
         range_base_count: f64,
         range_len: f64,
-    ) -> Result<Option<InteropIdStats>, JsError> {
+    ) -> Result<Option<InteropTelemetryStats>, JsError> {
         self.compressor.finalize_range(&IdRange {
             id: SessionId::from_uuid_string(&session_id_str)?,
             range: Some((range_base_count as u64, range_len as u64)),
         })?;
         let stats = self.compressor.get_telemetry_stats();
-        Ok(Some(InteropIdStats {
+        Ok(Some(InteropTelemetryStats {
             eager_final_count: stats.eager_final_count as f64,
             local_id_count: stats.local_id_count as f64,
             expansion_count: stats.expansion_count as f64,
@@ -126,6 +152,10 @@ impl IdCompressor {
         }))
     }
 
+    /// Normalizes the ID from session space to op space.
+    /// For performance reasons, NAN will be returned in the event of an error and the corresponding error
+    /// string can be retrieved by calling `get_normalization_error_string`.
+    /// See [`distributed_id_allocator::compressor::IdCompressor`] for more.
     pub fn normalize_to_op_space(&mut self, session_space_id: f64) -> f64 {
         match &self
             .compressor
@@ -139,6 +169,10 @@ impl IdCompressor {
         }
     }
 
+    /// Normalizes the ID from op space to session space given the token representing the session ID for the originating session.
+    /// For performance reasons, NAN will be returned in the event of an error and the corresponding error
+    /// string can be retrieved by calling `get_normalization_error_string`.
+    /// See [`distributed_id_allocator::compressor::IdCompressor`] for more.
     pub fn normalize_to_session_space(&mut self, op_space_id: f64, originator_token: f64) -> f64 {
         let session_id;
         // TS layer sends NAN token iff passing FinalId and a SessionId it has not tokenized.
@@ -170,12 +204,17 @@ impl IdCompressor {
         }
     }
 
+    /// Returns any error encountered during the last failed call to a normalization API.
+    /// This method exists to avoid marshalling an error string across interop during the common case.
     pub fn get_normalization_error_string(&mut self) -> Option<String> {
         let error = self.error_string.clone();
         self.error_string = None;
         error
     }
 
+    /// Decompresses the ID into the corresponding UUID string.
+    /// For interop performance, this method returns a byte array containing the ASCII representation of the UUID string.
+    /// See [`distributed_id_allocator::compressor::IdCompressor`] for more.
     pub fn decompress(&mut self, id_to_decompress: f64) -> Option<Vec<u8>> {
         let stable_id = self
             .compressor
@@ -185,6 +224,8 @@ impl IdCompressor {
         Some(Vec::from(uuid_arr))
     }
 
+    /// Recompresses the UUID string into the corresponding ID.
+    /// See [`distributed_id_allocator::compressor::IdCompressor`] for more.
     pub fn recompress(&mut self, id_to_recompress: String) -> Option<f64> {
         Some(
             self.compressor
@@ -196,10 +237,14 @@ impl IdCompressor {
         )
     }
 
+    /// Returns the serialized compressor.
+    /// See [`distributed_id_allocator::compressor::IdCompressor`] for more.
     pub fn serialize(&self, include_local_state: bool) -> Vec<u8> {
         self.compressor.serialize(include_local_state)
     }
 
+    /// Returns the deserialized compressor.
+    /// See [`distributed_id_allocator::compressor::IdCompressor`] for more.
     pub fn deserialize(bytes: &[u8], session_id_string: String) -> Result<IdCompressor, JsError> {
         let session_id = SessionId::from_uuid_string(&session_id_string)?;
         Ok(IdCompressor {
@@ -212,38 +257,37 @@ impl IdCompressor {
 }
 
 #[wasm_bindgen]
-pub struct InteropIdStats {
+/// Struct for passing telemetry information across the interop boundary.
+pub struct InteropTelemetryStats {
+    /// See [`distributed_id_allocator::compressor::TelemetryStats`] for more.
     pub eager_final_count: f64,
+    /// See [`distributed_id_allocator::compressor::TelemetryStats`] for more.
     pub local_id_count: f64,
+    /// See [`distributed_id_allocator::compressor::TelemetryStats`] for more.
     pub expansion_count: f64,
+    /// See [`distributed_id_allocator::compressor::TelemetryStats`] for more.
     pub cluster_creation_count: f64,
 }
 
 #[wasm_bindgen]
 #[derive(Clone, Copy)]
+/// Struct for passing ID ranges across the interop boundary.
 pub struct InteropIds {
-    first_local_gen_count: f64,
-    count: f64,
+    /// See [`distributed_id_allocator::compressor::IdRange`] for more.
+    pub first_local_gen_count: f64,
+    /// See [`distributed_id_allocator::compressor::IdRange`] for more.
+    pub count: f64,
 }
 
 #[wasm_bindgen]
-impl InteropIds {
-    #[wasm_bindgen(getter)]
-    pub fn first_local_gen_count(&self) -> f64 {
-        self.first_local_gen_count
-    }
-    #[wasm_bindgen(getter)]
-    pub fn count(&self) -> f64 {
-        self.count
-    }
-}
-
-#[wasm_bindgen]
+/// A container struct (to comply with bindgen) for test helper methods invoked by JS.
+/// All methods return errors when compiled in release.
 pub struct TestOnly {}
 
 #[wasm_bindgen]
 impl TestOnly {
     #[wasm_bindgen]
+    /// Increments the supplied UUID and returns the result.
     pub fn increment_uuid(_uuid_string: String, _offset: f64) -> Result<String, JsError> {
         #[cfg(debug_assertions)]
         return Ok(
@@ -256,6 +300,7 @@ impl TestOnly {
     }
 
     #[wasm_bindgen]
+    /// Compares the two supplied compressors for equality (factoring in local state or not depending on the flag).
     pub fn compressor_equals(
         _a: &IdCompressor,
         _b: &IdCompressor,
@@ -486,7 +531,7 @@ mod tests {
     fn serialize_deserialize() {
         let (mut compressor, _) = initialize_compressor();
         finalize_compressor(&mut compressor);
-        compressor.generate_next_id();
+        _ = compressor.generate_next_id();
         let serialized_local = compressor.serialize(true);
         assert!(IdCompressor::deserialize(&serialized_local, String::from(_STABLE_ID_1)).is_ok());
         let serialized_final = compressor.serialize(false);
