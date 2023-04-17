@@ -1,4 +1,8 @@
-import { IdCompressor as WasmIdCompressor, InteropIds, InteropIdStats } from "wasm-id-allocator";
+import {
+	IdCompressor as WasmIdCompressor,
+	InteropIds,
+	InteropTelemetryStats,
+} from "wasm-id-allocator";
 import { assert } from "./copied-utils";
 import {
 	CompressedId,
@@ -77,7 +81,7 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 			this.sessionTokens.delete(sessionId);
 		}
 		if (ids !== undefined) {
-			let idStats: InteropIdStats | undefined;
+			let idStats: InteropTelemetryStats | undefined;
 			try {
 				idStats = this.wasmCompressor.finalize_range(
 					sessionId,
