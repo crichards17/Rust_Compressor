@@ -79,13 +79,13 @@ impl IdCompressor {
     }
 
     /// Returns the current cluster capacity.
-    /// See [`distributed_id_allocator::compressor::IdCompressor] for more.
+    /// See [distributed_id_allocator::compressor::IdCompressor] for more.
     pub fn get_cluster_capacity(&self) -> f64 {
         self.compressor.get_cluster_capacity() as f64
     }
 
     /// Sets the current cluster capacity.
-    /// See [`distributed_id_allocator::compressor::IdCompressor] for more.
+    /// See [distributed_id_allocator::compressor::IdCompressor] for more.
     pub fn set_cluster_capacity(&mut self, new_cluster_capacity: f64) -> Result<(), JsError> {
         if new_cluster_capacity.fract() != 0.0 || new_cluster_capacity < 0.0 {
             return Err(JsError::new(
@@ -101,12 +101,12 @@ impl IdCompressor {
     }
 
     /// Generates a new ID.
-    /// See [`distributed_id_allocator::compressor::IdCompressor`] for more.
+    /// See [distributed_id_allocator::compressor::IdCompressor] for more.
     pub fn generate_next_id(&mut self) -> f64 {
         self.compressor.generate_next_id().id() as f64
     }
 
-    /// Returns a number token associated with the supplied session UID string.
+    /// Returns a number token associated with the supplied session UUID string.
     /// Returns NAN if the session ID has never been associated with a finalization by this compressor.
     /// Throws an error if the UUID string is not well formed.
     /// This API exists as an optimization to avoid repeatedly passing strings across the interop boundary and allows a user
@@ -120,7 +120,7 @@ impl IdCompressor {
     }
 
     /// Returns a range of IDs (if any) created by this session.
-    /// See [`distributed_id_allocator::compressor::IdCompressor`] for more.
+    /// See [distributed_id_allocator::compressor::IdCompressor] for more.
     pub fn take_next_range(&mut self) -> Option<InteropIds> {
         match self.compressor.take_next_range().range {
             Some((first_local_gen_count, count)) => Some(InteropIds {
@@ -132,7 +132,7 @@ impl IdCompressor {
     }
 
     /// Finalizes a range of IDs.
-    /// See [`distributed_id_allocator::compressor::IdCompressor`] for more.
+    /// See [distributed_id_allocator::compressor::IdCompressor] for more.
     pub fn finalize_range(
         &mut self,
         session_id_str: String,
@@ -155,7 +155,7 @@ impl IdCompressor {
     /// Normalizes the ID from session space to op space.
     /// For performance reasons, NAN will be returned in the event of an error and the corresponding error
     /// string can be retrieved by calling `get_normalization_error_string`.
-    /// See [`distributed_id_allocator::compressor::IdCompressor`] for more.
+    /// See [distributed_id_allocator::compressor::IdCompressor] for more.
     pub fn normalize_to_op_space(&mut self, session_space_id: f64) -> f64 {
         match &self
             .compressor
@@ -172,7 +172,7 @@ impl IdCompressor {
     /// Normalizes the ID from op space to session space given the token representing the session ID for the originating session.
     /// For performance reasons, NAN will be returned in the event of an error and the corresponding error
     /// string can be retrieved by calling `get_normalization_error_string`.
-    /// See [`distributed_id_allocator::compressor::IdCompressor`] for more.
+    /// See [distributed_id_allocator::compressor::IdCompressor] for more.
     pub fn normalize_to_session_space(&mut self, op_space_id: f64, originator_token: f64) -> f64 {
         let session_id;
         // TS layer sends NAN token iff passing FinalId and a SessionId it has not tokenized.
@@ -214,7 +214,7 @@ impl IdCompressor {
 
     /// Decompresses the ID into the corresponding UUID string.
     /// For interop performance, this method returns a byte array containing the ASCII representation of the UUID string.
-    /// See [`distributed_id_allocator::compressor::IdCompressor`] for more.
+    /// See [distributed_id_allocator::compressor::IdCompressor] for more.
     pub fn decompress(&mut self, id_to_decompress: f64) -> Option<Vec<u8>> {
         let stable_id = self
             .compressor
@@ -225,7 +225,7 @@ impl IdCompressor {
     }
 
     /// Recompresses the UUID string into the corresponding ID.
-    /// See [`distributed_id_allocator::compressor::IdCompressor`] for more.
+    /// See [distributed_id_allocator::compressor::IdCompressor] for more.
     pub fn recompress(&mut self, id_to_recompress: String) -> Option<f64> {
         Some(
             self.compressor
@@ -238,13 +238,13 @@ impl IdCompressor {
     }
 
     /// Returns the serialized compressor.
-    /// See [`distributed_id_allocator::compressor::IdCompressor`] for more.
+    /// See [distributed_id_allocator::compressor::IdCompressor] for more.
     pub fn serialize(&self, include_local_state: bool) -> Vec<u8> {
         self.compressor.serialize(include_local_state)
     }
 
     /// Returns the deserialized compressor.
-    /// See [`distributed_id_allocator::compressor::IdCompressor`] for more.
+    /// See [distributed_id_allocator::compressor::IdCompressor] for more.
     pub fn deserialize(bytes: &[u8], session_id_string: String) -> Result<IdCompressor, JsError> {
         let session_id = SessionId::from_uuid_string(&session_id_string)?;
         Ok(IdCompressor {
@@ -259,13 +259,13 @@ impl IdCompressor {
 #[wasm_bindgen]
 /// Struct for passing telemetry information across the interop boundary.
 pub struct InteropTelemetryStats {
-    /// See [`distributed_id_allocator::compressor::TelemetryStats`] for more.
+    /// See [distributed_id_allocator::compressor::TelemetryStats] for more.
     pub eager_final_count: f64,
-    /// See [`distributed_id_allocator::compressor::TelemetryStats`] for more.
+    /// See [distributed_id_allocator::compressor::TelemetryStats] for more.
     pub local_id_count: f64,
-    /// See [`distributed_id_allocator::compressor::TelemetryStats`] for more.
+    /// See [distributed_id_allocator::compressor::TelemetryStats] for more.
     pub expansion_count: f64,
-    /// See [`distributed_id_allocator::compressor::TelemetryStats`] for more.
+    /// See [distributed_id_allocator::compressor::TelemetryStats] for more.
     pub cluster_creation_count: f64,
 }
 
@@ -273,9 +273,9 @@ pub struct InteropTelemetryStats {
 #[derive(Clone, Copy)]
 /// Struct for passing ID ranges across the interop boundary.
 pub struct InteropIds {
-    /// See [`distributed_id_allocator::compressor::IdRange`] for more.
+    /// See [distributed_id_allocator::compressor::IdRange] for more.
     pub first_local_gen_count: f64,
-    /// See [`distributed_id_allocator::compressor::IdRange`] for more.
+    /// See [distributed_id_allocator::compressor::IdRange] for more.
     pub count: f64,
 }
 
