@@ -20,7 +20,6 @@ import {
 import { ITelemetryLogger } from "@fluidframework/common-definitions";
 import { IdCompressor } from "../../src/IdCompressor";
 import {
-	FinalCompressedId,
 	IdCreationRange,
 	OpSpaceCompressedId,
 	SerializedIdCompressor,
@@ -33,8 +32,10 @@ import {
 import { assertIsSessionId, createSessionId, fail } from "../../src/util/utilities";
 import {
 	compressorEquals,
+	FinalCompressedId,
 	getOrCreate,
 	incrementStableId,
+	isFinalId,
 	isLocalId,
 	ReadonlyIdCompressor,
 } from "./testCommon";
@@ -490,7 +491,7 @@ export class IdCompressorTestNetwork {
 				assert.strictEqual(compressorA.recompress(uuidASessionSpace), sessionSpaceIdA);
 				uuids.add(uuidASessionSpace);
 				const opSpaceIdA = compressorA.normalizeToOpSpace(sessionSpaceIdA);
-				if (isLocalId(opSpaceIdA)) {
+				if (!isFinalId(opSpaceIdA)) {
 					fail("IDs should have been finalized.");
 				}
 				const reNormalizedIdA = compressorA.normalizeToSessionSpace(
@@ -515,11 +516,11 @@ export class IdCompressorTestNetwork {
 						compressorA.normalizeToOpSpace(sessionSpaceIdA);
 					}
 					assert.strictEqual(opSpaceIdA, opSpaceIdB);
-					if (isLocalId(opSpaceIdB)) {
+					if (!isFinalId(opSpaceIdB)) {
 						fail("IDs should have been finalized.");
 					}
 					const uuidBOpSpace = compressorB.decompress(
-						opSpaceIdB as SessionSpaceCompressedId,
+						opSpaceIdB as unknown as SessionSpaceCompressedId,
 					);
 					assert.strictEqual(uuidAOpSpace, uuidBOpSpace);
 				}

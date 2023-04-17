@@ -19,10 +19,15 @@ import {
 	generateCompressedIds,
 	CompressorFactory,
 } from "./idCompressorTestUtilities";
-import { compressorEquals, incrementStableId, isFinalId, isLocalId } from "./testCommon";
-import { take } from "../copied-utils/stochastic";
 import {
 	LocalCompressedId,
+	compressorEquals,
+	incrementStableId,
+	isFinalId,
+	isLocalId,
+} from "./testCommon";
+import { take } from "../copied-utils/stochastic";
+import {
 	OpSpaceCompressedId,
 	SessionId,
 	SessionSpaceCompressedId,

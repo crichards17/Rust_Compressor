@@ -8,8 +8,6 @@
 import {
 	IdCreationRange,
 	SerializedIdCompressorWithNoSession,
-	FinalCompressedId,
-	LocalCompressedId,
 	OpSpaceCompressedId,
 	SessionSpaceCompressedId,
 	SessionId,
@@ -26,7 +24,7 @@ import {
 	sessionIds,
 } from "./idCompressorTestUtilities";
 import { defaultClusterCapacity, IdCompressor } from "../../src/IdCompressor";
-import { isFinalId, isLocalId } from "./testCommon";
+import { FinalCompressedId, LocalCompressedId, isFinalId, isLocalId } from "./testCommon";
 import { createSessionId, fail } from "../../src/util/utilities";
 import { assert } from "../../src/copied-utils";
 
@@ -223,7 +221,7 @@ describe("IdCompressor Perf", () => {
 			);
 			unackedLocalId = getIdMadeBy(localClient, false, network);
 			assert(
-				perfCompressor.normalizeToOpSpace(unackedLocalId) === unackedLocalId,
+				perfCompressor.normalizeToOpSpace(unackedLocalId) === (unackedLocalId as number),
 				"Local was acked.",
 			);
 		},
