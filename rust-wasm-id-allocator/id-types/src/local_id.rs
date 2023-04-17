@@ -3,7 +3,7 @@ use std::ops::Sub;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Serialize, Deserialize)]
 /// A compressed ID that is local to a session (can only be decompressed when paired with a SessionId).
-/// Internally, it should not be persisted outside a scope annoted with the originating SessionId in order to be unambiguous.
+/// Internally, it should not be persisted outside a scope annotated with the originating SessionId in order to be unambiguous.
 /// If external persistence is needed (e.g. by a client), a StableId should be used instead.
 pub struct LocalId {
     id: i64,

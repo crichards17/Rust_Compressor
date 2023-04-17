@@ -25,7 +25,7 @@
 
 //! Holds the definitions and helpers for identifier types used in the compressor code.
 //! It is separated from the other code to allow the wasm-id-allocator module to access internals without
-//! exposing them throught the distributed-id-allocator public API.
+//! exposing them through the distributed-id-allocator public API.
 
 /// File-separated module for session space IDs.
 pub mod session_space_id;

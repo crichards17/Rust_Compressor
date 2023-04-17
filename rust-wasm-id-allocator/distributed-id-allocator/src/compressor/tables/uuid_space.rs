@@ -37,7 +37,7 @@ impl UuidSpace {
     ) -> Option<(&'a IdCluster, LocalId)> {
         let mut range = self
             .uuid_to_cluster
-            .range((Bound::Excluded(StableId::null()), Bound::Included(query)))
+            .range((Bound::Excluded(StableId::nil()), Bound::Included(query)))
             .rev();
         match range.next() {
             None => None,
@@ -68,10 +68,7 @@ impl UuidSpace {
     ) -> bool {
         let mut range = self
             .uuid_to_cluster
-            .range((
-                Bound::Excluded(StableId::null()),
-                Bound::Included(range_max),
-            ))
+            .range((Bound::Excluded(StableId::nil()), Bound::Included(range_max)))
             .rev();
         match range.next() {
             None => return false,
