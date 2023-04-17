@@ -2,7 +2,7 @@ use crate::LocalId;
 use uuid::Uuid;
 
 #[derive(Clone, Copy, PartialEq, Hash, Eq, PartialOrd, Ord, Debug)]
-/// A compressed version 4, variant 1 uuid (https://datatracker.ietf.org/doc/html/rfc4122).
+/// A compressed version 4, variant 1 UUID (https://datatracker.ietf.org/doc/html/rfc4122).
 /// Can be converted to a UUID, u128, or String as needed.
 pub struct StableId {
     id: u128,
@@ -10,7 +10,7 @@ pub struct StableId {
 
 impl StableId {
     /// Returns the StableId representation of the nil UUID.
-    pub fn null() -> StableId {
+    pub fn nil() -> StableId {
         StableId { id: 0 }
     }
 }

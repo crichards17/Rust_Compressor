@@ -12,7 +12,11 @@ import { SessionSpaceCompressedId, StableId, OpSpaceCompressedId } from "../../s
  * Lacks a space (session/op), meaning its scope is the same as the space-specific ID from which it was derived.
  * @alpha
  */
-export type CompressedId = SessionSpaceCompressedId | OpSpaceCompressedId | FinalCompressedId | LocalCompressedId;
+export type CompressedId =
+	| SessionSpaceCompressedId
+	| OpSpaceCompressedId
+	| FinalCompressedId
+	| LocalCompressedId;
 
 /**
  * A compressed ID that is stable and unique within the scope of network of compressors (i.e. a document).
@@ -28,7 +32,7 @@ export type FinalCompressedId = number & {
 
 /**
  * A compressed ID that is local to a session (can only be decompressed when paired with a SessionId).
- * Internally, it should not be persisted outside a scope annoted with the originating SessionId in order to be unambiguous.
+ * Internally, it should not be persisted outside a scope annotated with the originating SessionId in order to be unambiguous.
  * If external persistence is needed (e.g. by a client), a StableId should be used instead.
  * @alpha
  */
