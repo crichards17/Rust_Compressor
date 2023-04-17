@@ -23,7 +23,7 @@
     unused_results
 )]
 
-//! This crate contains logic and structs for adapting the distributed ID allocator crate to WASM.
+//! This crate contains logic and structs for adapting the distributed-id-allocator crate to WASM.
 //! It adjusts data representations and usage patterns to a form suitable for interop between JavaScript and WASM.
 //! For example, numeric types are converted to and from F64, as that type can natively pass across the interop boundary without additional marshalling logic.
 //! Additionally, APIs used in hot paths have their error logic queried separately to avoid passing complex data types back and forth during the common use case.
