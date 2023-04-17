@@ -5,7 +5,6 @@ import {
 } from "wasm-id-allocator";
 import { assert } from "./copied-utils";
 import {
-	CompressedId,
 	IdCreationRange,
 	IIdCompressor,
 	IIdCompressorCore,
@@ -149,7 +148,7 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 		return this.wasmCompressor.generate_next_id() as SessionSpaceCompressedId;
 	}
 
-	private idOrError<TId extends CompressedId>(idNum: number): TId {
+	private idOrError<TId extends number>(idNum: number): TId {
 		if (isNaN(idNum)) {
 			throw new Error(this.wasmCompressor.get_normalization_error_string());
 		}

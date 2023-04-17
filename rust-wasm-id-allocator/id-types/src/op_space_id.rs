@@ -1,20 +1,25 @@
 use super::*;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// A compressed ID that has been normalized into "op space".
+/// Serialized/persisted structures (e.g. ops) should use op-space IDs as a performance optimization, as they require less normalizing when
+/// received by a remote client due to the fact that op space for a given compressor is session space for all other compressors.
 pub struct OpSpaceId {
     id: i64,
 }
 
 impl OpSpaceId {
+    /// Returns the inner ID as an i64. Intended for internal use only.
     pub fn id(&self) -> i64 {
         self.id
     }
 
-    // TODO: don't export out of crate
+    /// Creates an OpSpaceId from an i64. Intended for internal use only.
     pub fn from_id(id: i64) -> OpSpaceId {
         Self { id }
     }
 
+    /// Maps the ID to local or final space. Intended for internal use only.
     pub fn to_space(&self) -> CompressedId {
         if self.is_local() {
             return CompressedId::Local(LocalId::from_id(self.id));
@@ -23,6 +28,7 @@ impl OpSpaceId {
         }
     }
 
+    /// Returns true iff the op space ID is in local space. Intended for internal use only.
     pub fn is_local(&self) -> bool {
         self.id < 0
     }

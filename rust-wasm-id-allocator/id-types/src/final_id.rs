@@ -1,4 +1,6 @@
 #[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Debug)]
+/// A compressed ID that is stable and unique within the scope of network of compressors (i.e. a document).
+/// It can only be used/decompressed in the context of the originating document.
 pub struct FinalId {
     id: u64,
 }
@@ -8,6 +10,7 @@ impl FinalId {
         self.id
     }
 
+    /// Creates a final ID from a u64. Intended for internal use only.
     pub fn from_id(id: u64) -> Self {
         FinalId { id }
     }

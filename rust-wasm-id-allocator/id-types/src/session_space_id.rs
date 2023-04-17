@@ -1,21 +1,25 @@
 use super::*;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+/// A compressed ID that has been normalized into "session space".
+/// Consumer-facing APIs and data structures should use session-space IDs as their lifetime and equality is stable and tied to
+/// the scope of the session (i.e. compressor) that produced them.
 pub struct SessionSpaceId {
     id: i64,
 }
 
 impl SessionSpaceId {
-    // TODO: don't export out of crate
+    /// Returns the inner ID as an i64. Intended for internal use only.
     pub fn id(&self) -> i64 {
         self.id
     }
 
-    // TODO: don't export out of crate
+    /// Creates an SessionSpaceId from an i64. Intended for internal use only.
     pub fn from_id(id: i64) -> SessionSpaceId {
         Self { id }
     }
 
+    /// Maps the ID to local or final space. Intended for internal use only.
     pub fn to_space(&self) -> CompressedId {
         if self.is_local() {
             return CompressedId::Local(LocalId::from_id(self.id));
@@ -24,10 +28,12 @@ impl SessionSpaceId {
         }
     }
 
+    /// Returns true iff the session space ID is in local space. Intended for internal use only.
     pub fn is_local(&self) -> bool {
         self.id < 0
     }
 
+    /// Returns true iff the session space ID is in final space. Intended for internal use only.
     pub fn is_final(&self) -> bool {
         self.id >= 0
     }

@@ -2,11 +2,14 @@ use crate::LocalId;
 use uuid::Uuid;
 
 #[derive(Clone, Copy, PartialEq, Hash, Eq, PartialOrd, Ord, Debug)]
+/// A compressed version 4, variant 1 uuid (https://datatracker.ietf.org/doc/html/rfc4122).
+/// Can be converted to a UUID, u128, or String as needed.
 pub struct StableId {
     id: u128,
 }
 
 impl StableId {
+    /// Returns the StableId representation of the nil UUID.
     pub fn null() -> StableId {
         StableId { id: 0 }
     }
@@ -28,7 +31,7 @@ const LOWER_MASK: u128 = 0x3FFFFFFFFFFFFFFF;
 impl From<StableId> for [u8; 36] {
     fn from(id: StableId) -> Self {
         let mut uuid_arr: [u8; 36] = ['0' as u8; 36];
-        Uuid::from(id).as_hyphenated().encode_lower(&mut uuid_arr);
+        _ = Uuid::from(id).as_hyphenated().encode_lower(&mut uuid_arr);
         uuid_arr
     }
 }
