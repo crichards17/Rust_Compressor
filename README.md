@@ -39,7 +39,7 @@ Allocated IDs can be delivered to application authors for use in place of V4 UUI
 
 - Expose only session space IDs to application authors. This means that application developers don't need to manage multiple ID spaces or worry about converting IDs between session space and op space. This simplifies the data management process and reduces the chances of errors or inconsistencies.
 
-  - **Note:** Session space IDs are only unique within the originating session (for most applications this will mean within each individual client's instance).
+  - **Note:** Session space IDs are only unique within the originating session (for most applications this will mean within each individual client's app instance, as it is rare to hold handles to more than one allocator). This constrains usage to scopes where IDs are unique; for instance, application developers should never persist these IDs and should instead be directed to convert them to StableIds first.
 
 - Use op space IDs for serialized forms, such as sending information over the wire or storing it in a file. Op space IDs are in their _final_ form if possible, which imparts a performance benefit by reducing normalization work when a client receives a network operation or rehydrates an allocator.
 - When serializing op space IDs, annotate the entire context (e.g., file or network operation) with the session ID. This is necessary because not all IDs in op space are in their _final_ form. Any non-finalized IDs will still be in their session space form, unique only within that specific session. Annotating the entire context with the session ID ensures that recipients of the serialized data can correctly interpret and process the non-finalized IDs.
@@ -68,9 +68,9 @@ Normalization is O(log<sub>n</sub>), as it requires a simple binary search on th
 
 This library consists of three components:
 
-1. A Rust crate containing the core allocator logic and data structures, as well as the full API surface
-2. A Rust crate which adapts the core allocator API into a form optimized for interop between JavaScript and WebAssembly (via WASM Bindgen)
-3. A TypeScript package which adapts the WASM API into an idiomatic and type-safe TypeScript API, with key interop performance optimizations
+1. A Rust crate (`distributed-id-allocator`) containing the core allocator logic and data structures, as well as the full API surface
+2. A Rust crate (`wasm-id-allocator`) which adapts the core allocator API into a form optimized for interop between JavaScript and WebAssembly (via WASM Bindgen)
+3. A TypeScript package (`typescript-id-allocator`) which adapts the WASM API into an idiomatic and type-safe TypeScript API, with key interop performance optimizations
 
 This version of the allocator is a rewrite of a [prior version in the Microsoft Fluid Framework](https://github.com/microsoft/FluidFramework/blob/6e70f90092f41c65f6f0b55c6dcb627026d6e06e/packages/dds/tree/src/id-compressor/idCompressor.ts), which was implemented fully in TypeScript. This effort aimed to move the core allocator from TypeScript to Rust for increased low-level control and leveraging of zero cost abstraction.
 
