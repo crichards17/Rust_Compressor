@@ -32,6 +32,11 @@ impl OpSpaceId {
     pub fn is_local(&self) -> bool {
         self.id < 0
     }
+
+    /// Returns true iff the op space ID is in local space. Intended for internal use only.
+    pub fn is_final(&self) -> bool {
+        self.id >= 0
+    }
 }
 
 impl From<FinalId> for OpSpaceId {
