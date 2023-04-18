@@ -33,7 +33,7 @@ impl OpSpaceId {
         self.id < 0
     }
 
-    /// Returns true iff the op space ID is in local space. Intended for internal use only.
+    /// Returns true iff the op space ID is in final space. Intended for internal use only.
     pub fn is_final(&self) -> bool {
         self.id >= 0
     }
