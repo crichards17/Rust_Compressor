@@ -1,4 +1,3 @@
-use std::error::Error;
 use thiserror::Error;
 pub(crate) mod persistence;
 pub(crate) mod tables;
@@ -58,7 +57,10 @@ impl IdCompressor {
         self.sessions.deref_session_space(self.local_session)
     }
 
-    pub fn get_session_id_from_session_token(&self, index: usize) -> Result<SessionId, impl Error> {
+    pub fn get_session_id_from_session_token(
+        &self,
+        index: usize,
+    ) -> Result<SessionId, SessionTokenError> {
         if index >= self.sessions.get_sessions_count() {
             return Err(SessionTokenError::UnknownSessionToken);
         }
@@ -72,7 +74,7 @@ impl IdCompressor {
     pub fn get_session_token_from_session_id(
         &self,
         session_id: SessionId,
-    ) -> Result<usize, impl Error> {
+    ) -> Result<usize, SessionTokenError> {
         match self.sessions.get(session_id) {
             None => Err(SessionTokenError::UnknownSessionId),
             Some(session_space) => Ok(session_space.self_ref().get_index()),
