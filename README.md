@@ -62,7 +62,7 @@ Clusters are efficient to store, requiring only two integers: the base positive 
 
 ### Normalization
 
-Normalization is O(log<sub>n</sub>), as it requires a simple binary search on the cluster table stored by all allocators.
+Normalization is O(log<sub>n</sub>) in the number of IDs created by the originating session, as it requires a simple binary search on the clusters owned by that session.
 
 ## Architecture
 
