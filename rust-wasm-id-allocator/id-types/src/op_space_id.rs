@@ -1,6 +1,6 @@
 use super::*;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialOrd, Ord, PartialEq, Eq)]
 /// A compressed ID that has been normalized into "op space".
 /// Serialized/persisted structures (e.g. ops) should use op-space IDs as a performance optimization, as they require less work to
 /// normalize when received by a remote client.
