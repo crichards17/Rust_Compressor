@@ -1,3 +1,6 @@
+// pub(crate) mod compressor_test_utils;
+// use compressor_test_utils::{Client, CompressorFactory};
+
 use distributed_id_allocator::compressor::*;
 use id_types::*;
 use std::collections::HashSet;
@@ -160,13 +163,6 @@ fn test_complex() {
 }
 
 #[test]
-fn test_new_with_session_id() {
-    let session_id = SessionId::new();
-    let compressor = IdCompressor::new_with_session_id(session_id);
-    assert_eq!(session_id, compressor.get_local_session_id());
-}
-
-#[test]
 fn test_cluster_capacity_validation() {
     let mut compressor = IdCompressor::new();
     assert!(compressor.set_cluster_capacity(0).is_err());
@@ -264,4 +260,69 @@ fn deserialize_and_resume() {
     _ = compressor_resumed.generate_next_id();
     let out_range_2 = compressor_resumed.take_next_range();
     assert!(compressor_resumed.finalize_range(&out_range_2).is_ok())
+}
+
+// Translated from idCompressor.spec:
+#[test]
+fn test_detects_invalid_cluster_capacities() {
+    let mut compressor_1 = IdCompressor::new();
+    assert_eq!(
+        compressor_1.set_cluster_capacity(0).err().unwrap(),
+        ClusterCapacityError::InvalidClusterCapacity
+    );
+    assert!(compressor_1.set_cluster_capacity(1).is_ok());
+    assert!(compressor_1.set_cluster_capacity(u64::MAX).is_ok());
+}
+
+#[test]
+fn test_new_with_session_id() {
+    let session_id = SessionId::new();
+    let compressor = IdCompressor::new_with_session_id(session_id);
+    assert_eq!(session_id, compressor.get_local_session_id());
+}
+
+#[test]
+fn test_manual_id_creation() {
+    let mut compressor = IdCompressor::new();
+    let id = compressor.generate_next_id();
+    assert!(compressor.decompress(id).is_ok());
+    let uuid = compressor.decompress(id).unwrap();
+    assert!(compressor.recompress(uuid).is_ok());
+    assert_eq!(id, compressor.recompress(uuid).unwrap());
+}
+
+#[test]
+fn test_eager_final_allocation() {
+    let mut compressor = IdCompressor::new();
+    _ = compressor.set_cluster_capacity(3);
+    assert!(compressor.generate_next_id().is_local());
+    assert!(compressor.generate_next_id().is_local());
+    let range_1 = compressor.take_next_range();
+    _ = compressor.finalize_range(&range_1);
+    assert!(compressor.generate_next_id().is_final());
+    assert!(compressor.generate_next_id().is_final());
+    assert!(compressor.generate_next_id().is_final());
+    assert!(compressor.generate_next_id().is_local());
+}
+
+#[test]
+fn test_eager_final_normalization() {
+    let mut compressor = IdCompressor::new();
+    _ = compressor.set_cluster_capacity(3);
+    _ = compressor.generate_next_id();
+    let range_1 = compressor.take_next_range();
+    _ = compressor.finalize_range(&range_1);
+    let final_2 = compressor.generate_next_id();
+
+    assert!(compressor.normalize_to_op_space(final_2).is_ok());
+    let op_space_2 = compressor.normalize_to_op_space(final_2).unwrap();
+    assert!(op_space_2.is_final());
+    assert!(compressor
+        .normalize_to_session_space(op_space_2, compressor.get_local_session_id())
+        .is_ok());
+    let session_space_2 = compressor
+        .normalize_to_session_space(op_space_2, compressor.get_local_session_id())
+        .unwrap();
+    assert!(session_space_2.is_final());
+    assert_eq!(final_2, session_space_2);
 }
