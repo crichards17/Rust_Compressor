@@ -551,13 +551,13 @@ pub enum FinalizationError {
     ClusterCollision,
 }
 
-#[derive(Error, Debug, PartialEq)]
+#[derive(Error, Debug)]
 pub enum ClusterCapacityError {
     #[error("Cluster size must be a non-zero integer.")]
     InvalidClusterCapacity,
 }
 
-#[derive(Error, Debug, PartialEq)]
+#[derive(Error, Debug)]
 pub enum SessionTokenError {
     #[error("Unknown session token.")]
     UnknownSessionToken,
