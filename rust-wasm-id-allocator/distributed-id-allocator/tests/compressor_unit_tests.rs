@@ -62,10 +62,12 @@ fn test_new_with_session_id() {
 fn test_manual_id_creation() {
     let mut compressor = IdCompressor::new();
     let id = compressor.generate_next_id();
-    assert!(compressor.decompress(id).is_ok());
-    let uuid = compressor.decompress(id).unwrap();
-    assert!(compressor.recompress(uuid).is_ok());
-    assert_eq!(id, compressor.recompress(uuid).unwrap());
+    let decompress_result = compressor.decompress(id);
+    assert!(decompress_result.is_ok());
+    let uuid = decompress_result.unwrap();
+    let recompress_result = compressor.recompress(uuid);
+    assert!(recompress_result.is_ok());
+    assert_eq!(id, recompress_result.unwrap());
 }
 
 #[test]
@@ -94,12 +96,10 @@ fn test_eager_final_normalization() {
     assert!(compressor.normalize_to_op_space(final_2).is_ok());
     let op_space_2 = compressor.normalize_to_op_space(final_2).unwrap();
     assert!(op_space_2.is_final());
-    assert!(compressor
-        .normalize_to_session_space(op_space_2, compressor.get_local_session_id())
-        .is_ok());
-    let session_space_2 = compressor
-        .normalize_to_session_space(op_space_2, compressor.get_local_session_id())
-        .unwrap();
+    let normalize_result =
+        compressor.normalize_to_session_space(op_space_2, compressor.get_local_session_id());
+    assert!(normalize_result.is_ok());
+    let session_space_2 = normalize_result.unwrap();
     assert!(session_space_2.is_final());
     assert_eq!(final_2, session_space_2);
 }
@@ -363,8 +363,9 @@ fn test_recompress_foreign_stable_id() {
     let mut compressor_2 = IdCompressor::new();
     let range_1 = compressor_1.take_next_range();
     _ = compressor_2.finalize_range(&range_1);
-    assert!(compressor_2.recompress(stable_id_1).is_ok());
-    assert!(compressor_2.recompress(stable_id_1).unwrap().is_final());
+    let recompress_result = compressor_2.recompress(stable_id_1);
+    assert!(recompress_result.is_ok());
+    assert!(recompress_result.unwrap().is_final());
 }
 
 #[test]
@@ -389,8 +390,9 @@ fn test_recompress_unfinalized_eager_final() {
     let id_2 = compressor.generate_next_id();
     assert!(id_2.is_final());
     let stable_id = StableId::from(compressor.get_local_session_id()) + 1;
-    assert!(compressor.recompress(stable_id).is_ok());
-    assert_eq!(compressor.recompress(stable_id).unwrap(), id_2);
+    let recompress_result = compressor.recompress(stable_id);
+    assert!(recompress_result.is_ok());
+    assert_eq!(recompress_result.unwrap(), id_2);
 }
 
 #[test]
@@ -417,8 +419,9 @@ fn test_decompress_local_before_and_after_finalizing() {
     assert!(compressor.decompress(session_space_id).is_ok());
     let stable_id = compressor.decompress(session_space_id).unwrap();
     finalize_next_range(&mut compressor);
-    assert!(compressor.decompress(session_space_id).is_ok());
-    assert_eq!(compressor.decompress(session_space_id).unwrap(), stable_id);
+    let decompress_result = compressor.decompress(session_space_id);
+    assert!(decompress_result.is_ok());
+    assert_eq!(decompress_result.unwrap(), stable_id);
 }
 
 #[test]
@@ -446,23 +449,18 @@ fn test_decompress_unfinalized_eager_final() {
     let eager_final = compressor.generate_next_id();
     assert!(eager_final.is_final());
     let stable_equivalent = StableId::from(compressor.get_local_session_id()) + 1;
-    assert!(compressor.decompress(eager_final).is_ok());
-    assert_eq!(
-        compressor.decompress(eager_final).unwrap(),
-        stable_equivalent
-    );
+    let decompress_result = compressor.decompress(eager_final);
+    assert!(decompress_result.is_ok());
+    assert_eq!(decompress_result.unwrap(), stable_equivalent);
 }
 
 #[test]
 fn test_normalize_unfinalized_local_to_op_space() {
     let mut compressor = IdCompressor::new();
     let session_space_local = compressor.generate_next_id();
-    assert!(compressor
-        .normalize_to_op_space(session_space_local)
-        .is_ok());
-    let normalized_id = compressor
-        .normalize_to_op_space(session_space_local)
-        .unwrap();
+    let normalize_result = compressor.normalize_to_op_space(session_space_local);
+    assert!(normalize_result.is_ok());
+    let normalized_id = normalize_result.unwrap();
     assert!(normalized_id.is_local());
     assert_eq!(normalized_id.id(), session_space_local.id());
 }
@@ -472,12 +470,9 @@ fn test_normalize_finalized_local_to_op_space() {
     let mut compressor = IdCompressor::new();
     let session_space_local = compressor.generate_next_id();
     finalize_next_range(&mut compressor);
-    assert!(compressor
-        .normalize_to_op_space(session_space_local)
-        .is_ok());
-    let normalized_id = compressor
-        .normalize_to_op_space(session_space_local)
-        .unwrap();
+    let normalize_result = compressor.normalize_to_op_space(session_space_local);
+    assert!(normalize_result.is_ok());
+    let normalized_id = normalize_result.unwrap();
     assert!(normalized_id.is_final());
     assert_ne!(normalized_id.id(), session_space_local.id());
 }
@@ -489,19 +484,15 @@ fn test_normalize_eager_final_to_op_space() {
     generate_n_ids(&mut compressor, 1);
     finalize_next_range(&mut compressor);
     let eager_final = compressor.generate_next_id();
-    assert!(compressor.normalize_to_op_space(eager_final).is_ok());
-    let normalized_id = compressor.normalize_to_op_space(eager_final).unwrap();
+    let normalize_to_op_result = compressor.normalize_to_op_space(eager_final);
+    assert!(normalize_to_op_result.is_ok());
+    let normalized_id = normalize_to_op_result.unwrap();
     assert!(normalized_id.is_final());
     assert_eq!(normalized_id.id(), eager_final.id());
-    assert!(compressor
-        .normalize_to_session_space(normalized_id, compressor.get_local_session_id())
-        .is_ok());
-    assert_eq!(
-        compressor
-            .normalize_to_session_space(normalized_id, compressor.get_local_session_id())
-            .unwrap(),
-        eager_final
-    );
+    let normalize_to_session_result =
+        compressor.normalize_to_session_space(normalized_id, compressor.get_local_session_id());
+    assert!(normalize_to_session_result.is_ok());
+    assert_eq!(normalize_to_session_result.unwrap(), eager_final);
 }
 
 #[test]
@@ -570,24 +561,18 @@ fn test_normalize_foreign_ids_to_session_space() {
     assert!(op_space_final.is_final());
     _ = compressor_b.finalize_range(&range_a);
 
-    assert!(compressor_b
-        .normalize_to_session_space(op_space_local, compressor_a.get_local_session_id())
-        .is_ok());
+    let normalize_local_to_session_result = compressor_b
+        .normalize_to_session_space(op_space_local, compressor_a.get_local_session_id());
+    assert!(normalize_local_to_session_result.is_ok());
     assert_eq!(
-        compressor_b
-            .normalize_to_session_space(op_space_local, compressor_a.get_local_session_id())
-            .unwrap()
-            .id(),
+        normalize_local_to_session_result.unwrap().id(),
         op_space_final.id()
     );
-    assert!(compressor_b
-        .normalize_to_session_space(op_space_final, compressor_a.get_local_session_id())
-        .is_ok());
+    let normalize_final_to_session_result = compressor_b
+        .normalize_to_session_space(op_space_final, compressor_a.get_local_session_id());
+    assert!(normalize_final_to_session_result.is_ok());
     assert_eq!(
-        compressor_b
-            .normalize_to_session_space(op_space_final, compressor_a.get_local_session_id())
-            .unwrap()
-            .id(),
+        normalize_final_to_session_result.unwrap().id(),
         op_space_final.id()
     );
 }

@@ -5,8 +5,9 @@ pub fn serialize_roundtrip(compressor: &IdCompressor) -> RoundtrippedCompressors
     let mut deserialized_vec: Vec<IdCompressor> = Vec::new();
     for with_local in [true, false] {
         let serialized = compressor.serialize(with_local);
-        assert!(IdCompressor::deserialize(&serialized).is_ok());
-        let deserialized = IdCompressor::deserialize(&serialized).unwrap();
+        let deserialized_result = IdCompressor::deserialize(&serialized);
+        assert!(deserialized_result.is_ok());
+        let deserialized = deserialized_result.unwrap();
         assert!(deserialized.equals_test_only(compressor, with_local));
         deserialized_vec.push(deserialized);
     }
