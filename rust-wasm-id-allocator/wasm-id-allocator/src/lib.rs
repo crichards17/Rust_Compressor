@@ -454,14 +454,19 @@ mod tests {
             ),
             -2 as f64
         );
-        assert!(compressor
-            .normalize_to_session_space(-3 as f64, 4.0)
-            .is_nan());
+        assert!(compressor.normalize_to_session_space(1111.0, 0.0).is_nan());
         assert_eq!(
             compressor.error_string,
-            Some(NormalizationError::UnknownSessionToken.to_string())
+            Some(NormalizationError::UnfinalizedForeignFinal.to_string())
         );
-        assert!(compressor.normalize_to_session_space(7.0, 0.0).is_nan());
+    }
+
+    #[test]
+    #[should_panic]
+    fn normalize_to_session_space_bad_token() {
+        let (mut compressor, _) = initialize_compressor();
+        finalize_compressor(&mut compressor);
+        _ = compressor.normalize_to_session_space(-3 as f64, -1.0);
     }
 
     #[test]

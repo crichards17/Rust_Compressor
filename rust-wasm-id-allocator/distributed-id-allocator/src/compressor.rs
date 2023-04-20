@@ -339,7 +339,7 @@ impl IdCompressor {
                     None => {
                         // Does not exist in local cluster chain
                         if final_to_normalize >= self.final_id_limit {
-                            Err(NormalizationError::UnFinalizedForeignFinal)
+                            Err(NormalizationError::UnfinalizedForeignFinal)
                         } else {
                             Ok(SessionSpaceId::from(final_to_normalize))
                         }
@@ -568,7 +568,7 @@ pub enum NormalizationError {
     #[error("UnfinalizedForeignLocal")]
     UnfinalizedForeignLocal,
     #[error("UnFinalizedForeignFinal")]
-    UnFinalizedForeignFinal,
+    UnfinalizedForeignFinal,
     #[error("NoAlignedLocal")]
     NoAlignedLocal,
     #[error("NoSessionIdProvided")]
