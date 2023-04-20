@@ -47,12 +47,6 @@ impl SessionId {
     }
 }
 
-impl Default for SessionId {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl From<Uuid> for SessionId {
     fn from(value: Uuid) -> Self {
         SessionId { id: value.into() }

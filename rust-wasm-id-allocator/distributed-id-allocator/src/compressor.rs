@@ -496,12 +496,6 @@ impl IdCompressor {
     }
 }
 
-impl Default for IdCompressor {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 pub struct IdRange {
     pub id: SessionId,
     // (First LocalID in the range as generation count, count of IDs)
