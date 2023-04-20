@@ -28,7 +28,7 @@ impl SessionSpaceNormalizer {
         self.leading_locals
             .binary_search_by(|(current_local, current_count)| {
                 if &query > current_local {
-                    return Ordering::Greater;
+                    Ordering::Greater
                 } else if query < *current_local - (*current_count - 1) {
                     return Ordering::Less;
                 } else {

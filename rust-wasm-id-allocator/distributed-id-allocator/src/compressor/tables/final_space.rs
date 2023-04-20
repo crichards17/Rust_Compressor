@@ -23,7 +23,7 @@ impl FinalSpace {
 
     pub fn add_cluster(&mut self, new_cluster_ref: ClusterRef, _sessions: &Sessions) {
         #[cfg(debug_assertions)]
-        if self.clusters.len() != 0 {
+        if !self.clusters.is_empty() {
             let new_cluster_base_final = _sessions.deref_cluster(new_cluster_ref).base_final_id;
             let last_cluster_base_final = _sessions
                 .deref_cluster(self.clusters[self.clusters.len() - 1])
@@ -54,7 +54,7 @@ impl FinalSpace {
                 let cluster_base_final = current_cluster.base_final_id;
                 let cluster_max_final = cluster_base_final + (current_cluster.capacity - 1);
                 if cluster_max_final < target_final {
-                    return Ordering::Less;
+                    Ordering::Less
                 } else if cluster_base_final > target_final {
                     return Ordering::Greater;
                 } else {
@@ -97,6 +97,6 @@ impl FinalSpace {
                 return false;
             }
         }
-        return true;
+        true
     }
 }

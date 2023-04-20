@@ -22,7 +22,7 @@ impl OpSpaceId {
     /// Maps the ID to local or final space. Intended for internal use only.
     pub fn to_space(&self) -> CompressedId {
         if self.is_local() {
-            return CompressedId::Local(LocalId::from_id(self.id));
+            CompressedId::Local(LocalId::from_id(self.id))
         } else {
             CompressedId::Final(FinalId::from_id(self.id as u64))
         }

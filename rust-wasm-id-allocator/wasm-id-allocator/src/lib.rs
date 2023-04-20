@@ -126,13 +126,13 @@ impl IdCompressor {
     /// Returns a range of IDs (if any) created by this session.
     /// See [distributed_id_allocator::compressor::IdCompressor] for more.
     pub fn take_next_range(&mut self) -> Option<InteropIds> {
-        match self.compressor.take_next_range().range {
-            Some((first_local_gen_count, count)) => Some(InteropIds {
+        self.compressor
+            .take_next_range()
+            .range
+            .map(|(first_local_gen_count, count)| InteropIds {
                 first_local_gen_count: first_local_gen_count as f64,
                 count: count as f64,
-            }),
-            None => None,
-        }
+            })
     }
 
     /// Finalizes a range of IDs.
@@ -329,7 +329,7 @@ mod tests {
             count,
         } = interop_id_range.unwrap();
         _ = compressor.finalize_range(
-            compressor.get_local_session_id().into(),
+            compressor.get_local_session_id(),
             first_local_gen_count,
             count,
         )
@@ -346,7 +346,7 @@ mod tests {
     #[should_panic]
     fn cluster_capacity_negative() {
         let (mut compressor, _) = initialize_compressor();
-        _ = compressor.set_cluster_capacity(-2 as f64);
+        _ = compressor.set_cluster_capacity(-2_f64);
     }
 
     #[test]
@@ -397,7 +397,7 @@ mod tests {
         } = interop_id_range.unwrap();
         assert!(compressor
             .finalize_range(
-                compressor.get_local_session_id().into(),
+                compressor.get_local_session_id(),
                 first_local_gen_count,
                 count
             )
@@ -451,7 +451,7 @@ mod tests {
                     .ok()
                     .unwrap() as f64
             ),
-            -2 as f64
+            -2_f64
         );
         assert!(compressor.normalize_to_session_space(1111.0, 0.0).is_nan());
         assert_eq!(
@@ -465,7 +465,7 @@ mod tests {
     fn normalize_to_session_space_bad_token() {
         let (mut compressor, _) = initialize_compressor();
         finalize_compressor(&mut compressor);
-        _ = compressor.normalize_to_session_space(-3 as f64, -1.0);
+        _ = compressor.normalize_to_session_space(-3_f64, -1.0);
     }
 
     #[test]
