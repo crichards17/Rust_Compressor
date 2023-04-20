@@ -27,6 +27,7 @@ import { defaultClusterCapacity, IdCompressor } from "../../src/IdCompressor";
 import { FinalCompressedId, LocalCompressedId, isFinalId, isLocalId } from "./testCommon";
 import { createSessionId, fail } from "../../src/util/utilities";
 import { assert } from "../../src/copied-utils";
+import { DestinationClient } from "./idCompressorTestUtilities";
 
 describe("IdCompressor Perf", () => {
 	afterEach(() => {
@@ -206,6 +207,29 @@ describe("IdCompressor Perf", () => {
 				perfCompressor!.normalizeToSessionSpace(id, perfCompressor.localSessionId);
 			},
 		});
+	});
+
+	const remoteSessionId = sessionIds.get(remoteClient);
+	let opSpaceId!: OpSpaceCompressedId;
+	benchmark({
+		type,
+		title: `normalize a final ID from a remote session to a small session space (common case)`,
+		before: () => {
+			const network = setupCompressors(defaultClusterCapacity, false, true);
+			// Ensure the local session has several different clusters
+			for (let clusterCount = 0; clusterCount < 3; clusterCount++) {
+				network.allocateAndSendIds(localClient, perfCompressor.clusterCapacity * 2);
+				network.allocateAndSendIds(remoteClient, perfCompressor.clusterCapacity * 2);
+			}
+			network.deliverOperations(DestinationClient.All);
+			const localFromRemoteSession = getIdMadeBy(remoteClient, false, network);
+			opSpaceId = network
+				.getCompressor(remoteClient)
+				.normalizeToOpSpace(localFromRemoteSession) as OpSpaceCompressedId;
+		},
+		benchmarkFn: () => {
+			perfCompressor!.normalizeToSessionSpace(opSpaceId, remoteSessionId);
+		},
 	});
 
 	let unackedLocalId!: LocalCompressedId;

@@ -17,6 +17,8 @@ pub struct IdCompressor {
     next_range_base_generation_count: u64,
     sessions: Sessions,
     final_space: FinalSpace,
+    // Cache of the last finalized final ID in final space. Used to optimize normalization.
+    final_id_limit: FinalId,
     uuid_space: UuidSpace,
     session_space_normalizer: SessionSpaceNormalizer,
     cluster_capacity: u64,
@@ -43,6 +45,7 @@ impl IdCompressor {
             next_range_base_generation_count: LocalId::from_id(-1).to_generation_count(),
             sessions,
             final_space: FinalSpace::new(),
+            final_id_limit: FinalId::from_id(0),
             uuid_space: UuidSpace::new(),
             session_space_normalizer: SessionSpaceNormalizer::new(),
             cluster_capacity: persistence::DEFAULT_CLUSTER_CAPACITY,
@@ -227,6 +230,10 @@ impl IdCompressor {
                 self.sessions.deref_cluster_mut(new_cluster_ref).count += overflow;
             }
         }
+        self.final_id_limit = match self.final_space.get_tail_cluster(&self.sessions) {
+            Some(cluster) => cluster.base_final_id + cluster.count,
+            None => self.final_id_limit,
+        };
         Ok(())
     }
 
@@ -261,7 +268,7 @@ impl IdCompressor {
                 if !self.session_space_normalizer.contains(local_id) {
                     return Err(NormalizationError::UnknownSessionSpaceId);
                 } else {
-                    let local_session_space = self.sessions.deref_session_space(self.local_session);
+                    let local_session_space = self.get_local_session_space();
                     match local_session_space.try_convert_to_final(local_id, true) {
                         Some(converted_final) => Ok(OpSpaceId::from(converted_final)),
                         None => Ok(OpSpaceId::from(local_id)),
@@ -332,15 +339,10 @@ impl IdCompressor {
                     }
                     None => {
                         // Does not exist in local cluster chain
-                        match self.final_space.get_tail_cluster(&self.sessions) {
-                            None => Err(NormalizationError::NoFinalizedRanges),
-                            Some(final_space_tail_cluster) => {
-                                if final_to_normalize <= final_space_tail_cluster.max_final() {
-                                    Ok(SessionSpaceId::from(final_to_normalize))
-                                } else {
-                                    Err(NormalizationError::UnFinalizedForeignFinal)
-                                }
-                            }
+                        if final_to_normalize >= self.final_id_limit {
+                            Err(NormalizationError::UnFinalizedForeignFinal)
+                        } else {
+                            Ok(SessionSpaceId::from(final_to_normalize))
                         }
                     }
                 }
@@ -464,7 +466,8 @@ impl IdCompressor {
 #[cfg(debug_assertions)]
 impl IdCompressor {
     pub fn equals_test_only(&self, other: &IdCompressor, compare_local_state: bool) -> bool {
-        if !(self.sessions.equals_test_only(&other.sessions)
+        if !(self.final_id_limit == other.final_id_limit
+            && self.sessions.equals_test_only(&other.sessions)
             && self.final_space.equals_test_only(
                 &other.final_space,
                 &self.sessions,
@@ -575,8 +578,6 @@ pub enum NormalizationError {
     UnfinalizedForeignLocal,
     #[error("UnFinalizedForeignFinal")]
     UnFinalizedForeignFinal,
-    #[error("NoFinalizedRanges")]
-    NoFinalizedRanges,
     #[error("NoAlignedLocal")]
     NoAlignedLocal,
     #[error("NoSessionIdProvided")]

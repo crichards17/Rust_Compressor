@@ -251,10 +251,6 @@ impl IdCluster {
         Some(self.base_local_id - final_delta as u64)
     }
 
-    pub fn max_final(&self) -> FinalId {
-        self.base_final_id + (self.count - 1)
-    }
-
     pub fn max_allocated_final(&self) -> FinalId {
         self.base_final_id + (self.capacity - 1)
     }
