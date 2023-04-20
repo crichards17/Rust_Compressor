@@ -1,6 +1,6 @@
 use super::*;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialOrd, Ord, PartialEq, Eq)]
 /// A compressed ID that has been normalized into "op space".
 /// Serialized/persisted structures (e.g. ops) should use op-space IDs as a performance optimization, as they require less work to
 /// normalize when received by a remote client.
@@ -31,6 +31,11 @@ impl OpSpaceId {
     /// Returns true iff the op space ID is in local space. Intended for internal use only.
     pub fn is_local(&self) -> bool {
         self.id < 0
+    }
+
+    /// Returns true iff the op space ID is in final space. Intended for internal use only.
+    pub fn is_final(&self) -> bool {
+        self.id >= 0
     }
 }
 

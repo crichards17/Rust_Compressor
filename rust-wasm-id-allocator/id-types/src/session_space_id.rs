@@ -1,6 +1,6 @@
 use super::*;
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 /// A compressed ID that has been normalized into "session space".
 /// Consumer-facing APIs and data structures should use session-space IDs as their lifetime and equality is stable and tied to
 /// the scope of the session (i.e. compressor) that produced them.
