@@ -61,7 +61,7 @@ impl PartialOrd<i64> for LocalId {
 
     fn partial_cmp(&self, other: &i64) -> Option<std::cmp::Ordering> {
         if self.le(other) {
-            return Some(std::cmp::Ordering::Less);
+            Some(std::cmp::Ordering::Less)
         } else if self.gt(other) {
             return Some(std::cmp::Ordering::Greater);
         } else {

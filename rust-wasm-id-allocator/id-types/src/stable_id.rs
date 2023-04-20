@@ -30,7 +30,7 @@ const LOWER_MASK: u128 = 0x3FFFFFFFFFFFFFFF;
 
 impl From<StableId> for [u8; 36] {
     fn from(id: StableId) -> Self {
-        let mut uuid_arr: [u8; 36] = ['0' as u8; 36];
+        let mut uuid_arr: [u8; 36] = [b'0'; 36];
         _ = Uuid::from(id).as_hyphenated().encode_lower(&mut uuid_arr);
         uuid_arr
     }
@@ -57,9 +57,8 @@ impl From<StableId> for u128 {
         let upper_masked = (value.id & STRIPPED_UPPER_MASK) << 6;
         let middie_bitties_masked = (value.id & STRIPPED_MIDDIE_BITTIES_MASK) << 2;
         let lower_masked = value.id & LOWER_MASK;
-        let transformed_id =
-            upper_masked | VERSION_MASK | middie_bitties_masked | VARIANT_MASK | lower_masked;
-        transformed_id
+
+        upper_masked | VERSION_MASK | middie_bitties_masked | VARIANT_MASK | lower_masked
     }
 }
 

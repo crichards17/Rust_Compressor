@@ -51,7 +51,7 @@ impl UuidSpace {
                 if query >= cluster_min_stable && query <= cluster_max_stable {
                     let originator_local =
                         LocalId::from_id(-((query - StableId::from(result_session_id)) as i64) - 1);
-                    return Some((cluster_match, originator_local));
+                    Some((cluster_match, originator_local))
                 } else {
                     None
                 }
@@ -71,7 +71,7 @@ impl UuidSpace {
             .range((Bound::Excluded(StableId::nil()), Bound::Included(range_max)))
             .rev();
         match range.next() {
-            None => return false,
+            None => false,
             Some((_, &cluster_ref)) => {
                 let cluster_match = sessions.deref_cluster(cluster_ref);
                 let result_session_id = sessions
@@ -79,11 +79,7 @@ impl UuidSpace {
                     .session_id();
                 let cluster_max_stable =
                     result_session_id + cluster_match.base_local_id + cluster_match.capacity;
-                if originator != result_session_id && range_base <= cluster_max_stable {
-                    return true;
-                } else {
-                    return false;
-                }
+                originator != result_session_id && range_base <= cluster_max_stable
             }
         }
     }
@@ -99,7 +95,7 @@ impl UuidSpace {
             return false;
         }
         for (stable_id, cluster_ref_self) in &self.uuid_to_cluster {
-            let cluster_ref_other = match other.uuid_to_cluster.get(&stable_id) {
+            let cluster_ref_other = match other.uuid_to_cluster.get(stable_id) {
                 None => {
                     return false;
                 }

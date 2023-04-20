@@ -106,10 +106,10 @@ impl IdCompressor {
         if tail_cluster.capacity > cluster_offset {
             // Space in the cluster: eager final
             self.telemetry_stats.eager_final_count += 1;
-            return (tail_cluster.base_final_id + cluster_offset).into();
+            (tail_cluster.base_final_id + cluster_offset).into()
         } else {
             // Not space, return next local
-            return self.generate_next_local_id().into();
+            self.generate_next_local_id().into()
         }
     }
 
@@ -117,7 +117,7 @@ impl IdCompressor {
         self.telemetry_stats.local_id_count += 1;
         let new_local = LocalId::from_id(-(self.generated_id_count as i64));
         self.session_space_normalizer.add_local_range(new_local, 1);
-        return new_local;
+        new_local
     }
 
     pub fn get_telemetry_stats(&mut self) -> TelemetryStats {
@@ -260,7 +260,7 @@ impl IdCompressor {
             CompressedId::Final(final_id) => Ok(OpSpaceId::from(final_id)),
             CompressedId::Local(local_id) => {
                 if !self.session_space_normalizer.contains(local_id) {
-                    return Err(NormalizationError::UnknownSessionSpaceId);
+                    Err(NormalizationError::UnknownSessionSpaceId)
                 } else {
                     let local_session_space = self.get_local_session_space();
                     match local_session_space.try_convert_to_final(local_id, true) {
@@ -300,7 +300,7 @@ impl IdCompressor {
                 let originator_ref = SessionSpaceRef::create_from_token(originator_token);
                 if originator_ref == self.local_session {
                     if self.session_space_normalizer.contains(local_to_normalize) {
-                        return Ok(SessionSpaceId::from(local_to_normalize));
+                        Ok(SessionSpaceId::from(local_to_normalize))
                     } else if local_to_normalize.to_generation_count() <= self.generated_id_count {
                         // Id is an eager final
 
@@ -337,12 +337,10 @@ impl IdCompressor {
                             };
                         if self.session_space_normalizer.contains(aligned_local) {
                             Ok(SessionSpaceId::from(aligned_local))
+                        } else if aligned_local.to_generation_count() <= self.generated_id_count {
+                            Ok(SessionSpaceId::from(final_to_normalize))
                         } else {
-                            if aligned_local.to_generation_count() <= self.generated_id_count {
-                                Ok(SessionSpaceId::from(final_to_normalize))
-                            } else {
-                                Err(NormalizationError::UngeneratedId)
-                            }
+                            Err(NormalizationError::UngeneratedId)
                         }
                     }
                     None => {
@@ -420,7 +418,7 @@ impl IdCompressor {
                 if cluster.session_creator == self.local_session {
                     // Local session
                     if self.session_space_normalizer.contains(originator_local) {
-                        return Ok(SessionSpaceId::from(originator_local));
+                        Ok(SessionSpaceId::from(originator_local))
                     } else if originator_local.to_generation_count() <= self.generated_id_count {
                         // Id is an eager final
                         match cluster.get_allocated_final(originator_local) {
@@ -436,7 +434,7 @@ impl IdCompressor {
                         < cluster.base_local_id.to_generation_count() + cluster.count
                     {
                         match cluster.get_allocated_final(originator_local) {
-                            None => return Err(RecompressionError::NoAllocatedFinal),
+                            None => Err(RecompressionError::NoAllocatedFinal),
                             Some(allocated_final) => Ok(allocated_final.into()),
                         }
                     } else {
@@ -449,15 +447,15 @@ impl IdCompressor {
 
     pub fn serialize(&self, include_local_state: bool) -> Vec<u8> {
         if !include_local_state {
-            persistence::v1::serialize(&self)
+            persistence::v1::serialize(self)
         } else {
-            persistence::v1::serialize_with_local(&self)
+            persistence::v1::serialize_with_local(self)
         }
     }
 
     #[cfg(feature = "uuid-generation")]
     pub fn deserialize(bytes: &[u8]) -> Result<IdCompressor, DeserializationError> {
-        persistence::deserialize(bytes, || SessionId::new())
+        persistence::deserialize(bytes, SessionId::new)
     }
 
     pub fn deserialize_with_session_id_generator<FMakeSession>(
@@ -487,15 +485,13 @@ impl IdCompressor {
             && self.cluster_capacity == other.cluster_capacity)
         {
             false
-        } else if compare_local_state
-            && !(self.session_id == other.session_id
-                && self.generated_id_count == other.generated_id_count
-                && self.next_range_base_generation_count == other.next_range_base_generation_count
-                && self.session_space_normalizer == other.session_space_normalizer)
-        {
-            false
         } else {
-            true
+            !(compare_local_state
+                && !(self.session_id == other.session_id
+                    && self.generated_id_count == other.generated_id_count
+                    && self.next_range_base_generation_count
+                        == other.next_range_base_generation_count
+                    && self.session_space_normalizer == other.session_space_normalizer))
         }
     }
 }

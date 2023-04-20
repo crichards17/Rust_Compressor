@@ -80,7 +80,7 @@ impl Sessions {
             let mut filtered: Vec<&SessionSpace> = session_space
                 .session_list
                 .iter()
-                .filter(|&session_space| session_space.cluster_chain.len() > 0)
+                .filter(|&session_space| !session_space.cluster_chain.is_empty())
                 .collect();
             filtered.sort_by(|session_space_a, session_space_b| {
                 session_space_a.session_id.cmp(&session_space_b.session_id)
@@ -189,7 +189,7 @@ impl SessionSpace {
             let cluster_last_local =
                 current_cluster.base_local_id - last_valid_local(current_cluster);
             if cluster_last_local > search_local {
-                return Ordering::Less;
+                Ordering::Less
             } else if current_cluster.base_local_id < search_local {
                 return Ordering::Greater;
             } else {
@@ -210,7 +210,7 @@ impl SessionSpace {
             let cluster_base_final = current_cluster.base_final_id;
             let cluster_last_final = cluster_base_final + (current_cluster.capacity - 1);
             if cluster_last_final < search_final {
-                return Ordering::Less;
+                Ordering::Less
             } else if cluster_base_final > search_final {
                 return Ordering::Greater;
             } else {
@@ -266,10 +266,6 @@ impl PartialEq for IdCluster {
             && self.base_local_id == other.base_local_id
             && self.capacity == other.capacity
             && self.count == other.count
-    }
-
-    fn ne(&self, other: &Self) -> bool {
-        !self.eq(other)
     }
 }
 
