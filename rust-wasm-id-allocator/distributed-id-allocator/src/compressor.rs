@@ -307,13 +307,7 @@ impl IdCompressor {
                     }
                 } else {
                     // LocalId from a foreign session
-                    let foreign_session_space =
-                        match self.sessions.try_deref_session_space(originator_ref) {
-                            Some(session_space) => session_space,
-                            None => {
-                                return Err(NormalizationError::UnknownSessionId);
-                            }
-                        };
+                    let foreign_session_space = self.sessions.deref_session_space(originator_ref);
                     match foreign_session_space.try_convert_to_final(local_to_normalize, false) {
                         Some(final_id) => Ok(SessionSpaceId::from(final_id)),
                         None => Err(NormalizationError::UnfinalizedForeignLocal),

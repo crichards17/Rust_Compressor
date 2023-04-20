@@ -51,18 +51,11 @@ impl Sessions {
     }
 
     pub fn deref_session_space(&self, session_space_ref: SessionSpaceRef) -> &SessionSpace {
+        debug_assert!(
+            session_space_ref.index < self.session_list.len(),
+            "Out of bounds session space ref."
+        );
         &self.session_list[session_space_ref.index]
-    }
-
-    pub fn try_deref_session_space(
-        &self,
-        SessionSpaceRef { index }: SessionSpaceRef,
-    ) -> Option<&SessionSpace> {
-        if index >= self.session_list.len() {
-            None
-        } else {
-            Some(&self.session_list[index])
-        }
     }
 
     pub fn deref_cluster_mut(&mut self, cluster_ref: ClusterRef) -> &mut IdCluster {
