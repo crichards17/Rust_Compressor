@@ -29,7 +29,7 @@
 //! Additionally, APIs used in hot paths have their error logic queried separately to avoid passing complex data types back and forth during the common use case.
 
 use distributed_id_allocator::compressor::{
-    ClusterCapacityError, IdCompressor as IdCompressorCore, IdRange,
+    ClusterCapacityError, IdCompressor as IdCompressorCore, IdRange, NIL_TOKEN,
 };
 use id_types::{OpSpaceId, SessionId, SessionSpaceId, StableId};
 use std::f64::NAN;
@@ -51,7 +51,6 @@ pub struct IdCompressor {
 }
 
 const MAX_DEFAULT_CLUSTER_CAPACITY: f64 = 2_i32.pow(11) as f64;
-const NIL_TOKEN: i64 = -1;
 
 #[wasm_bindgen]
 impl IdCompressor {

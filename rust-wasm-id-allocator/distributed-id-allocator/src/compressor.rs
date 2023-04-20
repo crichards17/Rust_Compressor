@@ -8,6 +8,8 @@ use self::tables::session_space_normalizer::SessionSpaceNormalizer;
 use self::tables::uuid_space::UuidSpace;
 use id_types::*;
 
+pub const NIL_TOKEN: i64 = -1;
+
 #[derive(Debug)]
 pub struct IdCompressor {
     session_id: SessionId,
@@ -275,10 +277,17 @@ impl IdCompressor {
         id: OpSpaceId,
         originator: SessionId,
     ) -> Result<SessionSpaceId, NormalizationError> {
-        self.normalize_to_session_space_with_token(
-            id,
-            self.get_session_token_from_session_id(originator)?,
-        )
+        let token = match self.get_session_token_from_session_id(originator) {
+            Ok(token) => token,
+            Err(err) => {
+                if id.is_local() {
+                    return Err(err);
+                } else {
+                    NIL_TOKEN
+                }
+            }
+        };
+        self.normalize_to_session_space_with_token(id, token)
     }
 
     pub fn normalize_to_session_space_with_token(
