@@ -29,7 +29,7 @@
 //! Additionally, APIs used in hot paths have their error logic queried separately to avoid passing complex data types back and forth during the common use case.
 
 use distributed_id_allocator::compressor::{
-    ClusterCapacityError, IdCompressor as IdCompressorCore, IdRange,
+    ClusterCapacityError, IdCompressor as IdCompressorCore, IdRange, NIL_TOKEN,
 };
 use id_types::{OpSpaceId, SessionId, SessionSpaceId, StableId};
 use std::f64::NAN;
@@ -51,13 +51,17 @@ pub struct IdCompressor {
 }
 
 const MAX_DEFAULT_CLUSTER_CAPACITY: f64 = 2_i32.pow(11) as f64;
-const NAN_UUID_U128: u128 = 0;
 
 #[wasm_bindgen]
 impl IdCompressor {
     /// Returns the default cluster capacity. This static is exposed on the compressor to comply with wasm-bindgen.
     pub fn get_default_cluster_capacity() -> f64 {
         IdCompressorCore::get_default_cluster_capacity() as f64
+    }
+
+    /// Returns the default cluster capacity. This static is exposed on the compressor to comply with wasm-bindgen.
+    pub fn get_nil_token() -> f64 {
+        NIL_TOKEN as f64
     }
 
     #[wasm_bindgen(constructor)]
@@ -107,7 +111,7 @@ impl IdCompressor {
     }
 
     /// Returns a number token associated with the supplied session UUID string.
-    /// Returns NAN if the session ID has never been associated with a finalization by this compressor.
+    /// Returns a NIL token if the session ID has never been associated with a finalization by this compressor.
     /// Throws an error if the UUID string is not well formed.
     /// This API exists as an optimization to avoid repeatedly passing strings across the interop boundary and allows a user
     /// to instead cheaply pass a number representing that string. The result can be cached to avoid future calls to this method.
@@ -116,7 +120,7 @@ impl IdCompressor {
             .compressor
             .get_session_token_from_session_id(SessionId::from_uuid_string(&session_uuid_string)?)
             .map(|x| x as f64)
-            .unwrap_or(NAN))
+            .unwrap_or(IdCompressor::get_nil_token()))
     }
 
     /// Returns a range of IDs (if any) created by this session.
@@ -174,28 +178,13 @@ impl IdCompressor {
     /// string can be retrieved by calling `get_normalization_error_string`.
     /// See [distributed_id_allocator::compressor::IdCompressor] for more.
     pub fn normalize_to_session_space(&mut self, op_space_id: f64, originator_token: f64) -> f64 {
-        let session_id;
-        // TS layer sends NAN token iff passing FinalId and a SessionId it has not tokenized.
-        //  This can occur when normalizing an ID referenced by a client that has not finalized any IDs,
-        //  and thus is not yet in the Sessions list.
-        if originator_token.is_nan() {
-            session_id = SessionId::from_uuid_u128(NAN_UUID_U128);
-        } else {
-            session_id = match self
-                .compressor
-                .get_session_id_from_session_token(originator_token as usize)
-            {
-                Err(err) => {
-                    self.error_string = Some(err.to_string());
-                    return NAN;
-                }
-                Ok(session_id) => session_id,
-            };
-        }
-        match &self
-            .compressor
-            .normalize_to_session_space(OpSpaceId::from_id(op_space_id as i64), session_id)
-        {
+        // Safe to cast token because the TS layer sends nil token iff passing FinalId and a SessionId it has not tokenized.
+        // This can occur when normalizing an ID referenced by a client that has not finalized any IDs,
+        // and thus is not yet in the Sessions list.
+        match &self.compressor.normalize_to_session_space_with_token(
+            OpSpaceId::from_id(op_space_id as i64),
+            originator_token as i64,
+        ) {
             Err(err) => {
                 self.error_string = Some(err.to_string());
                 NAN
@@ -318,7 +307,7 @@ impl TestOnly {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use distributed_id_allocator::compressor::{NormalizationError, SessionTokenError};
+    use distributed_id_allocator::compressor::NormalizationError;
     use id_types::LocalId;
 
     const _STABLE_ID_1: &str = "748540ca-b7c5-4c99-83ff-c1b8e02c09d6";
@@ -464,14 +453,19 @@ mod tests {
             ),
             -2 as f64
         );
-        assert!(compressor
-            .normalize_to_session_space(-3 as f64, 4.0)
-            .is_nan());
+        assert!(compressor.normalize_to_session_space(1111.0, 0.0).is_nan());
         assert_eq!(
             compressor.error_string,
-            Some(SessionTokenError::UnknownSessionToken.to_string())
+            Some(NormalizationError::UnfinalizedForeignFinal.to_string())
         );
-        assert!(compressor.normalize_to_session_space(7.0, 0.0).is_nan());
+    }
+
+    #[test]
+    #[should_panic]
+    fn normalize_to_session_space_bad_token() {
+        let (mut compressor, _) = initialize_compressor();
+        finalize_compressor(&mut compressor);
+        _ = compressor.normalize_to_session_space(-3 as f64, -1.0);
     }
 
     #[test]

@@ -20,10 +20,6 @@ impl Sessions {
         }
     }
 
-    pub fn get_sessions_count(&self) -> usize {
-        self.session_list.len()
-    }
-
     pub fn get_or_create(&mut self, session_id: SessionId) -> SessionSpaceRef {
         match self.session_map.get(&session_id) {
             None => {
@@ -55,6 +51,10 @@ impl Sessions {
     }
 
     pub fn deref_session_space(&self, session_space_ref: SessionSpaceRef) -> &SessionSpace {
+        debug_assert!(
+            session_space_ref.index < self.session_list.len(),
+            "Out of bounds session space ref."
+        );
         &self.session_list[session_space_ref.index]
     }
 
@@ -251,10 +251,6 @@ impl IdCluster {
         Some(self.base_local_id - final_delta as u64)
     }
 
-    pub fn max_final(&self) -> FinalId {
-        self.base_final_id + (self.count - 1)
-    }
-
     pub fn max_allocated_final(&self) -> FinalId {
         self.base_final_id + (self.capacity - 1)
     }
@@ -288,8 +284,11 @@ impl SessionSpaceRef {
         self.index
     }
 
-    pub fn create_from_index(index: usize) -> SessionSpaceRef {
-        SessionSpaceRef { index }
+    pub fn create_from_token(token: i64) -> SessionSpaceRef {
+        debug_assert!(token >= 0, "Nil token passed as session space ref.");
+        SessionSpaceRef {
+            index: token as usize,
+        }
     }
 }
 

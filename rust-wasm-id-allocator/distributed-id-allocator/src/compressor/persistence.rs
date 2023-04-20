@@ -201,6 +201,13 @@ pub(crate) mod v1 {
                 &compressor.sessions,
             );
         }
+        compressor.final_id_limit = match compressor
+            .final_space
+            .get_tail_cluster(&compressor.sessions)
+        {
+            Some(cluster) => cluster.base_final_id + cluster.count,
+            None => FinalId::from_id(0),
+        };
         Ok(compressor)
     }
 

@@ -8,6 +8,8 @@ use self::tables::session_space_normalizer::SessionSpaceNormalizer;
 use self::tables::uuid_space::UuidSpace;
 use id_types::*;
 
+pub const NIL_TOKEN: i64 = -1;
+
 #[derive(Debug)]
 pub struct IdCompressor {
     session_id: SessionId,
@@ -16,6 +18,8 @@ pub struct IdCompressor {
     next_range_base_generation_count: u64,
     sessions: Sessions,
     final_space: FinalSpace,
+    // Cache of the last finalized final ID in final space. Used to optimize normalization.
+    final_id_limit: FinalId,
     uuid_space: UuidSpace,
     session_space_normalizer: SessionSpaceNormalizer,
     cluster_capacity: u64,
@@ -42,6 +46,7 @@ impl IdCompressor {
             next_range_base_generation_count: LocalId::from_id(-1).to_generation_count(),
             sessions,
             final_space: FinalSpace::new(),
+            final_id_limit: FinalId::from_id(0),
             uuid_space: UuidSpace::new(),
             session_space_normalizer: SessionSpaceNormalizer::new(),
             cluster_capacity: persistence::DEFAULT_CLUSTER_CAPACITY,
@@ -57,27 +62,17 @@ impl IdCompressor {
         self.sessions.deref_session_space(self.local_session)
     }
 
-    pub fn get_session_id_from_session_token(
-        &self,
-        index: usize,
-    ) -> Result<SessionId, SessionTokenError> {
-        if index >= self.sessions.get_sessions_count() {
-            return Err(SessionTokenError::UnknownSessionToken);
-        }
-        let session_space_ref = SessionSpaceRef::create_from_index(index);
-        Ok(self
-            .sessions
-            .deref_session_space(session_space_ref)
-            .session_id())
-    }
-
+    /// Returns a token representing the supplied SessionId, or an error if no such session has been seen by the compressor.
+    /// The returned token (if any) is valid for the lifetime of the compressor and is usable in place of a SessionId in APIs that accept it.
+    /// Performance note: calling APIs with a token results in better performance than using a SessionId, so repeated calls will benefit from
+    /// first converting the SessionId to a token.
     pub fn get_session_token_from_session_id(
         &self,
         session_id: SessionId,
-    ) -> Result<usize, SessionTokenError> {
+    ) -> Result<i64, NormalizationError> {
         match self.sessions.get(session_id) {
-            None => Err(SessionTokenError::UnknownSessionId),
-            Some(session_space) => Ok(session_space.self_ref().get_index()),
+            None => Err(NormalizationError::NoTokenForSession),
+            Some(session_space) => Ok(session_space.self_ref().get_index() as i64),
         }
     }
 
@@ -229,6 +224,10 @@ impl IdCompressor {
                 self.sessions.deref_cluster_mut(new_cluster_ref).count += overflow;
             }
         }
+        self.final_id_limit = match self.final_space.get_tail_cluster(&self.sessions) {
+            Some(cluster) => cluster.base_final_id + cluster.count,
+            None => self.final_id_limit,
+        };
         Ok(())
     }
 
@@ -263,7 +262,7 @@ impl IdCompressor {
                 if !self.session_space_normalizer.contains(local_id) {
                     return Err(NormalizationError::UnknownSessionSpaceId);
                 } else {
-                    let local_session_space = self.sessions.deref_session_space(self.local_session);
+                    let local_session_space = self.get_local_session_space();
                     match local_session_space.try_convert_to_final(local_id, true) {
                         Some(converted_final) => Ok(OpSpaceId::from(converted_final)),
                         None => Ok(OpSpaceId::from(local_id)),
@@ -278,9 +277,28 @@ impl IdCompressor {
         id: OpSpaceId,
         originator: SessionId,
     ) -> Result<SessionSpaceId, NormalizationError> {
+        let token = match self.get_session_token_from_session_id(originator) {
+            Ok(token) => token,
+            Err(err) => {
+                if id.is_local() {
+                    return Err(err);
+                } else {
+                    NIL_TOKEN
+                }
+            }
+        };
+        self.normalize_to_session_space_with_token(id, token)
+    }
+
+    pub fn normalize_to_session_space_with_token(
+        &self,
+        id: OpSpaceId,
+        originator_token: i64,
+    ) -> Result<SessionSpaceId, NormalizationError> {
         match id.to_space() {
             CompressedId::Local(local_to_normalize) => {
-                if originator == self.session_id {
+                let originator_ref = SessionSpaceRef::create_from_token(originator_token);
+                if originator_ref == self.local_session {
                     if self.session_space_normalizer.contains(local_to_normalize) {
                         return Ok(SessionSpaceId::from(local_to_normalize));
                     } else if local_to_normalize.to_generation_count() <= self.generated_id_count {
@@ -298,12 +316,7 @@ impl IdCompressor {
                     }
                 } else {
                     // LocalId from a foreign session
-                    let foreign_session_space = match self.sessions.get(originator) {
-                        Some(session_space) => session_space,
-                        None => {
-                            return Err(NormalizationError::UnknownSessionId);
-                        }
-                    };
+                    let foreign_session_space = self.sessions.deref_session_space(originator_ref);
                     match foreign_session_space.try_convert_to_final(local_to_normalize, false) {
                         Some(final_id) => Ok(SessionSpaceId::from(final_id)),
                         None => Err(NormalizationError::UnfinalizedForeignLocal),
@@ -334,15 +347,10 @@ impl IdCompressor {
                     }
                     None => {
                         // Does not exist in local cluster chain
-                        match self.final_space.get_tail_cluster(&self.sessions) {
-                            None => Err(NormalizationError::NoFinalizedRanges),
-                            Some(final_space_tail_cluster) => {
-                                if final_to_normalize <= final_space_tail_cluster.max_final() {
-                                    Ok(SessionSpaceId::from(final_to_normalize))
-                                } else {
-                                    Err(NormalizationError::UnFinalizedForeignFinal)
-                                }
-                            }
+                        if final_to_normalize >= self.final_id_limit {
+                            Err(NormalizationError::UnfinalizedForeignFinal)
+                        } else {
+                            Ok(SessionSpaceId::from(final_to_normalize))
                         }
                     }
                 }
@@ -466,7 +474,8 @@ impl IdCompressor {
 #[cfg(debug_assertions)]
 impl IdCompressor {
     pub fn equals_test_only(&self, other: &IdCompressor, compare_local_state: bool) -> bool {
-        if !(self.sessions.equals_test_only(&other.sessions)
+        if !(self.final_id_limit == other.final_id_limit
+            && self.sessions.equals_test_only(&other.sessions)
             && self.final_space.equals_test_only(
                 &other.final_space,
                 &self.sessions,
@@ -558,14 +567,6 @@ pub enum ClusterCapacityError {
 }
 
 #[derive(Error, Debug)]
-pub enum SessionTokenError {
-    #[error("Unknown session token.")]
-    UnknownSessionToken,
-    #[error("No IDs have ever been finalized by the supplied session.")]
-    UnknownSessionId,
-}
-
-#[derive(Error, Debug)]
 pub enum NormalizationError {
     #[error("UnknownSessionSpaceId")]
     UnknownSessionSpaceId,
@@ -576,9 +577,7 @@ pub enum NormalizationError {
     #[error("UnfinalizedForeignLocal")]
     UnfinalizedForeignLocal,
     #[error("UnFinalizedForeignFinal")]
-    UnFinalizedForeignFinal,
-    #[error("NoFinalizedRanges")]
-    NoFinalizedRanges,
+    UnfinalizedForeignFinal,
     #[error("NoAlignedLocal")]
     NoAlignedLocal,
     #[error("NoSessionIdProvided")]
@@ -587,4 +586,8 @@ pub enum NormalizationError {
     NoAllocatedFinal,
     #[error("UnallocatedLocal")]
     UnallocatedLocal,
+    #[error("Unknown session token.")]
+    UnknownSessionToken,
+    #[error("No IDs have ever been finalized by the supplied session.")]
+    NoTokenForSession,
 }
