@@ -539,7 +539,7 @@ fn test_prevents_normalizing_unfinalized_foreign_id_to_session_space() {
         compressor_b
             .normalize_to_session_space(op_space_id_a_3, compressor_a.get_local_session_id())
             .unwrap_err(),
-        NormalizationError::UnFinalizedForeignFinal
+        NormalizationError::UnfinalizedForeignFinal
     ));
 }
 
