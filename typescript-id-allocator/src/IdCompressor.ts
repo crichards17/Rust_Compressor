@@ -21,6 +21,7 @@ import { createSessionId, fail, isNaN } from "./util/utilities";
 import { ITelemetryLogger } from "@fluidframework/common-definitions";
 
 export const defaultClusterCapacity = WasmIdCompressor.get_default_cluster_capacity();
+const nilToken = WasmIdCompressor.get_nil_token();
 
 /**
  * See {@link IIdCompressor} and {@link IIdCompressorCore}
@@ -28,6 +29,8 @@ export const defaultClusterCapacity = WasmIdCompressor.get_default_cluster_capac
 export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 	private readonly sessionTokens: Map<SessionId, number> = new Map();
 	public readonly localSessionId: SessionId;
+	private lastUsedToken = nilToken;
+	private lastUsedSessionId: SessionId | undefined = undefined;
 
 	private constructor(
 		private readonly wasmCompressor: WasmIdCompressor,
@@ -76,8 +79,12 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 
 	public finalizeCreationRange(range: IdCreationRange): void {
 		const { sessionId, ids } = range;
-		if (isNaN(this.sessionTokens.get(sessionId))) {
+		if (this.sessionTokens.get(sessionId) === nilToken) {
 			this.sessionTokens.delete(sessionId);
+			if (sessionId === this.lastUsedSessionId) {
+				this.lastUsedSessionId = undefined;
+				this.lastUsedToken = nilToken;
+			}
 		}
 		if (ids !== undefined) {
 			let idStats: InteropTelemetryStats | undefined;
@@ -163,15 +170,21 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 		id: OpSpaceCompressedId,
 		originSessionId: SessionId,
 	): SessionSpaceCompressedId {
-		let session_token = this.sessionTokens.get(originSessionId);
-		if (session_token === undefined) {
-			session_token = this.wasmCompressor.get_token(originSessionId);
-			this.sessionTokens.set(originSessionId, session_token);
+		let sessionToken = this.lastUsedToken;
+		if (originSessionId !== this.lastUsedSessionId) {
+			let wasmSessionToken = this.sessionTokens.get(originSessionId);
+			if (wasmSessionToken === undefined) {
+				wasmSessionToken = this.wasmCompressor.get_token(originSessionId);
+				this.sessionTokens.set(originSessionId, wasmSessionToken);
+			}
+			sessionToken = wasmSessionToken;
+			this.lastUsedToken = sessionToken;
+			this.lastUsedSessionId = originSessionId;
+			if (wasmSessionToken === nilToken) {
+				assert(id >= 0, "No IDs have ever been finalized by the supplied session.");
+			}
 		}
-		if (isNaN(session_token)) {
-			assert(id >= 0, "No IDs have ever been finalized by the supplied session.");
-		}
-		let normalizedId = this.wasmCompressor.normalize_to_session_space(id, session_token);
+		let normalizedId = this.wasmCompressor.normalize_to_session_space(id, sessionToken);
 		return this.idOrError<SessionSpaceCompressedId>(normalizedId);
 	}
 

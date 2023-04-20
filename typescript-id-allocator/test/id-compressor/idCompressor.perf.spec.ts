@@ -91,7 +91,7 @@ describe("IdCompressor Perf", () => {
 				}
 			}
 		}
-		fail("no local ID found in log");
+		fail("no ID found in log");
 	}
 
 	function benchmarkWithFlag(creator: (flag: boolean) => void) {
@@ -209,27 +209,32 @@ describe("IdCompressor Perf", () => {
 		});
 	});
 
-	const remoteSessionId = sessionIds.get(remoteClient);
-	let opSpaceId!: OpSpaceCompressedId;
-	benchmark({
-		type,
-		title: `normalize a final ID from a remote session to a small session space (common case)`,
-		before: () => {
-			const network = setupCompressors(defaultClusterCapacity, false, true);
-			// Ensure the local session has several different clusters
-			for (let clusterCount = 0; clusterCount < 3; clusterCount++) {
-				network.allocateAndSendIds(localClient, perfCompressor.clusterCapacity * 2);
-				network.allocateAndSendIds(remoteClient, perfCompressor.clusterCapacity * 2);
-			}
-			network.deliverOperations(DestinationClient.All);
-			const localFromRemoteSession = getIdMadeBy(remoteClient, false, network);
-			opSpaceId = network
-				.getCompressor(remoteClient)
-				.normalizeToOpSpace(localFromRemoteSession) as OpSpaceCompressedId;
-		},
-		benchmarkFn: () => {
-			perfCompressor!.normalizeToSessionSpace(opSpaceId, remoteSessionId);
-		},
+	benchmarkWithFlag((isLocalOriginator) => {
+		const remoteSessionId = sessionIds.get(remoteClient);
+		let opSpaceId!: OpSpaceCompressedId;
+		benchmark({
+			type,
+			title: `normalize a final ID from a ${
+				isLocalOriginator ? "local" : "remote"
+			} session to a small session space (common case)`,
+			before: () => {
+				const network = setupCompressors(defaultClusterCapacity, false, true);
+				// Ensure the local session has several different clusters
+				for (let clusterCount = 0; clusterCount < 5; clusterCount++) {
+					network.allocateAndSendIds(localClient, perfCompressor.clusterCapacity);
+					network.allocateAndSendIds(remoteClient, perfCompressor.clusterCapacity * 2);
+					network.deliverOperations(DestinationClient.All);
+				}
+				const client = isLocalOriginator ? localClient : remoteClient;
+				const idFromSession = getIdMadeBy(client, true, network);
+				opSpaceId = network
+					.getCompressor(client)
+					.normalizeToOpSpace(idFromSession) as OpSpaceCompressedId;
+			},
+			benchmarkFn: () => {
+				perfCompressor!.normalizeToSessionSpace(opSpaceId, remoteSessionId);
+			},
+		});
 	});
 
 	let unackedLocalId!: LocalCompressedId;

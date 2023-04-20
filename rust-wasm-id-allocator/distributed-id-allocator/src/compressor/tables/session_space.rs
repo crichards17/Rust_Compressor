@@ -20,10 +20,6 @@ impl Sessions {
         }
     }
 
-    pub fn get_sessions_count(&self) -> usize {
-        self.session_list.len()
-    }
-
     pub fn get_or_create(&mut self, session_id: SessionId) -> SessionSpaceRef {
         match self.session_map.get(&session_id) {
             None => {
@@ -56,6 +52,17 @@ impl Sessions {
 
     pub fn deref_session_space(&self, session_space_ref: SessionSpaceRef) -> &SessionSpace {
         &self.session_list[session_space_ref.index]
+    }
+
+    pub fn try_deref_session_space(
+        &self,
+        SessionSpaceRef { index }: SessionSpaceRef,
+    ) -> Option<&SessionSpace> {
+        if index >= self.session_list.len() {
+            None
+        } else {
+            Some(&self.session_list[index])
+        }
     }
 
     pub fn deref_cluster_mut(&mut self, cluster_ref: ClusterRef) -> &mut IdCluster {
@@ -284,8 +291,11 @@ impl SessionSpaceRef {
         self.index
     }
 
-    pub fn create_from_index(index: usize) -> SessionSpaceRef {
-        SessionSpaceRef { index }
+    pub fn create_from_token(token: i64) -> SessionSpaceRef {
+        debug_assert!(token >= 0, "Nil token passed as session space ref.");
+        SessionSpaceRef {
+            index: token as usize,
+        }
     }
 }
 
