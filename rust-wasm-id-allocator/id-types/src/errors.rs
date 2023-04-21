@@ -31,9 +31,15 @@ pub enum AllocatorError {
     NoTokenForSession,
 }
 
-impl AllocatorError {
+/// Defines a way to get an error string.
+pub trait ErrorString {
+    /// Returns the error string.
+    fn to_error_string(&self) -> &str;
+}
+
+impl ErrorString for AllocatorError {
     /// Returns the string representation for the error variant.
-    pub fn to_string(&self) -> &str {
+    fn to_error_string(&self) -> &str {
         match self {
             AllocatorError::InvalidUuidString => "String is not a valid UUID.",
             AllocatorError::InvalidVersionOrVariant => "String is not a V4 variant 1 UUID.",

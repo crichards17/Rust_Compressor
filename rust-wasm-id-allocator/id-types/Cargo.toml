@@ -19,6 +19,3 @@ features = [
     "js"
 ]
 
-[dependencies.thiserror]
-version = "1.0"
-
