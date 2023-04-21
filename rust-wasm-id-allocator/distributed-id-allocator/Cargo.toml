@@ -24,4 +24,3 @@ features = [
 
 [dependencies]
 id-types = { path = "../../rust-wasm-id-allocator/id-types", version = "0.1", default-features = false }
-thiserror = "1.0"

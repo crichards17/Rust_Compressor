@@ -1,7 +1,5 @@
-use id_types::SessionId;
-use thiserror::Error;
-
 use super::IdCompressor;
+use id_types::{errors::ErrorString, SessionId};
 use postcard::from_bytes;
 use serde::{Deserialize, Serialize};
 
@@ -16,7 +14,7 @@ where
 {
     let versioned_persistent_compressor: VersionedPersistentCompressor = match from_bytes(bytes) {
         Ok(result) => result,
-        Err(e) => return Err(DeserializationError::PostcardError(e)),
+        Err(_) => return Err(DeserializationError::PostcardError),
     };
     match versioned_persistent_compressor {
         VersionedPersistentCompressor::V1(persistent_compressor) => {
@@ -30,14 +28,22 @@ enum VersionedPersistentCompressor {
     V1(v1::PersistentCompressor),
 }
 
-#[derive(Error, Debug)]
+#[derive(Debug)]
 pub enum DeserializationError {
-    #[error("{}", 0.to_string())]
-    PostcardError(postcard::Error),
-    #[error("Cannot resume existing session.")]
+    PostcardError,
     InvalidResumedSession,
-    #[error("Unknown deserialization error.")]
     UnknownError,
+}
+
+impl ErrorString for DeserializationError {
+    /// Returns the string representation for the error variant.
+    fn to_error_string(&self) -> &str {
+        match self {
+            DeserializationError::PostcardError => "Postcard error.",
+            DeserializationError::InvalidResumedSession => "Cannot resume existing session.",
+            DeserializationError::UnknownError => "Unknown deserialization error.",
+        }
+    }
 }
 
 pub(crate) mod v1 {
