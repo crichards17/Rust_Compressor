@@ -1,8 +1,6 @@
-use thiserror::Error;
 use uuid::Uuid;
 
-use super::StableId;
-use crate::LocalId;
+use crate::{AllocatorError, LocalId, StableId};
 
 #[derive(Eq, PartialEq, PartialOrd, Ord, Hash, Copy, Clone, Debug)]
 /// A StableId which is suitable for use as a session identifier.
@@ -21,12 +19,12 @@ impl SessionId {
     }
 
     /// Creates a new SessionId from the supplied UUID. Intended for internal use only.
-    pub fn from_uuid_string(uuid_string: &str) -> Result<SessionId, UuidGenerationError> {
+    pub fn from_uuid_string(uuid_string: &str) -> Result<SessionId, AllocatorError> {
         match Uuid::try_parse(uuid_string) {
-            Err(_) => Err(UuidGenerationError::InvalidUuidString),
+            Err(_) => Err(AllocatorError::InvalidUuidString),
             Ok(uuid) => {
                 if uuid.get_variant() != uuid::Variant::RFC4122 || uuid.get_version_num() != 4 {
-                    Err(UuidGenerationError::InvalidVersionOrVariant)
+                    Err(AllocatorError::InvalidVersionOrVariant)
                 } else {
                     Ok(SessionId {
                         id: StableId::from(uuid),
@@ -76,15 +74,4 @@ impl std::ops::Add<LocalId> for SessionId {
     fn add(self, rhs: LocalId) -> Self::Output {
         self.id + rhs
     }
-}
-
-#[derive(Error, Debug)]
-/// Error enum for generating SessionId_s.
-pub enum UuidGenerationError {
-    #[error("Invalid Uuid String")]
-    /// Invalid Uuid String
-    InvalidUuidString,
-    #[error("Invalid Version or Variant")]
-    /// Invalid Version or Variant
-    InvalidVersionOrVariant,
 }

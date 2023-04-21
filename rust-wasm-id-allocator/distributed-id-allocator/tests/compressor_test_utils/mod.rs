@@ -28,7 +28,7 @@ pub trait TestSessionSpaceId {
 
 impl TestSessionSpaceId for SessionSpaceId {
     fn unwrap_uuid_str(&self, compressor: &IdCompressor) -> String {
-        compressor.decompress(*self).unwrap().into()
+        compressor.decompress(*self).ok().unwrap().into()
     }
 }
 

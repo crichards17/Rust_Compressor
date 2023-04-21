@@ -54,3 +54,7 @@ pub use session_id::SessionId;
 /// File-separated module for compressed IDs.
 pub mod compressed_id;
 pub use compressed_id::CompressedId;
+
+/// File-separated module for error enumeration
+pub mod errors;
+pub use errors::AllocatorError;

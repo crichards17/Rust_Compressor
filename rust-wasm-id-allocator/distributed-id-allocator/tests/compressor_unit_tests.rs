@@ -1,6 +1,6 @@
 mod compressor_test_utils;
-
 use compressor_test_utils::*;
+
 use distributed_id_allocator::compressor::*;
 use id_types::*;
 use std::collections::{BTreeSet, HashSet};
@@ -12,7 +12,9 @@ const TRAILING_EDGE_OF_VERSION_SESSION_ID: &str = "00000000-0001-4000-8000-00000
 #[test]
 fn test_cluster_spans_reserved_bits() {
     let mut compressor = IdCompressor::new_with_session_id(
-        SessionId::from_uuid_string(LEADING_EDGE_OF_VERSION_SESSION_ID).unwrap(),
+        SessionId::from_uuid_string(LEADING_EDGE_OF_VERSION_SESSION_ID)
+            .ok()
+            .unwrap(),
     );
 
     let local_first = compressor.generate_next_id();
@@ -32,10 +34,11 @@ fn test_cluster_spans_reserved_bits() {
     }
     assert_eq!(uuid_set.len(), ids.len());
     let trailing_uuid = Uuid::try_parse(TRAILING_EDGE_OF_VERSION_SESSION_ID)
+        .ok()
         .unwrap()
         .as_u128();
     for uuid_str in &uuid_set {
-        let uuid = Uuid::try_parse(uuid_str).unwrap();
+        let uuid = Uuid::try_parse(uuid_str).ok().unwrap();
         assert!(uuid.as_u128() >= trailing_uuid);
     }
 }
@@ -45,7 +48,7 @@ fn test_detects_invalid_cluster_capacities() {
     let mut compressor_1 = IdCompressor::new();
     assert!(matches!(
         compressor_1.set_cluster_capacity(0).unwrap_err(),
-        ClusterCapacityError::InvalidClusterCapacity
+        AllocatorError::InvalidClusterCapacity
     ));
     assert!(compressor_1.set_cluster_capacity(1).is_ok());
     assert!(compressor_1.set_cluster_capacity(u64::MAX).is_ok());
@@ -64,10 +67,10 @@ fn test_manual_id_creation() {
     let id = compressor.generate_next_id();
     let decompress_result = compressor.decompress(id);
     assert!(decompress_result.is_ok());
-    let uuid = decompress_result.unwrap();
+    let uuid = decompress_result.ok().unwrap();
     let recompress_result = compressor.recompress(uuid);
     assert!(recompress_result.is_ok());
-    assert_eq!(id, recompress_result.unwrap());
+    assert_eq!(id, recompress_result.ok().unwrap());
 }
 
 #[test]
@@ -94,12 +97,12 @@ fn test_eager_final_normalization() {
     let final_2 = compressor.generate_next_id();
 
     assert!(compressor.normalize_to_op_space(final_2).is_ok());
-    let op_space_2 = compressor.normalize_to_op_space(final_2).unwrap();
+    let op_space_2 = compressor.normalize_to_op_space(final_2).ok().unwrap();
     assert!(op_space_2.is_final());
     let normalize_result =
         compressor.normalize_to_session_space(op_space_2, compressor.get_local_session_id());
     assert!(normalize_result.is_ok());
-    let session_space_2 = normalize_result.unwrap();
+    let session_space_2 = normalize_result.ok().unwrap();
     assert!(session_space_2.is_final());
     assert_eq!(final_2, session_space_2);
 }
@@ -132,13 +135,15 @@ fn test_eager_finals_with_outstanding_locals() {
     assert_eq!(
         local_id,
         compressor
-            .recompress(compressor.decompress(local_id).unwrap())
+            .recompress(compressor.decompress(local_id).ok().unwrap())
+            .ok()
             .unwrap()
     );
     assert_eq!(
         eager_id,
         compressor
-            .recompress(compressor.decompress(eager_id).unwrap())
+            .recompress(compressor.decompress(eager_id).ok().unwrap())
+            .ok()
             .unwrap()
     );
 
@@ -146,13 +151,15 @@ fn test_eager_finals_with_outstanding_locals() {
     assert_eq!(
         local_id,
         compressor
-            .recompress(compressor.decompress(local_id).unwrap())
+            .recompress(compressor.decompress(local_id).ok().unwrap())
+            .ok()
             .unwrap()
     );
     assert_eq!(
         eager_id,
         compressor
-            .recompress(compressor.decompress(eager_id).unwrap())
+            .recompress(compressor.decompress(eager_id).ok().unwrap())
+            .ok()
             .unwrap()
     );
 }
@@ -210,7 +217,7 @@ fn test_unique_eager_finals_with_multiple_outstanding_ranges() {
     let mut stable_ids: BTreeSet<StableId> = BTreeSet::new();
     for id in generated_ids {
         session_space_ids.insert(id);
-        stable_ids.insert(compressor.decompress(id).unwrap());
+        stable_ids.insert(compressor.decompress(id).ok().unwrap());
     }
     assert_eq!(session_space_ids.len(), 8);
     assert_eq!(stable_ids.len(), 8);
@@ -239,8 +246,16 @@ fn test_unique_eager_finals_with_outstanding_locals_after_expansion() {
 
     // Finalize the first range. This should align the first four locals (i.e. all of range1, and 2/3 of range2)
     _ = compressor.finalize_range(&range_a);
-    assert!(compressor.normalize_to_op_space(id_b_2).unwrap().is_final());
-    assert!(compressor.normalize_to_op_space(id_b_3).unwrap().is_local());
+    assert!(compressor
+        .normalize_to_op_space(id_b_2)
+        .ok()
+        .unwrap()
+        .is_final());
+    assert!(compressor
+        .normalize_to_op_space(id_b_3)
+        .ok()
+        .unwrap()
+        .is_local());
 
     // Make a single range that should still be overflowing the initial cluster (i.e. be local)
     let id_c_1 = compressor.generate_next_id();
@@ -253,7 +268,11 @@ fn test_unique_eager_finals_with_outstanding_locals_after_expansion() {
     // All generated IDs should have aligned finals (even though range_c has not been finalized)
     let mut generated_ids = vec![id_a_1, id_a_2, id_b_1, id_b_2, id_b_3, id_c_1];
     for id in &generated_ids {
-        assert!(compressor.normalize_to_op_space(*id).unwrap().is_final());
+        assert!(compressor
+            .normalize_to_op_space(*id)
+            .ok()
+            .unwrap()
+            .is_final());
     }
 
     _ = compressor.finalize_range(&range_c);
@@ -268,7 +287,7 @@ fn test_unique_eager_finals_with_outstanding_locals_after_expansion() {
     let mut stable_ids: BTreeSet<StableId> = BTreeSet::new();
     for id in generated_ids {
         session_space_ids.insert(id);
-        stable_ids.insert(compressor.decompress(id).unwrap());
+        stable_ids.insert(compressor.decompress(id).ok().unwrap());
     }
     assert_eq!(session_space_ids.len(), 7);
     assert_eq!(stable_ids.len(), 7);
@@ -303,7 +322,7 @@ fn test_prevent_finalizing_ranges_twice() {
     _ = compressor.finalize_range(&range_a);
     assert!(matches!(
         compressor.finalize_range(&range_a).unwrap_err(),
-        FinalizationError::RangeFinalizedOutOfOrder
+        AllocatorError::RangeFinalizedOutOfOrder
     ));
 }
 
@@ -316,7 +335,7 @@ fn test_prevent_finalizing_ranges_out_of_order() {
     let range_b = compressor.take_next_range();
     assert!(matches!(
         compressor.finalize_range(&range_b).unwrap_err(),
-        FinalizationError::RangeFinalizedOutOfOrder
+        AllocatorError::RangeFinalizedOutOfOrder
     ));
 }
 
@@ -334,7 +353,12 @@ fn test_finalize_to_clusters_of_varying_size() {
             _ = compressor.finalize_range(&range);
             let mut op_space_ids: BTreeSet<OpSpaceId> = BTreeSet::new();
             for session_space_id in &session_space_ids {
-                op_space_ids.insert(compressor.normalize_to_op_space(*session_space_id).unwrap());
+                op_space_ids.insert(
+                    compressor
+                        .normalize_to_op_space(*session_space_id)
+                        .ok()
+                        .unwrap(),
+                );
             }
             assert_eq!(session_space_ids.len(), op_space_ids.len());
             for op_space_id in op_space_ids {
@@ -348,24 +372,30 @@ fn test_finalize_to_clusters_of_varying_size() {
 fn test_recompress_own_stable_id() {
     let mut compressor = IdCompressor::new();
     let session_space_id = compressor.generate_next_id();
-    let stable_id = compressor.decompress(session_space_id).unwrap();
-    assert_eq!(compressor.recompress(stable_id).unwrap(), session_space_id);
+    let stable_id = compressor.decompress(session_space_id).ok().unwrap();
+    assert_eq!(
+        compressor.recompress(stable_id).ok().unwrap(),
+        session_space_id
+    );
     finalize_next_range(&mut compressor);
-    assert_eq!(compressor.recompress(stable_id).unwrap(), session_space_id);
+    assert_eq!(
+        compressor.recompress(stable_id).ok().unwrap(),
+        session_space_id
+    );
 }
 
 #[test]
 fn test_recompress_foreign_stable_id() {
     let mut compressor_1 = IdCompressor::new();
     let id_1 = compressor_1.generate_next_id();
-    let stable_id_1 = compressor_1.decompress(id_1).unwrap();
+    let stable_id_1 = compressor_1.decompress(id_1).ok().unwrap();
 
     let mut compressor_2 = IdCompressor::new();
     let range_1 = compressor_1.take_next_range();
     _ = compressor_2.finalize_range(&range_1);
     let recompress_result = compressor_2.recompress(stable_id_1);
     assert!(recompress_result.is_ok());
-    assert!(recompress_result.unwrap().is_final());
+    assert!(recompress_result.ok().unwrap().is_final());
 }
 
 #[test]
@@ -374,10 +404,12 @@ fn test_prevents_recompressing_unknown_stable_ids() {
     assert!(matches!(
         compressor
             .recompress(StableId::from(
-                Uuid::try_parse("5fff846a-efd4-42fb-8b78-b32ce2672f99").unwrap()
+                Uuid::try_parse("5fff846a-efd4-42fb-8b78-b32ce2672f99")
+                    .ok()
+                    .unwrap()
             ))
             .unwrap_err(),
-        RecompressionError::UnallocatedStableId
+        AllocatorError::InvalidStableId
     ));
 }
 
@@ -392,7 +424,7 @@ fn test_recompress_unfinalized_eager_final() {
     let stable_id = StableId::from(compressor.get_local_session_id()) + 1;
     let recompress_result = compressor.recompress(stable_id);
     assert!(recompress_result.is_ok());
-    assert_eq!(recompress_result.unwrap(), id_2);
+    assert_eq!(recompress_result.ok().unwrap(), id_2);
 }
 
 #[test]
@@ -402,13 +434,13 @@ fn test_decompress_unknown_id() {
         compressor
             .decompress(SessionSpaceId::from_id(-2))
             .unwrap_err(),
-        DecompressionError::UnobtainableId
+        AllocatorError::InvalidSessionSpaceId,
     ));
     assert!(matches!(
         compressor
             .decompress(SessionSpaceId::from_id(0))
             .unwrap_err(),
-        DecompressionError::UnallocatedFinalId
+        AllocatorError::InvalidSessionSpaceId,
     ));
 }
 
@@ -417,11 +449,11 @@ fn test_decompress_local_before_and_after_finalizing() {
     let mut compressor = IdCompressor::new();
     let session_space_id = compressor.generate_next_id();
     assert!(compressor.decompress(session_space_id).is_ok());
-    let stable_id = compressor.decompress(session_space_id).unwrap();
+    let stable_id = compressor.decompress(session_space_id).ok().unwrap();
     finalize_next_range(&mut compressor);
     let decompress_result = compressor.decompress(session_space_id);
     assert!(decompress_result.is_ok());
-    assert_eq!(decompress_result.unwrap(), stable_id);
+    assert_eq!(decompress_result.ok().unwrap(), stable_id);
 }
 
 #[test]
@@ -429,12 +461,16 @@ fn test_decompress_final_id() {
     let mut compressor = IdCompressor::new();
     let session_space_id = compressor.generate_next_id();
     finalize_next_range(&mut compressor);
-    let op_space_id = compressor.normalize_to_op_space(session_space_id).unwrap();
+    let op_space_id = compressor
+        .normalize_to_op_space(session_space_id)
+        .ok()
+        .unwrap();
     assert!(op_space_id.is_final());
     assert!(compressor
         .decompress(
             compressor
                 .normalize_to_session_space(op_space_id, compressor.get_local_session_id())
+                .ok()
                 .unwrap()
         )
         .is_ok());
@@ -451,7 +487,7 @@ fn test_decompress_unfinalized_eager_final() {
     let stable_equivalent = StableId::from(compressor.get_local_session_id()) + 1;
     let decompress_result = compressor.decompress(eager_final);
     assert!(decompress_result.is_ok());
-    assert_eq!(decompress_result.unwrap(), stable_equivalent);
+    assert_eq!(decompress_result.ok().unwrap(), stable_equivalent);
 }
 
 #[test]
@@ -460,7 +496,7 @@ fn test_normalize_unfinalized_local_to_op_space() {
     let session_space_local = compressor.generate_next_id();
     let normalize_result = compressor.normalize_to_op_space(session_space_local);
     assert!(normalize_result.is_ok());
-    let normalized_id = normalize_result.unwrap();
+    let normalized_id = normalize_result.ok().unwrap();
     assert!(normalized_id.is_local());
     assert_eq!(normalized_id.id(), session_space_local.id());
 }
@@ -472,7 +508,7 @@ fn test_normalize_finalized_local_to_op_space() {
     finalize_next_range(&mut compressor);
     let normalize_result = compressor.normalize_to_op_space(session_space_local);
     assert!(normalize_result.is_ok());
-    let normalized_id = normalize_result.unwrap();
+    let normalized_id = normalize_result.ok().unwrap();
     assert!(normalized_id.is_final());
     assert_ne!(normalized_id.id(), session_space_local.id());
 }
@@ -486,13 +522,13 @@ fn test_normalize_eager_final_to_op_space() {
     let eager_final = compressor.generate_next_id();
     let normalize_to_op_result = compressor.normalize_to_op_space(eager_final);
     assert!(normalize_to_op_result.is_ok());
-    let normalized_id = normalize_to_op_result.unwrap();
+    let normalized_id = normalize_to_op_result.ok().unwrap();
     assert!(normalized_id.is_final());
     assert_eq!(normalized_id.id(), eager_final.id());
     let normalize_to_session_result =
         compressor.normalize_to_session_space(normalized_id, compressor.get_local_session_id());
     assert!(normalize_to_session_result.is_ok());
-    assert_eq!(normalize_to_session_result.unwrap(), eager_final);
+    assert_eq!(normalize_to_session_result.ok().unwrap(), eager_final);
 }
 
 #[test]
@@ -504,13 +540,14 @@ fn test_prevents_normalizing_unfinalized_foreign_id_to_session_space() {
     let session_space_id_a_1 = compressor_a.generate_next_id();
     let op_space_id_a_1 = compressor_a
         .normalize_to_op_space(session_space_id_a_1)
+        .ok()
         .unwrap();
     assert!(op_space_id_a_1.is_local());
     assert!(matches!(
         compressor_b
             .normalize_to_session_space(op_space_id_a_1, compressor_a.get_local_session_id())
             .unwrap_err(),
-        NormalizationError::NoTokenForSession
+        AllocatorError::NoTokenForSession
     ));
 
     // Attempt to finalize an unfinalized foreign local for a known session
@@ -519,13 +556,14 @@ fn test_prevents_normalizing_unfinalized_foreign_id_to_session_space() {
     let session_space_id_a_2 = compressor_a.generate_next_id();
     let op_space_id_a_2 = compressor_a
         .normalize_to_op_space(session_space_id_a_2)
+        .ok()
         .unwrap();
     assert!(op_space_id_a_2.is_local());
     assert!(matches!(
         compressor_b
             .normalize_to_session_space(op_space_id_a_2, compressor_a.get_local_session_id())
             .unwrap_err(),
-        NormalizationError::UnfinalizedForeignLocal
+        AllocatorError::InvalidOpSpaceId
     ));
 
     // Attempt to finalize an unfinalized foreign final for a known session
@@ -534,12 +572,13 @@ fn test_prevents_normalizing_unfinalized_foreign_id_to_session_space() {
     assert!(session_space_id_a_3.is_final());
     let op_space_id_a_3 = compressor_a
         .normalize_to_op_space(session_space_id_a_3)
+        .ok()
         .unwrap();
     assert!(matches!(
         compressor_b
             .normalize_to_session_space(op_space_id_a_3, compressor_a.get_local_session_id())
             .unwrap_err(),
-        NormalizationError::UnfinalizedForeignFinal
+        AllocatorError::InvalidOpSpaceId
     ));
 }
 
@@ -551,12 +590,14 @@ fn test_normalize_foreign_ids_to_session_space() {
     let session_space_id = compressor_a.generate_next_id();
     let op_space_local = compressor_a
         .normalize_to_op_space(session_space_id)
+        .ok()
         .unwrap();
     assert!(op_space_local.is_local());
     let range_a = compressor_a.take_next_range();
     _ = compressor_a.finalize_range(&range_a);
     let op_space_final = compressor_a
         .normalize_to_op_space(session_space_id)
+        .ok()
         .unwrap();
     assert!(op_space_final.is_final());
     _ = compressor_b.finalize_range(&range_a);
@@ -565,14 +606,14 @@ fn test_normalize_foreign_ids_to_session_space() {
         .normalize_to_session_space(op_space_local, compressor_a.get_local_session_id());
     assert!(normalize_local_to_session_result.is_ok());
     assert_eq!(
-        normalize_local_to_session_result.unwrap().id(),
+        normalize_local_to_session_result.ok().unwrap().id(),
         op_space_final.id()
     );
     let normalize_final_to_session_result = compressor_b
         .normalize_to_session_space(op_space_final, compressor_a.get_local_session_id());
     assert!(normalize_final_to_session_result.is_ok());
     assert_eq!(
-        normalize_final_to_session_result.unwrap().id(),
+        normalize_final_to_session_result.ok().unwrap().id(),
         op_space_final.id()
     );
 }
@@ -596,15 +637,18 @@ fn test_normalize_own_final_from_foreign_session() {
         .normalize_to_op_space(
             compressor_b
                 .normalize_to_session_space(
-                    compressor_a.normalize_to_op_space(id_a).unwrap(),
+                    compressor_a.normalize_to_op_space(id_a).ok().unwrap(),
                     compressor_a.get_local_session_id(),
                 )
+                .ok()
                 .unwrap(),
         )
+        .ok()
         .unwrap();
 
     let normalized_to_originating_session = compressor_a
         .normalize_to_session_space(foreign_id_to_op_space, compressor_b.get_local_session_id())
+        .ok()
         .unwrap();
 
     assert_eq!(normalized_to_originating_session, id_a);
