@@ -2,20 +2,22 @@
 The local/UUID space within an individual Session.
 Effectively represents the cluster chain for a given session.
 */
-use id_types::{FinalId, LocalId, SessionId};
+use id_types::session_id::from_stable_id;
+use id_types::{FinalId, LocalId, SessionId, StableId};
 use std::cmp::Ordering;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
+use std::ops::Bound;
 
 #[derive(Debug)]
 pub struct Sessions {
-    session_map: HashMap<SessionId, SessionSpaceRef>,
+    session_map: BTreeMap<SessionId, SessionSpaceRef>,
     session_list: Vec<SessionSpace>,
 }
 
 impl Sessions {
     pub fn new() -> Sessions {
         Sessions {
-            session_map: HashMap::new(),
+            session_map: BTreeMap::new(),
             session_list: Vec::new(),
         }
     }
@@ -72,6 +74,68 @@ impl Sessions {
 
     pub fn get_session_spaces(&self) -> impl Iterator<Item = &SessionSpace> {
         self.session_list.iter()
+    }
+
+    pub fn get_containing_cluster(&self, query: StableId) -> Option<(&IdCluster, LocalId)> {
+        let mut range = self
+            .session_map
+            .range((
+                Bound::Excluded(SessionId::nil()),
+                Bound::Included(from_stable_id(query)),
+            ))
+            .rev();
+        match range.next() {
+            None => None,
+            Some((_, &session_space_ref)) => {
+                let session_space = self.deref_session_space(session_space_ref);
+                if query > session_space.get_max_allocated_stable() {
+                    return None;
+                }
+                let delta: u128 = query - StableId::from(session_space.session_id);
+                let aligned_local = LocalId::from_generation_count(delta as u64 + 1);
+                match session_space.get_cluster_by_local(aligned_local, true) {
+                    Some(cluster_match) => {
+                        let result_session_id = self
+                            .deref_session_space(cluster_match.session_creator)
+                            .session_id();
+                        let cluster_min_stable = result_session_id + cluster_match.base_local_id;
+                        let cluster_max_stable = cluster_min_stable + cluster_match.capacity;
+                        if query >= cluster_min_stable && query <= cluster_max_stable {
+                            let originator_local = LocalId::from_id(
+                                -((query - StableId::from(result_session_id)) as i64) - 1,
+                            );
+                            Some((cluster_match, originator_local))
+                        } else {
+                            None
+                        }
+                    }
+                    None => None,
+                }
+            }
+        }
+    }
+
+    pub fn range_collides(
+        &self,
+        originator: SessionId,
+        range_base: StableId,
+        range_max: StableId,
+    ) -> bool {
+        let mut range = self
+            .session_map
+            .range((
+                Bound::Excluded(SessionId::nil()),
+                Bound::Included(from_stable_id(range_max)),
+            ))
+            .rev();
+        match range.next() {
+            None => false,
+            Some((_, &session_space_ref)) => {
+                let result_session_space = self.deref_session_space(session_space_ref);
+                originator != result_session_space.session_id
+                    && range_base <= result_session_space.get_max_allocated_stable()
+            }
+        }
     }
 
     #[cfg(debug_assertions)]
@@ -149,6 +213,14 @@ impl SessionSpace {
         })
     }
 
+    fn get_max_allocated_stable(&self) -> StableId {
+        let tail_cluster = match self.get_tail_cluster() {
+            Some(cluster_ref) => &self.cluster_chain[cluster_ref.cluster_chain_index],
+            None => return self.session_id.into(),
+        };
+        self.session_id + tail_cluster.max_allocated_local()
+    }
+
     pub fn add_empty_cluster(
         &mut self,
         base_final_id: FinalId,
@@ -179,6 +251,17 @@ impl SessionSpace {
         search_local: LocalId,
         include_allocated: bool,
     ) -> Option<FinalId> {
+        match self.get_cluster_by_local(search_local, include_allocated) {
+            Some(found_cluster) => Some(found_cluster.get_allocated_final(search_local).unwrap()),
+            None => None,
+        }
+    }
+
+    fn get_cluster_by_local(
+        &self,
+        search_local: LocalId,
+        include_allocated: bool,
+    ) -> Option<&IdCluster> {
         let last_valid_local: fn(current_cluster: &IdCluster) -> u64 = if include_allocated {
             |current_cluster| current_cluster.capacity - 1
         } else {
@@ -196,10 +279,7 @@ impl SessionSpace {
                 Ordering::Equal
             }
         }) {
-            Ok(index) => {
-                let found_cluster = &self.cluster_chain[index];
-                Some(found_cluster.get_allocated_final(search_local).unwrap())
-            }
+            Ok(index) => Some(&self.cluster_chain[index]),
             Err(_) => None,
         }
     }
@@ -257,6 +337,10 @@ impl IdCluster {
 
     pub fn max_local(&self) -> LocalId {
         self.base_local_id - (self.count - 1)
+    }
+
+    pub fn max_allocated_local(&self) -> LocalId {
+        self.base_local_id - (self.capacity - 1)
     }
 }
 

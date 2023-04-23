@@ -10,6 +10,13 @@ pub struct SessionId {
 }
 
 impl SessionId {
+    /// Returns the SessionId representation of the nil UUID.
+    pub fn nil() -> SessionId {
+        SessionId {
+            id: StableId::nil(),
+        }
+    }
+
     #[cfg(feature = "uuid-generation")]
     /// Generates a new SessionId from a random UUID.
     pub fn new() -> SessionId {
@@ -67,6 +74,11 @@ impl From<SessionId> for StableId {
     fn from(value: SessionId) -> Self {
         value.id
     }
+}
+
+/// Internal type conversion
+pub fn from_stable_id(stable_id: StableId) -> SessionId {
+    SessionId { id: stable_id }
 }
 
 impl std::ops::Add<LocalId> for SessionId {
