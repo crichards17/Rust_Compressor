@@ -4,7 +4,6 @@ use self::persistence::DeserializationError;
 use self::tables::final_space::FinalSpace;
 use self::tables::session_space::{ClusterRef, SessionSpace, SessionSpaceRef, Sessions};
 use self::tables::session_space_normalizer::SessionSpaceNormalizer;
-use self::tables::uuid_space::UuidSpace;
 use id_types::*;
 
 pub const NIL_TOKEN: i64 = -1;
@@ -19,7 +18,6 @@ pub struct IdCompressor {
     final_space: FinalSpace,
     // Cache of the last finalized final ID in final space. Used to optimize normalization.
     final_id_limit: FinalId,
-    uuid_space: UuidSpace,
     session_space_normalizer: SessionSpaceNormalizer,
     cluster_capacity: u64,
     telemetry_stats: TelemetryStats,
@@ -46,7 +44,6 @@ impl IdCompressor {
             sessions,
             final_space: FinalSpace::new(),
             final_id_limit: FinalId::from_id(0),
-            uuid_space: UuidSpace::new(),
             session_space_normalizer: SessionSpaceNormalizer::new(),
             cluster_capacity: persistence::DEFAULT_CLUSTER_CAPACITY,
             telemetry_stats: TelemetryStats::EMPTY,
@@ -165,9 +162,8 @@ impl IdCompressor {
         let range_base_local = LocalId::from_generation_count(range_base_gen_count);
         let range_base_stable = StableId::from(session_id) + range_base_local;
         // Checks collision for the maximum new-cluster span (the condition in which the current tail cluster is exactly full)
-        if self.uuid_space.range_collides(
+        if self.sessions.range_collides(
             session_id,
-            &self.sessions,
             range_base_stable,
             range_base_stable + range_len + self.cluster_capacity,
         ) {
@@ -189,7 +185,6 @@ impl IdCompressor {
                 self.add_empty_cluster(
                     session_space_ref,
                     range_base_local,
-                    session_id,
                     self.cluster_capacity + range_len,
                 )
             }
@@ -217,7 +212,6 @@ impl IdCompressor {
                 let new_cluster_ref = self.add_empty_cluster(
                     session_space_ref,
                     range_base_local - remaining_capacity,
-                    session_id,
                     new_claimed_final_count,
                 );
                 self.sessions.deref_cluster_mut(new_cluster_ref).count += overflow;
@@ -234,7 +228,6 @@ impl IdCompressor {
         &mut self,
         session_space_ref: SessionSpaceRef,
         base_local: LocalId,
-        session_id: SessionId,
         capacity: u64,
     ) -> ClusterRef {
         let next_base_final = match self.final_space.get_tail_cluster(&self.sessions) {
@@ -246,8 +239,7 @@ impl IdCompressor {
             session_space.add_empty_cluster(next_base_final, base_local, capacity);
         self.final_space
             .add_cluster(new_cluster_ref, &self.sessions);
-        self.uuid_space
-            .add_cluster(session_id, new_cluster_ref, &self.sessions);
+
         new_cluster_ref
     }
 
@@ -394,7 +386,7 @@ impl IdCompressor {
     }
 
     pub fn recompress(&self, id: StableId) -> Result<SessionSpaceId, AllocatorError> {
-        match self.uuid_space.search(id, &self.sessions) {
+        match self.sessions.get_containing_cluster(id) {
             None => {
                 let session_as_stable = StableId::from(self.session_id);
                 if id >= session_as_stable {
@@ -475,9 +467,6 @@ impl IdCompressor {
                 &self.sessions,
                 &other.sessions,
             )
-            && self
-                .uuid_space
-                .equals_test_only(&other.uuid_space, &self.sessions, &other.sessions)
             && self.cluster_capacity == other.cluster_capacity)
         {
             false

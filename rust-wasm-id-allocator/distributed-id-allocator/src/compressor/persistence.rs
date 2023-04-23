@@ -200,12 +200,6 @@ pub(crate) mod v1 {
             compressor
                 .final_space
                 .add_cluster(new_cluster_ref, &compressor.sessions);
-            let session_space = compressor.sessions.deref_session_space(session_space_ref);
-            compressor.uuid_space.add_cluster(
-                session_space.session_id(),
-                new_cluster_ref,
-                &compressor.sessions,
-            );
         }
         compressor.final_id_limit = match compressor
             .final_space
