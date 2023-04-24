@@ -54,7 +54,6 @@ static ALLOCATOR: AssumeSingleThreaded<FreeListAllocator> =
 /// A wrapper compressor for efficient API translation from/into WASM.
 pub struct IdCompressor {
     compressor: IdCompressorCore,
-    error_string: Option<String>,
 }
 
 const MAX_DEFAULT_CLUSTER_CAPACITY: f64 = 2_i32.pow(11) as f64;
@@ -79,7 +78,6 @@ impl IdCompressor {
             compressor: IdCompressorCore::new_with_session_id(
                 SessionId::from_uuid_string(&session_id_string).map_err(into_jserror)?,
             ),
-            error_string: None,
         })
     }
 
@@ -175,10 +173,7 @@ impl IdCompressor {
             .compressor
             .normalize_to_op_space(SessionSpaceId::from_id(session_space_id as i64))
         {
-            Err(err) => {
-                self.error_string = Some(String::from(err.to_error_string()));
-                NAN
-            }
+            Err(_) => NAN,
             Ok(op_space_id) => op_space_id.id() as f64,
         }
     }
@@ -195,20 +190,9 @@ impl IdCompressor {
             OpSpaceId::from_id(op_space_id as i64),
             originator_token as i64,
         ) {
-            Err(err) => {
-                self.error_string = Some(String::from(err.to_error_string()));
-                NAN
-            }
+            Err(_) => NAN,
             Ok(session_space_id) => session_space_id.id() as f64,
         }
-    }
-
-    /// Returns any error encountered during the last failed call to a normalization API.
-    /// This method exists to avoid marshalling an error string across interop during the common case.
-    pub fn get_normalization_error_string(&mut self) -> Option<String> {
-        let error = self.error_string.clone();
-        self.error_string = None;
-        error
     }
 
     /// Decompresses the ID into the corresponding UUID string.
@@ -251,7 +235,6 @@ impl IdCompressor {
                 session_id
             })
             .map_err(into_jserror)?,
-            error_string: None,
         })
     }
 }
@@ -322,7 +305,7 @@ impl TestOnly {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use id_types::{AllocatorError, LocalId};
+    use id_types::LocalId;
 
     const _STABLE_ID_1: &str = "748540ca-b7c5-4c99-83ff-c1b8e02c09d6";
     const _STABLE_ID_2: &str = "0002c79e-b536-4776-b000-000266c252d5";
@@ -445,13 +428,6 @@ mod tests {
         assert!(compressor
             .normalize_to_op_space(0.0 - (id_count as f64) - 1.0)
             .is_nan());
-
-        assert_eq!(
-            compressor.error_string,
-            Some(String::from(
-                AllocatorError::InvalidSessionSpaceId.to_error_string()
-            ))
-        );
     }
 
     #[test]
@@ -470,12 +446,6 @@ mod tests {
             -2_f64
         );
         assert!(compressor.normalize_to_session_space(1111.0, 0.0).is_nan());
-        assert_eq!(
-            compressor.error_string,
-            Some(String::from(
-                AllocatorError::InvalidOpSpaceId.to_error_string()
-            ))
-        );
     }
 
     #[test]

@@ -157,7 +157,7 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 
 	private idOrError<TId extends number>(idNum: number): TId {
 		if (isNaN(idNum)) {
-			throw new Error(this.wasmCompressor.get_normalization_error_string());
+			throw new Error("Invalid ID to normalize.");
 		}
 		return idNum as TId;
 	}
