@@ -2,22 +2,22 @@
 The local/UUID space within an individual Session.
 Effectively represents the cluster chain for a given session.
 */
+use avl::AvlTreeMap;
 use id_types::session_id::from_stable_id;
 use id_types::{FinalId, LocalId, SessionId, StableId};
 use std::cmp::Ordering;
-use std::collections::BTreeMap;
 use std::ops::Bound;
 
 #[derive(Debug)]
 pub struct Sessions {
-    session_map: BTreeMap<SessionId, SessionSpaceRef>,
+    session_map: AvlTreeMap<SessionId, SessionSpaceRef>,
     session_list: Vec<SessionSpace>,
 }
 
 impl Sessions {
     pub fn new() -> Sessions {
         Sessions {
-            session_map: BTreeMap::new(),
+            session_map: AvlTreeMap::new(),
             session_list: Vec::new(),
         }
     }
