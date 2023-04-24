@@ -35,6 +35,13 @@ use id_types::{
 use std::f64::NAN;
 use wasm_bindgen::prelude::*;
 
+use lol_alloc::{AssumeSingleThreaded, FreeListAllocator};
+
+// SAFETY: This application is single threaded, so using AssumeSingleThreaded is allowed.
+#[global_allocator]
+static ALLOCATOR: AssumeSingleThreaded<FreeListAllocator> =
+    unsafe { AssumeSingleThreaded::new(FreeListAllocator::new()) };
+
 // macro_rules! log {
 //     ( $( $t:tt )* ) => {
 //         #[cfg(test)]
