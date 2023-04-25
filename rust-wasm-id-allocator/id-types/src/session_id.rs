@@ -57,11 +57,6 @@ impl SessionId {
     pub fn from_uuid_u128(uuid_u128: u128) -> SessionId {
         uuid::Builder::from_u128(uuid_u128).into_uuid().into()
     }
-
-    /// Returns the SessionId as a hyphenated UUID string.
-    pub fn to_uuid_string(&self) -> String {
-        Uuid::from(self.id).to_string()
-    }
 }
 
 fn fill_bytes(chars: &[u8], buff: &mut [u8]) -> Result<(), AllocatorError> {

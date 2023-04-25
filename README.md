@@ -92,6 +92,8 @@ To build the Rust workspace, run `cargo build` from the rust-wasm-id-allocator f
 
 ## TypeScript
 
+In order to build, you must have _wasm-snip_ installed (`cargo install wasm-snip`).
+
 - Debug
   - To build the TS/WASM package for debugging, run `npm run build` from the typescript-id-allocator folder.
 - Benchmarking
