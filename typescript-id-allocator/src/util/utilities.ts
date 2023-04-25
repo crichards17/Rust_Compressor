@@ -141,3 +141,14 @@ export function fail(message: string): never {
 export function isNaN(num: any): boolean {
 	return Object.is(num, Number.NaN);
 }
+
+export function uuidStringFromBytes(uuidBytes: Uint8Array | undefined): string | undefined {
+	if (uuidBytes === undefined) {
+		return undefined;
+	}
+	let uuidString = "";
+	for (let i = 0; i < 36; i++) {
+		uuidString += String.fromCharCode(uuidBytes[i]);
+	}
+	return uuidString;
+}
