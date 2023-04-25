@@ -74,7 +74,8 @@ impl IdCompressor {
         })
     }
 
-    /// Returns the local session ID as a UUID string.
+    /// Returns the local session ID UUID.
+    /// For interop performance, this method returns a byte array containing the ASCII representation of the UUID string.
     /// Should not be called frequently due to marshalling costs.
     pub fn get_local_session_id(&self) -> Vec<u8> {
         Vec::from(StableId::from(self.compressor.get_local_session_id()))
