@@ -76,8 +76,8 @@ impl IdCompressor {
 
     /// Returns the local session ID as a UUID string.
     /// Should not be called frequently due to marshalling costs.
-    pub fn get_local_session_id(&self) -> String {
-        self.compressor.get_local_session_id().to_uuid_string()
+    pub fn get_local_session_id(&self) -> Vec<u8> {
+        Vec::from(StableId::from(self.compressor.get_local_session_id()))
     }
 
     /// Returns the current cluster capacity.
@@ -196,8 +196,7 @@ impl IdCompressor {
             .compressor
             .decompress(SessionSpaceId::from_id(id_to_decompress as i64))
             .ok()?;
-        let uuid_arr: [u8; 36] = stable_id.into();
-        Some(Vec::from(uuid_arr))
+        Some(stable_id.into())
     }
 
     /// Recompresses the UUID string into the corresponding ID.
@@ -268,7 +267,7 @@ pub struct TestOnly {}
 impl TestOnly {
     #[wasm_bindgen]
     /// Increments the supplied UUID and returns the result.
-    pub fn increment_uuid(_uuid_string: String, _offset: f64) -> Result<String, JsError> {
+    pub fn increment_uuid(_uuid_string: String, _offset: f64) -> Result<Vec<u8>, JsError> {
         #[cfg(debug_assertions)]
         return Ok(
             (StableId::from(SessionId::from_uuid_string(&_uuid_string).ok().unwrap())
@@ -319,7 +318,7 @@ mod tests {
             count,
         } = interop_id_range.unwrap();
         _ = compressor.finalize_range(
-            compressor.get_local_session_id(),
+            String::from_utf8(compressor.get_local_session_id()).unwrap(),
             first_local_gen_count,
             count,
         )
@@ -387,7 +386,7 @@ mod tests {
         } = interop_id_range.unwrap();
         assert!(compressor
             .finalize_range(
-                compressor.get_local_session_id(),
+                String::from_utf8(compressor.get_local_session_id()).unwrap(),
                 first_local_gen_count,
                 count
             )

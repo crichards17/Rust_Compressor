@@ -17,7 +17,7 @@ import {
 	StableId,
 } from "./types";
 import { currentWrittenVersion } from "./types/persisted-types/0.0.1";
-import { createSessionId, fail, isNaN } from "./util/utilities";
+import { createSessionId, fail, isNaN, uuidStringFromBytes } from "./util/utilities";
 import { ITelemetryLogger } from "@fluidframework/common-definitions";
 
 export const defaultClusterCapacity = WasmIdCompressor.get_default_cluster_capacity();
@@ -36,7 +36,8 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 		private readonly wasmCompressor: WasmIdCompressor,
 		private readonly logger?: ITelemetryLogger,
 	) {
-		this.localSessionId = wasmCompressor.get_local_session_id() as SessionId;
+		const sessionBytes = this.wasmCompressor.get_local_session_id();
+		this.localSessionId = uuidStringFromBytes(sessionBytes) as SessionId;
 	}
 
 	public static create(logger?: ITelemetryLogger): IdCompressor;
@@ -196,14 +197,7 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 
 	public tryDecompress(id: SessionSpaceCompressedId): StableId | undefined {
 		const uuidBytes = this.wasmCompressor.decompress(id);
-		if (uuidBytes === undefined) {
-			return undefined;
-		}
-		let uuidString = "";
-		for (let i = 0; i < 36; i++) {
-			uuidString += String.fromCharCode(uuidBytes[i]);
-		}
-		return uuidString as StableId;
+		return uuidStringFromBytes(uuidBytes) as StableId;
 	}
 
 	public recompress(uncompressed: StableId): SessionSpaceCompressedId {
