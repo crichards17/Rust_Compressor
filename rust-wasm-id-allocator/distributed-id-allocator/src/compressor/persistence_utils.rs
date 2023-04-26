@@ -4,8 +4,33 @@ pub struct Deserializer<'a> {
 }
 
 impl<'a> Deserializer<'a> {
+    #[inline]
     pub fn new(bytes: &'a [u8]) -> Self {
         Self { bytes, handle: 0 }
+    }
+
+    #[inline]
+    pub fn take_u64(self) -> (u64, Deserializer<'a>) {
+        self.take_one(u64::from_le_bytes)
+    }
+
+    #[inline]
+    pub fn take_and_write_u64(self, out: &mut u64) -> Deserializer<'a> {
+        let (val, deser) = self.take_u64();
+        *out = val;
+        deser
+    }
+
+    #[inline]
+    pub fn take_u128(self) -> (u128, Deserializer<'a>) {
+        self.take_one(u128::from_le_bytes)
+    }
+
+    #[inline]
+    pub fn take_and_write_u128(self, out: &mut u128) -> Deserializer<'a> {
+        let (val, deser) = self.take_u128();
+        *out = val;
+        deser
     }
 
     pub fn take_one<FBuild, T, const SIZE: usize>(self, builder: FBuild) -> (T, Deserializer<'a>)
@@ -46,6 +71,7 @@ impl<'a> Deserializer<'a> {
     }
 }
 
+// TODO: make public if pattern is determined to avoid arch-specific things like usize
 fn write_to_vec<FToBytes, T, const SIZE: usize>(bytes: &mut Vec<u8>, val: T, builder: FToBytes)
 where
     FToBytes: Fn(T) -> [u8; SIZE],
@@ -54,11 +80,6 @@ where
     for byte in val_arr {
         bytes.push(byte);
     }
-}
-
-#[inline]
-pub fn write_u32_to_vec(buffer: &mut Vec<u8>, num: u32) {
-    write_to_vec(buffer, num, |val: u32| val.to_le_bytes());
 }
 
 #[inline]
@@ -81,10 +102,6 @@ mod tests {
 
         vec![1, 2, 3]
             .iter()
-            .for_each(|val| write_u32_to_vec(&mut bytes, *val));
-
-        vec![1, 2, 3]
-            .iter()
             .for_each(|val| write_u64_to_vec(&mut bytes, *val));
 
         vec![1, 2, 3]
@@ -93,14 +110,11 @@ mod tests {
 
         let deser = Deserializer::new(&bytes);
 
-        let mut u32s = vec![];
         let mut u64s = vec![];
         let mut u128s = vec![];
         _ = deser
-            .take(3, u32::from_le_bytes, |val| u32s.push(val))
             .take(3, u64::from_le_bytes, |val| u64s.push(val))
             .take(3, u128::from_le_bytes, |val| u128s.push(val));
-        assert_eq!(u32s, vec![1, 2, 3]);
         assert_eq!(u64s, vec![1, 2, 3]);
         assert_eq!(u128s, vec![1, 2, 3]);
     }

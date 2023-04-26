@@ -11,7 +11,7 @@ where
     FMakeSession: FnOnce() -> SessionId,
 {
     let deserializer = Deserializer::new(&bytes);
-    let (version, deserializer) = deserializer.take_one(u64::from_le_bytes);
+    let (version, deserializer) = deserializer.take_u64();
     match version {
         1 => v1::deserialize(deserializer, make_session_id),
         _ => Err(DeserializationError::UnknownVersion),
@@ -104,25 +104,32 @@ pub mod v1 {
     where
         FMakeSession: FnOnce() -> SessionId,
     {
-        let with_local_state: bool;
-        let mut compressor = match persistent_compressor.local_state {
-            None => {
+        let (with_local_state_flag, deserializer) = deserializer.take_u64();
+        let with_local_state = with_local_state_flag != 0;
+        let mut compressor = match with_local_state {
+            false => {
                 with_local_state = false;
                 IdCompressor::new_with_session_id(make_session_id())
             }
-            Some(local_state) => {
-                let mut compressor = IdCompressor::new_with_session_id(SessionId::from_uuid_u128(
-                    local_state.session_uuid_u128,
-                ));
-                compressor.generated_id_count = local_state.generated_id_count;
-                compressor.next_range_base_generation_count =
-                    local_state.next_range_base_generation_count;
-                compressor.session_space_normalizer =
-                    get_normalizer_from_persistent(local_state.persistent_normalizer);
-                with_local_state = true;
+            true => {
+                let (session_uuid_u128, deserializer) = deserializer.take_u128();
+                let mut compressor =
+                    IdCompressor::new_with_session_id(SessionId::from_uuid_u128(session_uuid_u128));
+                let deserializer =
+                    deserializer.take_and_write_u64(&mut compressor.generated_id_count);
+                let deserializer = deserializer
+                    .take_and_write_u64(&mut compressor.next_range_base_generation_count);
+                let (normalizer, deserializer) = deserialize_normalizer(deserializer);
+                compressor.session_space_normalizer = normalizer;
                 compressor
             }
         };
+
+        // Layout
+        // cluster_capacity: u64,
+        // session_uuid_u128s: Vec<u128>,
+        // cluster_data: Vec<(session_index: u64, capacity: u64, count: u64)>,
+
         compressor.cluster_capacity = persistent_compressor.cluster_capacity;
         for session_uuid_u128 in &persistent_compressor.session_uuid_u128s {
             let session_id = SessionId::from_uuid_u128(*session_uuid_u128);

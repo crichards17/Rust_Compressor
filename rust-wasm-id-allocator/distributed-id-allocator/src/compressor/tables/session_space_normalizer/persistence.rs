@@ -27,15 +27,15 @@ pub(crate) mod v1 {
     pub fn deserialize_normalizer(
         deserializer: Deserializer,
     ) -> (SessionSpaceNormalizer, Deserializer) {
-        let (len, mut deserializer) = deserializer.take_one(u64::from_le_bytes);
+        let (len, deserializer) = deserializer.take_u64();
         let mut normalizer = SessionSpaceNormalizer::new();
         for _ in 0..len {
             let local_pair;
             (local_pair, deserializer) = deserializer
                 .take_one::<_, _, { size_of::<(LocalId, u64)>() }>(|val| {
                     let deser = Deserializer::new(&val);
-                    let (gen_count, deser) = deser.take_one(u64::from_le_bytes);
-                    let (count, _) = deser.take_one(u64::from_le_bytes);
+                    let (gen_count, deser) = deser.take_u64();
+                    let (count, _) = deser.take_u64();
                     (LocalId::from_generation_count(gen_count), count)
                 });
             normalizer.leading_locals.push(local_pair);
