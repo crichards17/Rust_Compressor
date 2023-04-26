@@ -1,4 +1,5 @@
 pub(crate) mod persistence;
+pub(crate) mod persistence_utils;
 pub(crate) mod tables;
 use self::persistence::DeserializationError;
 use self::tables::final_space::FinalSpace;

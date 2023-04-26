@@ -1,139 +1,104 @@
-use super::IdCompressor;
+use super::{persistence_utils::Deserializer, IdCompressor};
 use id_types::{errors::ErrorString, SessionId};
-use postcard::from_bytes;
-use serde::{Deserialize, Serialize};
 
 pub(super) const DEFAULT_CLUSTER_CAPACITY: u64 = 512;
 
-pub(crate) fn deserialize<FMakeSession>(
+pub fn deserialize<FMakeSession>(
     bytes: &[u8],
     make_session_id: FMakeSession,
 ) -> Result<IdCompressor, DeserializationError>
 where
     FMakeSession: FnOnce() -> SessionId,
 {
-    let versioned_persistent_compressor: VersionedPersistentCompressor = match from_bytes(bytes) {
-        Ok(result) => result,
-        Err(_) => return Err(DeserializationError::PostcardError),
-    };
-    match versioned_persistent_compressor {
-        VersionedPersistentCompressor::V1(persistent_compressor) => {
-            v1::deserialize(persistent_compressor, make_session_id)
-        }
+    let deserializer = Deserializer::new(&bytes);
+    let (version, deserializer) = deserializer.take_one(u64::from_le_bytes);
+    match version {
+        1 => v1::deserialize(deserializer, make_session_id),
+        _ => Err(DeserializationError::UnknownVersion),
     }
-}
-
-#[derive(Deserialize, Serialize)]
-enum VersionedPersistentCompressor {
-    V1(v1::PersistentCompressor),
 }
 
 #[derive(Debug)]
 pub enum DeserializationError {
-    PostcardError,
     InvalidResumedSession,
-    UnknownError,
+    UnknownVersion,
 }
 
 impl ErrorString for DeserializationError {
     /// Returns the string representation for the error variant.
     fn to_error_string(&self) -> &str {
         match self {
-            DeserializationError::PostcardError => "Postcard error.",
             DeserializationError::InvalidResumedSession => "Cannot resume existing session.",
-            DeserializationError::UnknownError => "Unknown deserialization error.",
+            DeserializationError::UnknownVersion => "Unknown deserialization error.",
         }
     }
 }
 
-pub(crate) mod v1 {
-
+pub mod v1 {
+    use super::DeserializationError;
     use crate::{
-        compressor::tables::{
-            session_space::IdCluster,
-            session_space_normalizer::persistence::v1::{
-                get_normalizer_from_persistent, get_persistent_normalizer, PersistenceNormalizer,
+        compressor::IdCompressor,
+        compressor::{
+            persistence_utils::{write_u128_to_vec, write_u64_to_vec, Deserializer},
+            tables::{
+                session_space::IdCluster,
+                session_space_normalizer::persistence::v1::{
+                    deserialize_normalizer, serialize_normalizer,
+                },
             },
         },
-        compressor::IdCompressor,
     };
     use id_types::{FinalId, LocalId, SessionId, StableId};
-    use postcard::to_allocvec;
-    use serde::{Deserialize, Serialize};
 
-    use super::DeserializationError;
+    // Layout
+    // has_local_state: bool as u64
+    //      session_uuid_u128: u128,
+    //      generated_id_count: u64,
+    //      next_range_base_generation_count: u64,
+    //      persistent_normalizer: PersistenceNormalizer,
+    // cluster_capacity: u64,
+    // session_uuid_u128s: Vec<u128>,
+    // cluster_data: Vec<(session_index: u64, capacity: u64, count: u64)>,
 
-    #[derive(Deserialize, Serialize)]
-    pub(super) struct PersistentCompressor {
-        local_state: Option<LocalState>,
-        cluster_capacity: u64,
-        session_uuid_u128s: Vec<u128>,
-        cluster_data: Vec<ClusterData>,
+    pub fn serialize(compressor: &IdCompressor) -> Vec<u8> {
+        let mut bytes: Vec<u8> = Vec::new();
+        write_u64_to_vec(&mut bytes, false as u64);
+        serialize_finalized(compressor, &mut bytes);
+        bytes
     }
 
-    #[derive(Deserialize, Serialize)]
-    struct LocalState {
-        session_uuid_u128: u128,
-        generated_id_count: u64,
-        next_range_base_generation_count: u64,
-        persistent_normalizer: PersistenceNormalizer,
+    pub fn serialize_with_local(compressor: &IdCompressor) -> Vec<u8> {
+        let mut bytes: Vec<u8> = Vec::new();
+        write_u64_to_vec(&mut bytes, true as u64);
+        write_u128_to_vec(&mut bytes, StableId::from(compressor.session_id).into());
+        write_u64_to_vec(&mut bytes, compressor.generated_id_count);
+        write_u64_to_vec(&mut bytes, compressor.next_range_base_generation_count);
+        serialize_normalizer(&compressor.session_space_normalizer, &mut bytes);
+        serialize_finalized(compressor, &mut bytes);
+        bytes
     }
 
-    #[derive(Deserialize, Serialize)]
-    struct ClusterData {
-        pub session_index: u64,
-        pub capacity: u64,
-        pub count: u64,
-    }
+    fn serialize_finalized(compressor: &IdCompressor, bytes: &mut Vec<u8>) {
+        write_u64_to_vec(bytes, compressor.cluster_capacity);
 
-    pub(crate) fn serialize(compressor: &IdCompressor) -> Vec<u8> {
-        let versioned_persistent_compressor =
-            super::VersionedPersistentCompressor::V1(serialize_finalized(compressor));
-        to_allocvec(&versioned_persistent_compressor).unwrap()
-    }
-
-    pub(crate) fn serialize_with_local(compressor: &IdCompressor) -> Vec<u8> {
-        let local_state = LocalState {
-            session_uuid_u128: StableId::from(compressor.session_id).into(),
-            generated_id_count: compressor.generated_id_count,
-            next_range_base_generation_count: compressor.next_range_base_generation_count,
-            persistent_normalizer: get_persistent_normalizer(&compressor.session_space_normalizer),
-        };
-
-        let mut persistent_compressor = serialize_finalized(compressor);
-        persistent_compressor.local_state = Some(local_state);
-        let versioned_persistent_compressor =
-            super::VersionedPersistentCompressor::V1(persistent_compressor);
-        to_allocvec(&versioned_persistent_compressor).unwrap()
-    }
-
-    fn serialize_finalized(compressor: &IdCompressor) -> PersistentCompressor {
-        let session_uuid_u128s: Vec<u128> = compressor
+        compressor
             .sessions
             .get_session_spaces()
             .map(|session_space| StableId::from(session_space.session_id()).into())
-            .collect();
+            .for_each(|session_u128| write_u128_to_vec(bytes, session_u128));
 
-        let cluster_data: Vec<ClusterData> = compressor
+        compressor
             .final_space
             .get_clusters(&compressor.sessions)
-            .map(|id_cluster| ClusterData {
-                session_index: id_cluster.session_creator.get_index() as u64,
-                capacity: id_cluster.capacity,
-                count: id_cluster.count,
-            })
-            .collect();
-
-        PersistentCompressor {
-            local_state: None,
-            session_uuid_u128s,
-            cluster_capacity: compressor.cluster_capacity,
-            cluster_data,
-        }
+            .for_each(|id_cluster| {
+                write_u64_to_vec(bytes, id_cluster.session_creator.get_index() as u64);
+                write_u64_to_vec(bytes, id_cluster.capacity);
+                write_u64_to_vec(bytes, id_cluster.count);
+            });
     }
 
     pub(super) fn deserialize<FMakeSession>(
-        persistent_compressor: PersistentCompressor,
+        deserializer: Deserializer,
         make_session_id: FMakeSession,
     ) -> Result<IdCompressor, DeserializationError>
     where
