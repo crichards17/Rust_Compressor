@@ -482,6 +482,7 @@ impl IdCompressor {
     }
 }
 
+#[derive(Debug)]
 pub struct IdRange {
     pub id: SessionId,
     // (First LocalID in the range as generation count, count of IDs)
