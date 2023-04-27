@@ -35,14 +35,6 @@ impl LocalId {
     }
 }
 
-impl Default for LocalId {
-    fn default() -> Self {
-        Self {
-            id: Default::default(),
-        }
-    }
-}
-
 impl PartialEq<i64> for LocalId {
     fn eq(&self, other: &i64) -> bool {
         self.id == *other

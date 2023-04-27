@@ -1,6 +1,4 @@
 pub(crate) mod v1 {
-    use std::mem::size_of;
-
     use crate::compressor::{
         persistence_utils::{write_u64_to_vec, Deserializer},
         tables::session_space_normalizer::SessionSpaceNormalizer,
@@ -24,23 +22,17 @@ pub(crate) mod v1 {
             });
     }
 
-    pub fn deserialize_normalizer(
-        deserializer: Deserializer,
-    ) -> (SessionSpaceNormalizer, Deserializer) {
-        let (len, mut deserializer) = deserializer.take_u64();
+    pub fn deserialize_normalizer(deserializer: &mut Deserializer) -> SessionSpaceNormalizer {
+        let len = deserializer.take_u64();
         let mut normalizer = SessionSpaceNormalizer::new();
         for _ in 0..len {
-            let local_pair;
-            (local_pair, deserializer) = deserializer
-                .take_one::<_, _, { size_of::<(LocalId, u64)>() }>(&|val| {
-                    let deser = Deserializer::new(&val);
-                    let (gen_count, deser) = deser.take_u64();
-                    let (count, _) = deser.take_u64();
-                    (LocalId::from_generation_count(gen_count), count)
-                });
-            normalizer.leading_locals.push(local_pair);
+            let gen_count = deserializer.take_u64();
+            let count = deserializer.take_u64();
+            normalizer
+                .leading_locals
+                .push((LocalId::from_generation_count(gen_count), count));
         }
-        (normalizer, deserializer)
+        normalizer
     }
 }
 
@@ -61,7 +53,7 @@ mod tests {
 
         let mut bytes: Vec<u8> = Vec::new();
         serialize_normalizer(&session_space_normalizer, &mut bytes);
-        let (normalizer, _) = deserialize_normalizer(Deserializer::new(&bytes));
+        let normalizer = deserialize_normalizer(&mut Deserializer::new(&bytes));
         assert!(normalizer.eq(&session_space_normalizer));
     }
 }
