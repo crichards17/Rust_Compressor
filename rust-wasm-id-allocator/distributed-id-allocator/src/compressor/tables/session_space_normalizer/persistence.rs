@@ -27,12 +27,12 @@ pub(crate) mod v1 {
     pub fn deserialize_normalizer(
         deserializer: Deserializer,
     ) -> (SessionSpaceNormalizer, Deserializer) {
-        let (len, deserializer) = deserializer.take_u64();
+        let (len, mut deserializer) = deserializer.take_u64();
         let mut normalizer = SessionSpaceNormalizer::new();
         for _ in 0..len {
             let local_pair;
             (local_pair, deserializer) = deserializer
-                .take_one::<_, _, { size_of::<(LocalId, u64)>() }>(|val| {
+                .take_one::<_, _, { size_of::<(LocalId, u64)>() }>(&|val| {
                     let deser = Deserializer::new(&val);
                     let (gen_count, deser) = deser.take_u64();
                     let (count, _) = deser.take_u64();

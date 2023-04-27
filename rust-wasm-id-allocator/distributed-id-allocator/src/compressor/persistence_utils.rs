@@ -1,17 +1,19 @@
+use super::persistence::DeserializationError;
+
 pub struct Deserializer<'a> {
     bytes: &'a [u8],
-    handle: usize,
+    pub error: Option<DeserializationError>,
 }
 
 impl<'a> Deserializer<'a> {
     #[inline]
     pub fn new(bytes: &'a [u8]) -> Self {
-        Self { bytes, handle: 0 }
+        Self { bytes, error: None }
     }
 
     #[inline]
     pub fn take_u64(self) -> (u64, Deserializer<'a>) {
-        self.take_one(u64::from_le_bytes)
+        self.take_one(&u64::from_le_bytes)
     }
 
     #[inline]
@@ -23,53 +25,58 @@ impl<'a> Deserializer<'a> {
 
     #[inline]
     pub fn take_u128(self) -> (u128, Deserializer<'a>) {
-        self.take_one(u128::from_le_bytes)
+        self.take_one(&u128::from_le_bytes)
     }
 
-    #[inline]
-    pub fn take_and_write_u128(self, out: &mut u128) -> Deserializer<'a> {
-        let (val, deser) = self.take_u128();
-        *out = val;
-        deser
-    }
-
-    pub fn take_one<FBuild, T, const SIZE: usize>(self, builder: FBuild) -> (T, Deserializer<'a>)
+    pub fn take_one<FBuild, T, const SIZE: usize>(
+        self,
+        builder: &'a FBuild,
+    ) -> (T, Deserializer<'a>)
     where
         FBuild: Fn([u8; SIZE]) -> T,
         T: Default,
     {
-        let mut out: T = T::default();
-        let deser = self.take(1, builder, |val| out = val);
-        (out, deser)
+        let (iter, deser) = self.take(1, builder);
+        for val in iter {
+            return (val, deser);
+        }
+        debug_assert!(false, "No value to take.");
+        (T::default(), deser)
     }
 
-    pub fn take<FBuild, FConsume, T, const SIZE: usize>(
+    pub fn take<FBuild, T, const SIZE: usize>(
         self,
         count: usize,
-        builder: FBuild,
-        mut consume: FConsume,
-    ) -> Deserializer<'a>
+        builder: &'a FBuild,
+    ) -> (impl Iterator<Item = T> + Captures<'a>, Deserializer<'a>)
     where
         FBuild: Fn([u8; SIZE]) -> T,
-        FConsume: FnMut(T),
     {
-        let new_handle = self.handle + count * SIZE;
-        let slice = &self.bytes[self.handle..new_handle];
-        for val in (0..count * SIZE).step_by(SIZE).map(|i| {
+        let mut deser = Deserializer {
+            bytes: self.bytes,
+            error: None,
+        };
+        let read_try = count * SIZE;
+        if read_try >= self.bytes.len() {
+            debug_assert!(false, "Invalid serialized read.");
+            deser.error = Some(DeserializationError::MalformedInput);
+        } else {
+            deser.bytes = &self.bytes[0..read_try];
+        };
+
+        let iter = (0..count * SIZE).step_by(SIZE).map(|i| {
             let mut val_arr: [u8; SIZE] = [0; SIZE];
             for offset in 0..SIZE {
-                val_arr[offset] = slice[i + offset];
+                val_arr[offset] = deser.bytes[i + offset];
             }
             builder(val_arr)
-        }) {
-            consume(val)
-        }
-        Deserializer {
-            bytes: self.bytes,
-            handle: new_handle,
-        }
+        });
+        (iter, deser)
     }
 }
+
+pub trait Captures<'a> {}
+impl<'a, T: ?Sized> Captures<'a> for T {}
 
 // TODO: make public if pattern is determined to avoid arch-specific things like usize
 fn write_to_vec<FToBytes, T, const SIZE: usize>(bytes: &mut Vec<u8>, val: T, builder: FToBytes)
@@ -111,11 +118,27 @@ mod tests {
         let deser = Deserializer::new(&bytes);
 
         let mut u64s = vec![];
+        let (iter, deser) = deser.take(3, &u64::from_le_bytes);
+        for val in iter {
+            u64s.push(val)
+        }
+
         let mut u128s = vec![];
-        _ = deser
-            .take(3, u64::from_le_bytes, |val| u64s.push(val))
-            .take(3, u128::from_le_bytes, |val| u128s.push(val));
+        let (iter, _) = deser.take(3, &u128::from_le_bytes);
+        for val in iter {
+            u128s.push(val)
+        }
         assert_eq!(u64s, vec![1, 2, 3]);
         assert_eq!(u128s, vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn test_malformed_input() {
+        let mut bytes: Vec<u8> = Vec::new();
+        write_u64_to_vec(&mut bytes, 42);
+        let deser = Deserializer::new(&bytes);
+        let (val, deser) = deser.take_u128();
+        assert_eq!(val, u128::default());
+        assert_eq!(deser.error, Some(DeserializationError::MalformedInput));
     }
 }

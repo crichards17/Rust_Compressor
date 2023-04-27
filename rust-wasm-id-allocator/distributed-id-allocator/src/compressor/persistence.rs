@@ -18,10 +18,11 @@ where
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum DeserializationError {
     InvalidResumedSession,
     UnknownVersion,
+    MalformedInput,
 }
 
 impl ErrorString for DeserializationError {
@@ -29,12 +30,15 @@ impl ErrorString for DeserializationError {
     fn to_error_string(&self) -> &str {
         match self {
             DeserializationError::InvalidResumedSession => "Cannot resume existing session.",
+            DeserializationError::MalformedInput => "Malformed serialized input.",
             DeserializationError::UnknownVersion => "Unknown deserialization error.",
         }
     }
 }
 
 pub mod v1 {
+    use std::mem::size_of;
+
     use super::DeserializationError;
     use crate::{
         compressor::IdCompressor,
@@ -49,6 +53,22 @@ pub mod v1 {
         },
     };
     use id_types::{FinalId, LocalId, SessionId, StableId};
+
+    struct ClusterData {
+        pub session_index: u64,
+        pub capacity: u64,
+        pub count: u64,
+    }
+
+    impl Default for ClusterData {
+        fn default() -> Self {
+            Self {
+                session_index: Default::default(),
+                capacity: Default::default(),
+                count: Default::default(),
+            }
+        }
+    }
 
     // Layout
     // has_local_state: bool as u64
@@ -104,42 +124,60 @@ pub mod v1 {
     where
         FMakeSession: FnOnce() -> SessionId,
     {
-        let (with_local_state_flag, deserializer) = deserializer.take_u64();
-        let with_local_state = with_local_state_flag != 0;
+        let (with_local_state_flag, mut deserializer) = deserializer.take_u64();
+        let mut with_local_state = with_local_state_flag != 0;
         let mut compressor = match with_local_state {
             false => {
                 with_local_state = false;
                 IdCompressor::new_with_session_id(make_session_id())
             }
             true => {
-                let (session_uuid_u128, deserializer) = deserializer.take_u128();
+                let session_uuid_u128;
+                (session_uuid_u128, deserializer) = deserializer.take_u128();
                 let mut compressor =
                     IdCompressor::new_with_session_id(SessionId::from_uuid_u128(session_uuid_u128));
-                let deserializer =
-                    deserializer.take_and_write_u64(&mut compressor.generated_id_count);
-                let deserializer = deserializer
+                deserializer = deserializer.take_and_write_u64(&mut compressor.generated_id_count);
+                deserializer = deserializer
                     .take_and_write_u64(&mut compressor.next_range_base_generation_count);
-                let (normalizer, deserializer) = deserialize_normalizer(deserializer);
+                let normalizer;
+                (normalizer, deserializer) = deserialize_normalizer(deserializer);
                 compressor.session_space_normalizer = normalizer;
                 compressor
             }
         };
 
-        // Layout
-        // cluster_capacity: u64,
-        // session_uuid_u128s: Vec<u128>,
-        // cluster_data: Vec<(session_index: u64, capacity: u64, count: u64)>,
-
-        compressor.cluster_capacity = persistent_compressor.cluster_capacity;
-        for session_uuid_u128 in &persistent_compressor.session_uuid_u128s {
-            let session_id = SessionId::from_uuid_u128(*session_uuid_u128);
+        deserializer = deserializer.take_and_write_u64(&mut compressor.cluster_capacity);
+        let session_count;
+        (session_count, deserializer) = deserializer.take_u64();
+        let iter;
+        (iter, deserializer) = deserializer.take(session_count as usize, &u128::from_le_bytes);
+        let mut session_ids = Vec::new();
+        for session_uuid_u128 in iter {
+            let session_id = SessionId::from_uuid_u128(session_uuid_u128);
+            session_ids.push(session_id);
             if !with_local_state && session_id == compressor.session_id {
                 return Err(DeserializationError::InvalidResumedSession);
             }
             compressor.sessions.get_or_create(session_id);
         }
 
-        for cluster_data in persistent_compressor.cluster_data {
+        let cluster_count;
+        (cluster_count, deserializer) = deserializer.take_u64();
+        for _ in 0..cluster_count {
+            let cluster_data;
+            (cluster_data, deserializer) = deserializer
+                .take_one::<_, _, { size_of::<ClusterData>() }>(&|val| {
+                    let deser = Deserializer::new(&val);
+                    let (session_index, deser) = deser.take_u64();
+                    let (capacity, deser) = deser.take_u64();
+                    let (count, _) = deser.take_u64();
+                    ClusterData {
+                        session_index,
+                        capacity,
+                        count,
+                    }
+                });
+
             let base_final_id = match compressor
                 .final_space
                 .get_tail_cluster(&compressor.sessions)
@@ -147,9 +185,9 @@ pub mod v1 {
                 Some(cluster) => cluster.base_final_id + cluster.capacity,
                 None => FinalId::from_id(0),
             };
-            let session_space_ref = compressor.sessions.get_or_create(SessionId::from_uuid_u128(
-                persistent_compressor.session_uuid_u128s[cluster_data.session_index as usize],
-            ));
+            let session_space_ref = compressor
+                .sessions
+                .get_or_create(session_ids[cluster_data.session_index as usize]);
             let session_space = compressor.sessions.deref_session_space(session_space_ref);
             let base_local_id = match session_space.get_tail_cluster() {
                 Some(cluster_ref) => {
