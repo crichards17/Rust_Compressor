@@ -22,20 +22,20 @@ impl Sessions {
         }
     }
 
+    pub fn get_session_count(&self) -> usize {
+        self.session_list.len()
+    }
+
     pub fn get_or_create(&mut self, session_id: SessionId) -> SessionSpaceRef {
-        match self.session_map.get(&session_id) {
-            None => {
-                let new_session_space_index = self.session_list.len();
-                let new_session_space_ref = SessionSpaceRef {
-                    index: new_session_space_index,
-                };
-                let new_session_space = SessionSpace::new(session_id, new_session_space_ref);
-                _ = self.session_map.insert(session_id, new_session_space_ref);
-                self.session_list.push(new_session_space);
-                new_session_space_ref
-            }
-            Some(session_ref) => *session_ref,
-        }
+        *self.session_map.entry(session_id).or_insert_with(|| {
+            let new_session_space_index = self.session_list.len();
+            let new_session_space_ref = SessionSpaceRef {
+                index: new_session_space_index,
+            };
+            let new_session_space = SessionSpace::new(session_id, new_session_space_ref);
+            self.session_list.push(new_session_space);
+            new_session_space_ref
+        })
     }
 
     pub fn get(&self, session_id: SessionId) -> Option<&SessionSpace> {

@@ -21,6 +21,14 @@ impl FinalSpace {
         }
     }
 
+    pub fn get_cluster_count(&self) -> usize {
+        self.clusters.len()
+    }
+
+    pub fn is_last(&self, cluster_ref: ClusterRef) -> bool {
+        cluster_ref == self.clusters[self.clusters.len() - 1]
+    }
+
     pub fn add_cluster(&mut self, new_cluster_ref: ClusterRef, _sessions: &Sessions) {
         #[cfg(debug_assertions)]
         if !self.clusters.is_empty() {
@@ -35,10 +43,6 @@ impl FinalSpace {
         }
 
         self.clusters.push(new_cluster_ref);
-    }
-
-    pub fn is_last(&self, cluster_ref: ClusterRef) -> bool {
-        cluster_ref == self.clusters[self.clusters.len() - 1]
     }
 
     // Searches the Final table for a cluster whose capacity would include the given Final.

@@ -1,7 +1,6 @@
-use serde::{Deserialize, Serialize};
 use std::ops::Sub;
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 /// A compressed ID that is local to a session (can only be decompressed when paired with a SessionId).
 /// Internally, it should not be persisted outside a scope annotated with the originating SessionId in order to be unambiguous.
 /// If external persistence is needed (e.g. by a client), a StableId should be used instead.
