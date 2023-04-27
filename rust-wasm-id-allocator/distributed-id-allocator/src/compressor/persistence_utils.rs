@@ -48,6 +48,8 @@ pub fn write_u128_to_vec(buffer: &mut Vec<u8>, num: u128) {
 
 #[cfg(test)]
 mod tests {
+    use id_types::{SessionId, StableId};
+
     use super::*;
 
     #[test]
@@ -58,7 +60,12 @@ mod tests {
             .iter()
             .for_each(|val| write_u64_to_vec(&mut bytes, *val));
 
-        vec![1, 2, 3]
+        let u128s_original = vec![
+            u128::from(StableId::from(SessionId::new())),
+            u128::from(StableId::from(SessionId::new())),
+            u128::from(StableId::from(SessionId::new())),
+        ];
+        u128s_original
             .iter()
             .for_each(|val| write_u128_to_vec(&mut bytes, *val));
 
@@ -75,7 +82,7 @@ mod tests {
         }
 
         assert_eq!(u64s, vec![1, 2, 3]);
-        assert_eq!(u128s, vec![1, 2, 3]);
+        assert_eq!(u128s, u128s_original);
     }
 
     #[test]

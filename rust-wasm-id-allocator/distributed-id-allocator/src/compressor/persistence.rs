@@ -64,14 +64,14 @@ pub mod v1 {
 
     pub fn serialize(compressor: &IdCompressor) -> Vec<u8> {
         let mut bytes: Vec<u8> = Vec::new();
-        write_u64_to_vec(&mut bytes, false as u64);
+        serialize_header(false, &mut bytes);
         serialize_finalized(compressor, &mut bytes);
         bytes
     }
 
     pub fn serialize_with_local(compressor: &IdCompressor) -> Vec<u8> {
         let mut bytes: Vec<u8> = Vec::new();
-        write_u64_to_vec(&mut bytes, true as u64);
+        serialize_header(true, &mut bytes);
         write_u128_to_vec(&mut bytes, StableId::from(compressor.session_id).into());
         write_u64_to_vec(&mut bytes, compressor.generated_id_count);
         write_u64_to_vec(&mut bytes, compressor.next_range_base_generation_count);
@@ -80,8 +80,15 @@ pub mod v1 {
         bytes
     }
 
+    fn serialize_header(is_local: bool, bytes: &mut Vec<u8>) {
+        // Version
+        write_u64_to_vec(bytes, 1);
+        write_u64_to_vec(bytes, is_local as u64);
+    }
+
     fn serialize_finalized(compressor: &IdCompressor, bytes: &mut Vec<u8>) {
         write_u64_to_vec(bytes, compressor.cluster_capacity);
+        write_u64_to_vec(bytes, compressor.sessions.get_session_count() as u64);
 
         compressor
             .sessions
@@ -89,6 +96,7 @@ pub mod v1 {
             .map(|session_space| StableId::from(session_space.session_id()).into())
             .for_each(|session_u128| write_u128_to_vec(bytes, session_u128));
 
+        write_u64_to_vec(bytes, compressor.final_space.get_cluster_count() as u64);
         compressor
             .final_space
             .get_clusters(&compressor.sessions)
