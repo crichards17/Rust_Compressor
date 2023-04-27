@@ -6,9 +6,12 @@ use self::tables::session_space::{ClusterRef, SessionSpace, SessionSpaceRef, Ses
 use self::tables::session_space_normalizer::SessionSpaceNormalizer;
 use id_types::*;
 
+/// The reserved value for an unknown token index.
+/// Used in interop.
 pub const NIL_TOKEN: i64 = -1;
 
 #[derive(Debug)]
+/// The core allocator.
 pub struct IdCompressor {
     session_id: SessionId,
     local_session: SessionSpaceRef,
@@ -24,16 +27,20 @@ pub struct IdCompressor {
 }
 
 impl IdCompressor {
+    /// Returns the current default for cluster sizing.
     pub fn get_default_cluster_capacity() -> u64 {
         persistence::DEFAULT_CLUSTER_CAPACITY
     }
 
     #[cfg(feature = "uuid-generation")]
+    /// Instantiates a new allocator with a random session ID.
+    /// Only available when the "uuid-generation" feature is enabled.
     pub fn new() -> Self {
         let session_id = SessionId::new();
         IdCompressor::new_with_session_id(session_id)
     }
 
+    /// Instantiates a new allocator with the supplied SessionId.
     pub fn new_with_session_id(session_id: SessionId) -> Self {
         let mut sessions = Sessions::new();
         IdCompressor {
@@ -50,10 +57,12 @@ impl IdCompressor {
         }
     }
 
+    /// Returns this compressor's session ID.
     pub fn get_local_session_id(&self) -> SessionId {
         self.session_id
     }
 
+    /// Returns a reference to this compressor's session space.
     fn get_local_session_space(&self) -> &SessionSpace {
         self.sessions.deref_session_space(self.local_session)
     }
@@ -62,6 +71,10 @@ impl IdCompressor {
     /// The returned token (if any) is valid for the lifetime of the compressor and is usable in place of a SessionId in APIs that accept it.
     /// Performance note: calling APIs with a token results in better performance than using a SessionId, so repeated calls will benefit from
     /// first converting the SessionId to a token.
+    ///
+    /// > # Errors
+    /// > * AllocatorError::NoTokenForSession
+    /// >   * No known session for the provided SessionId.
     pub fn get_session_token_from_session_id(
         &self,
         session_id: SessionId,
@@ -72,10 +85,17 @@ impl IdCompressor {
         }
     }
 
+    /// Returns the current sizing used for new clusters.
     pub fn get_cluster_capacity(&self) -> u64 {
         self.cluster_capacity
     }
 
+    /// Updates the sizing used for new cluster creation.
+    ///
+    /// > # Errors
+    /// > * AllocatorError::InvalidClusterCapacity
+    /// >   * The supplied cluster size must be a non-zero integer.
+    ///
     pub fn set_cluster_capacity(
         &mut self,
         new_cluster_capacity: u64,
@@ -88,6 +108,7 @@ impl IdCompressor {
         }
     }
 
+    /// Generates and returns this compressor's next session space ID.
     pub fn generate_next_id(&mut self) -> SessionSpaceId {
         self.generated_id_count += 1;
         let tail_cluster = match self.get_local_session_space().get_tail_cluster() {
@@ -104,7 +125,7 @@ impl IdCompressor {
             self.telemetry_stats.eager_final_count += 1;
             (tail_cluster.base_final_id + cluster_offset).into()
         } else {
-            // Not space, return next local
+            // No space in the cluster, return next local
             self.generate_next_local_id().into()
         }
     }
@@ -116,12 +137,16 @@ impl IdCompressor {
         new_local
     }
 
+    /// Returns current compressor state telemetry.
+    /// Intended for logging and analysis.
     pub fn get_telemetry_stats(&mut self) -> TelemetryStats {
         let stats = self.telemetry_stats;
         self.telemetry_stats = TelemetryStats::EMPTY;
         stats
     }
 
+    /// Returns a range of IDs (if any) created by this session since the last range generation.
+    /// If no IDs have been created since the last range generation, the range field of the [IdRange] will be None.
     pub fn take_next_range(&mut self) -> IdRange {
         let count = self.generated_id_count - (self.next_range_base_generation_count - 1);
         IdRange {
@@ -141,6 +166,9 @@ impl IdCompressor {
         }
     }
 
+    /// Finalizes the supplied range of IDs (which may be from either a remote or local session).
+    /// This method encapsulates the total order broadcast logic which guarantees state synchronization between multiple networked compressors.
+    /// Operation acknowledgement must call this method.
     pub fn finalize_range(
         &mut self,
         &IdRange {
@@ -243,6 +271,12 @@ impl IdCompressor {
         new_cluster_ref
     }
 
+    /// Normalizes a session space ID to op space.
+    /// Returns the OpSpaceId equivalent for the provided SessionSpaceId, if applicable.
+    ///
+    /// > # Errors
+    /// > * AllocatorError::InvalidSessionSpaceId
+    /// >   * The provided SessionSpaceId is a local ID that has not been allocated.
     pub fn normalize_to_op_space(&self, id: SessionSpaceId) -> Result<OpSpaceId, AllocatorError> {
         match id.to_space() {
             CompressedId::Final(final_id) => Ok(OpSpaceId::from(final_id)),
@@ -260,6 +294,15 @@ impl IdCompressor {
         }
     }
 
+    /// Normalizes an op space ID to this session's session space.
+    /// Requires the ID originator's session ID as a SessionId.
+    /// Returns the SessionSpaceId equivalent for the provided OpSpaceId, if applicable.
+    ///
+    /// > # Errors
+    /// > * AllocatorError::NoTokenForSession
+    /// >   * No known session for the provided SessionId.
+    /// > * AllocatorError::InvalidOpSpaceId
+    /// >   * Failed to normalize the provided OpsSpaceId.
     pub fn normalize_to_session_space(
         &self,
         id: OpSpaceId,
@@ -278,6 +321,12 @@ impl IdCompressor {
         self.normalize_to_session_space_with_token(id, token)
     }
 
+    /// Normalizes an op space ID to this session's session space.
+    /// Requires the ID originator's session token.
+    /// Returns the SessionSpaceId equivalent for the provided OpSpaceId, if applicable.
+    ///
+    /// > * AllocatorError::InvalidOpSpaceId
+    /// >   * Failed to normalize the provided OpsSpaceId.
     pub fn normalize_to_session_space_with_token(
         &self,
         id: OpSpaceId,
