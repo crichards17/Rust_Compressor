@@ -6,24 +6,20 @@ pub struct Deserializer<'a> {
 }
 
 impl<'a> Deserializer<'a> {
-    #[inline]
     pub fn new(bytes: &'a [u8]) -> Self {
         Self { bytes, error: None }
     }
 
-    #[inline]
     pub fn take_u64(self) -> (u64, Deserializer<'a>) {
         self.take_one(&u64::from_le_bytes)
     }
 
-    #[inline]
     pub fn take_and_write_u64(self, out: &mut u64) -> Deserializer<'a> {
         let (val, deser) = self.take_u64();
         *out = val;
         deser
     }
 
-    #[inline]
     pub fn take_u128(self) -> (u128, Deserializer<'a>) {
         self.take_one(&u128::from_le_bytes)
     }
@@ -89,12 +85,10 @@ where
     }
 }
 
-#[inline]
 pub fn write_u64_to_vec(buffer: &mut Vec<u8>, num: u64) {
     write_to_vec(buffer, num, |val: u64| val.to_le_bytes());
 }
 
-#[inline]
 pub fn write_u128_to_vec(buffer: &mut Vec<u8>, num: u128) {
     write_to_vec(buffer, num, |val: u128| val.to_le_bytes());
 }
