@@ -1,4 +1,5 @@
 pub(crate) mod persistence;
+pub(crate) mod persistence_utils;
 pub(crate) mod tables;
 use self::persistence::DeserializationError;
 use self::tables::final_space::FinalSpace;
@@ -530,6 +531,7 @@ impl IdCompressor {
     }
 }
 
+#[derive(Debug)]
 pub struct IdRange {
     pub id: SessionId,
     // (First LocalID in the range as generation count, count of IDs)

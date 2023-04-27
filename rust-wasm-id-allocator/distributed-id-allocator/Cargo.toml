@@ -7,18 +7,9 @@ edition = "2021"
 default = ["uuid-generation"]
 uuid-generation = ["id-types/uuid-generation"]
 
-[dependencies.serde]
-version = "1.0.152"
-default-features = false
-
-[dependencies.postcard]
-version = "1.0.0"
-features = ["alloc"]
-
 [dev-dependencies.uuid]
 version = "1.2.2"
 features = [
-    "macro-diagnostics", # Enable better diagnostics for compile-time UUIDs
     "js"
 ]
 
