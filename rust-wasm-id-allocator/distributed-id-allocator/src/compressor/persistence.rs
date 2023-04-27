@@ -190,8 +190,6 @@ pub mod v1 {
         Ok(compressor)
     }
 
-    // TODO perst unit tests
-
     #[cfg(test)]
     mod tests {
         use super::*;

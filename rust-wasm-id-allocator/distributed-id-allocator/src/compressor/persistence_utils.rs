@@ -8,17 +8,21 @@ impl<'a> Deserializer<'a> {
     }
 
     pub fn take_u64(&mut self) -> u64 {
-        self.take_one(&u64::from_le_bytes)
+        self.take_one(u64::from_le_bytes)
     }
 
     pub fn take_u128(&mut self) -> u128 {
-        self.take_one(&u128::from_le_bytes)
+        self.take_one(u128::from_le_bytes)
     }
 
-    fn take_one<FBuild, T, const SIZE: usize>(&mut self, builder: &'a FBuild) -> T
+    #[inline]
+    fn take_one<FBuild, T, const SIZE: usize>(&mut self, builder: FBuild) -> T
     where
         FBuild: Fn([u8; SIZE]) -> T,
     {
+        if SIZE > self.bytes.len() {
+            panic!()
+        }
         let mut val_arr: [u8; SIZE] = [0; SIZE];
         for offset in 0..SIZE {
             val_arr[offset] = self.bytes[offset];
@@ -38,10 +42,12 @@ where
     }
 }
 
+#[inline]
 pub fn write_u64_to_vec(buffer: &mut Vec<u8>, num: u64) {
     write_to_vec(buffer, num, |val: u64| val.to_le_bytes());
 }
 
+#[inline]
 pub fn write_u128_to_vec(buffer: &mut Vec<u8>, num: u128) {
     write_to_vec(buffer, num, |val: u128| val.to_le_bytes());
 }
