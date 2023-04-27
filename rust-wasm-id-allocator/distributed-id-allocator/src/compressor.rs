@@ -68,13 +68,13 @@ impl IdCompressor {
         self.sessions.deref_session_space(self.local_session)
     }
 
-    /// Returns a token representing the supplied SessionId, or an error if no such session has been seen by the compressor.
+    /// Returns a token representing the supplied session ID, or an error if no such session has been seen by the compressor.
     /// The returned token (if any) is valid for the lifetime of the compressor and is usable in place of a SessionId in APIs that accept it.
-    /// Performance note: calling APIs with a token results in better performance than using a SessionId, so repeated calls will benefit from
-    /// first converting the SessionId to a token.
+    /// Performance note: calling APIs with a token results in better performance than using a [SessionId], so repeated calls will benefit from
+    /// first converting the [SessionId] to a token.
     ///
     /// > # Errors
-    /// > * AllocatorError::NoTokenForSession
+    /// > * `AllocatorError::NoTokenForSession`
     /// >   * No known session for the provided SessionId.
     pub fn get_session_token_from_session_id(
         &self,
@@ -94,7 +94,7 @@ impl IdCompressor {
     /// Updates the sizing used for new cluster creation.
     ///
     /// > # Errors
-    /// > * AllocatorError::InvalidClusterCapacity
+    /// > * `AllocatorError::InvalidClusterCapacity`
     /// >   * The supplied cluster size must be a non-zero integer.
     ///
     pub fn set_cluster_capacity(
@@ -273,11 +273,11 @@ impl IdCompressor {
     }
 
     /// Normalizes a session space ID to op space.
-    /// Returns the OpSpaceId equivalent for the provided SessionSpaceId, if applicable.
+    /// Returns the [OpSpaceId] equivalent for the provided [SessionSpaceId], if applicable.
     ///
     /// > # Errors
-    /// > * AllocatorError::InvalidSessionSpaceId
-    /// >   * The provided SessionSpaceId is a local ID that has not been allocated.
+    /// > * `AllocatorError::InvalidSessionSpaceId`
+    /// >   * The provided [SessionSpaceId] has not been allocated.
     pub fn normalize_to_op_space(&self, id: SessionSpaceId) -> Result<OpSpaceId, AllocatorError> {
         match id.to_space() {
             CompressedId::Final(final_id) => Ok(OpSpaceId::from(final_id)),
@@ -297,13 +297,13 @@ impl IdCompressor {
 
     /// Normalizes an op space ID to this session's session space.
     /// Requires the ID originator's session ID as a SessionId.
-    /// Returns the SessionSpaceId equivalent for the provided OpSpaceId, if applicable.
+    /// Returns the [SessionSpaceId] equivalent for the provided [OpSpaceId], if applicable.
     ///
     /// > # Errors
-    /// > * AllocatorError::NoTokenForSession
-    /// >   * No known session for the provided SessionId.
-    /// > * AllocatorError::InvalidOpSpaceId
-    /// >   * Failed to normalize the provided OpsSpaceId.
+    /// > * `AllocatorError::NoTokenForSession`
+    /// >   * No known session for the provided [SessionId].
+    /// > * `AllocatorError::InvalidOpSpaceId`
+    /// >   * Failed to normalize the provided [OpSpaceId].
     pub fn normalize_to_session_space(
         &self,
         id: OpSpaceId,
@@ -324,10 +324,11 @@ impl IdCompressor {
 
     /// Normalizes an op space ID to this session's session space.
     /// Requires the ID originator's session token.
-    /// Returns the SessionSpaceId equivalent for the provided OpSpaceId, if applicable.
+    /// Returns the [SessionSpaceId] equivalent for the provided [OpSpaceId], if applicable.
     ///
-    /// > * AllocatorError::InvalidOpSpaceId
-    /// >   * Failed to normalize the provided OpsSpaceId.
+    /// > # Errors
+    /// > * `AllocatorError::InvalidOpSpaceId`
+    /// >   * Failed to normalize the provided [OpSpaceId].
     pub fn normalize_to_session_space_with_token(
         &self,
         id: OpSpaceId,
@@ -394,6 +395,13 @@ impl IdCompressor {
         }
     }
 
+    /// Decompresses a session space ID to its stable ID equivalent.
+    /// Can decompress finalized IDs, as well as allocated local-session IDs.
+    /// Returns the [StableId] equivalent of the passed [SessionSpaceId], if able.
+    ///
+    /// > # Errors
+    /// > * `AllocatorError::InvalidSessionSpaceId`
+    /// >   * Failed to decompress the provided [SessionSpaceId].
     pub fn decompress(&self, id: SessionSpaceId) -> Result<StableId, AllocatorError> {
         match id.to_space() {
             CompressedId::Final(final_id) => {
@@ -435,6 +443,12 @@ impl IdCompressor {
         }
     }
 
+    /// Recompresses a stable ID to its session space ID equivalent.
+    /// Returns the `SessionSpaceId` equivalent for the given `StableId`, if able.
+    ///
+    /// > # Errors
+    /// > * `AllocatorError::InvalidStableId`
+    /// >   * Failed to recompress the provided `StableId`.
     pub fn recompress(&self, id: StableId) -> Result<SessionSpaceId, AllocatorError> {
         match self.sessions.get_containing_cluster(id) {
             None => {
@@ -483,6 +497,10 @@ impl IdCompressor {
         }
     }
 
+    /// Returns a persistable form of the current state of this `IdCompressor`, either with or without local state.
+    /// Serializing without local state includes only finalized state, and is therefore suitable for use in summaries.
+    /// Serializing with local state includes finalized state as well as un-finalized state and is therefore suitable for use in offline scenarios.
+    /// Either form can be rehydrated via `IdCompressor::deserialize()`.
     pub fn serialize(&self, include_local_state: bool) -> Vec<u8> {
         if !include_local_state {
             persistence::v1::serialize(self)
@@ -492,10 +510,14 @@ impl IdCompressor {
     }
 
     #[cfg(feature = "uuid-generation")]
+    /// Rehydrates a serialized `IdCompressor`, providing a random [SessionId] if rehydrating without local state.
+    /// Enabled by the `uuid-generation` feature.
     pub fn deserialize(bytes: &[u8]) -> Result<IdCompressor, DeserializationError> {
         persistence::deserialize(bytes, SessionId::new)
     }
 
+    /// Rehydrates a serialized `IdCompressor`.
+    /// The provided `FMakeSession` function must be able to return a session ID in order to rehydrate without local state.
     pub fn deserialize_with_session_id_generator<FMakeSession>(
         bytes: &[u8],
         make_session_id: FMakeSession,
@@ -509,6 +531,8 @@ impl IdCompressor {
 
 #[cfg(debug_assertions)]
 impl IdCompressor {
+    /// Checks equality across [IdCompressor]_s.
+    /// Debug-only, intended for testing.
     pub fn equals_test_only(&self, other: &IdCompressor, compare_local_state: bool) -> bool {
         if !(self.final_id_limit == other.final_id_limit
             && self.sessions.equals_test_only(&other.sessions)
@@ -532,17 +556,25 @@ impl IdCompressor {
 }
 
 #[derive(Debug)]
+/// A struct for communicating ID range data.
 pub struct IdRange {
+    /// The originating-session identifier.
     pub id: SessionId,
-    // (First LocalID in the range as generation count, count of IDs)
+    /// A Some(range) will contain a tuple of u64s representing `(First ID, count of IDs)`.
     pub range: Option<(u64, u64)>,
 }
 
 #[derive(Debug, Copy, Clone)]
+/// A struct for containing relevant telemetry values for direct logging or interop transmission.
+/// Intended for internal use.
 pub struct TelemetryStats {
+    /// Count of allocated eager finals.
     pub eager_final_count: u64,
+    /// Count of allocated local IDs.
     pub local_id_count: u64,
+    /// Count of instances of tail cluster expansion.
     pub expansion_count: u64,
+    /// Count of new clusters created.
     pub cluster_creation_count: u64,
 }
 
