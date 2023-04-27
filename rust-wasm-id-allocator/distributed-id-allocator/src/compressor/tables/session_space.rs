@@ -30,7 +30,7 @@ impl Sessions {
                     index: new_session_space_index,
                 };
                 let new_session_space = SessionSpace::new(session_id, new_session_space_ref);
-                self.session_map.insert(session_id, new_session_space_ref);
+                _ = self.session_map.insert(session_id, new_session_space_ref);
                 self.session_list.push(new_session_space);
                 new_session_space_ref
             }

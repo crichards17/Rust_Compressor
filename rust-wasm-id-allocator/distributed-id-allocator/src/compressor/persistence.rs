@@ -164,7 +164,7 @@ pub(crate) mod v1 {
             if !with_local_state && session_id == compressor.session_id {
                 return Err(DeserializationError::InvalidResumedSession);
             }
-            compressor.sessions.get_or_create(session_id);
+            _ = compressor.sessions.get_or_create(session_id);
         }
 
         for cluster_data in persistent_compressor.cluster_data {
