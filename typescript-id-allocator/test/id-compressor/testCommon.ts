@@ -6,6 +6,7 @@
 import { TestOnly } from "wasm-id-allocator";
 import { IdCompressor } from "../../src/IdCompressor";
 import { SessionSpaceCompressedId, StableId, OpSpaceCompressedId } from "../../src/types";
+import { uuidStringFromBytes } from "../../src/util/utilities";
 
 /**
  * An identifier (v4 UUID) that has been shortened by a distributed compression algorithm.
@@ -76,7 +77,7 @@ export function getOrCreate<K, V>(map: Map<K, V>, key: K, defaultValue: (key: K)
 }
 
 export function incrementStableId(stableId: StableId, offset: number): StableId {
-	return TestOnly.increment_uuid(stableId, offset) as StableId;
+	return uuidStringFromBytes(TestOnly.increment_uuid(stableId, offset)) as StableId;
 }
 
 /**
