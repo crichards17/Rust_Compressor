@@ -130,15 +130,14 @@ pub mod v1 {
 
         compressor.cluster_capacity = deserializer.take_u64();
         let session_count = deserializer.take_u64();
-        let mut session_ids = Vec::new();
+        let mut session_ref_remap = Vec::new();
         for _ in 0..session_count {
             let session_uuid_u128 = deserializer.take_u128();
             let session_id = SessionId::from_uuid_u128(session_uuid_u128);
-            session_ids.push(session_id);
             if !with_local_state && session_id == compressor.session_id {
                 return Err(DeserializationError::InvalidResumedSession);
             }
-            compressor.sessions.get_or_create(session_id);
+            session_ref_remap.push(compressor.sessions.get_or_create(session_id));
         }
 
         let cluster_count = deserializer.take_u64();
@@ -154,9 +153,7 @@ pub mod v1 {
                 Some(cluster) => cluster.base_final_id + cluster.capacity,
                 None => FinalId::from_id(0),
             };
-            let session_space_ref = compressor
-                .sessions
-                .get_or_create(session_ids[session_index as usize]);
+            let session_space_ref = session_ref_remap[session_index as usize];
             let session_space = compressor.sessions.deref_session_space(session_space_ref);
             let base_local_id = match session_space.get_tail_cluster() {
                 Some(cluster_ref) => {
