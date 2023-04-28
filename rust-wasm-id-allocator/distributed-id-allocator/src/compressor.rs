@@ -30,10 +30,10 @@ pub const NIL_TOKEN: i64 = -1;
 /// _ = allocator.finalize_range(&id_range);
 ///
 /// // The compressed ID can later be decompressed to retrieve the UUID if needed:
-/// let decompressed_UUID = allocator.decompress(compressed_id).expect("Returns allocated UUID.");
+/// let decompressed_UUID = allocator.decompress(compressed_id).unwrap();
 ///
 /// // Compression is fully reversible:
-/// assert_eq!(allocator.recompress(decompressed_UUID).expect("Recompresses successfully."), compressed_id);
+/// assert_eq!(allocator.recompress(decompressed_UUID).unwrap(), compressed_id);
 /// ```
 pub struct IdCompressor {
     // This allocator's base UUID identifier.
