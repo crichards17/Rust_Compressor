@@ -1,10 +1,5 @@
 use id_types::FinalId;
 
-/*
-Propose: rename to final_space_table
-Vec will contain references to cluster chains
-
-*/
 use super::session_space::{ClusterRef, IdCluster, Sessions};
 use std::cmp::Ordering;
 

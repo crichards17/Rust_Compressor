@@ -1,3 +1,4 @@
+#[derive(Debug)]
 /// Enumerated error variants for core allocator.
 pub enum AllocatorError {
     /// Malformed string passed for UUID creation.

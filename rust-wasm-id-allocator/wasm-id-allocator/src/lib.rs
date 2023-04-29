@@ -58,7 +58,7 @@ impl IdCompressor {
         IdCompressorCore::get_default_cluster_capacity() as f64
     }
 
-    /// Returns the default cluster capacity. This static is exposed on the compressor to comply with wasm-bindgen.
+    /// Returns the compressor's NIL_TOKEN static value as an f64.
     pub fn get_nil_token() -> f64 {
         NIL_TOKEN as f64
     }
