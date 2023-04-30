@@ -21,9 +21,21 @@ import {
 import { compressorEquals, isFinalId, isLocalId } from "./testCommon";
 import { take } from "../copied-utils/stochastic";
 import { OpSpaceCompressedId, SessionSpaceCompressedId, StableId } from "../../src/types";
-import { fail } from "../../src/util/utilities";
+import { createSessionId, fail } from "../../src/util/utilities";
 
 describe("IdCompressor", () => {
+	itCompressor("caches and evicts tokens (clearbox)", () => {
+		const compressor = CompressorFactory.createCompressor(Client.Client1);
+		const id = compressor.generateCompressedId();
+		compressor.finalizeCreationRange(compressor.takeNextCreationRange());
+		const opSpaceId = compressor.normalizeToOpSpace(id);
+		assert(compressor.normalizeToSessionSpace(opSpaceId, compressor.localSessionId) === id);
+		for (let i = 0; i < 500; i++) {
+			assert(compressor.normalizeToSessionSpace(opSpaceId, createSessionId()) === id);
+		}
+		assert(compressor.normalizeToSessionSpace(opSpaceId, compressor.localSessionId) === id);
+	});
+
 	describe("Telemetry", () => {
 		itCompressor("emits first cluster and new cluster telemetry events", () => {
 			const mockLogger = new MockLogger();
