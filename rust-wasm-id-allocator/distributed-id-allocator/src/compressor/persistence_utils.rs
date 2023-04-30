@@ -24,9 +24,7 @@ impl<'a> Deserializer<'a> {
             panic!()
         }
         let mut val_arr: [u8; SIZE] = [0; SIZE];
-        for offset in 0..SIZE {
-            val_arr[offset] = self.bytes[offset];
-        }
+        val_arr[..SIZE].copy_from_slice(&self.bytes[..SIZE]);
         self.bytes = &self.bytes[SIZE..];
         builder(val_arr)
     }

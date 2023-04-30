@@ -25,8 +25,8 @@ import {
 } from "./idCompressorTestUtilities";
 import { defaultClusterCapacity, IdCompressor } from "../../src/IdCompressor";
 import { FinalCompressedId, LocalCompressedId, isFinalId, isLocalId } from "./testCommon";
-import { createSessionId, fail } from "../../src/util/utilities";
-import { assert } from "../../src/copied-utils";
+import { createSessionId } from "../../src/utilities";
+import { assert, fail } from "../../src/copied-utils";
 import { DestinationClient } from "./idCompressorTestUtilities";
 
 describe("IdCompressor Perf", () => {

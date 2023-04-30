@@ -1,5 +1,3 @@
-// COPIED FROM FLUID FRAMEWORK
-
 import { SessionSpaceCompressedId, OpSpaceCompressedId, SessionId, StableId } from "./identifiers";
 import {
 	IdCreationRange,

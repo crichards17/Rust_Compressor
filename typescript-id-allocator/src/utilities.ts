@@ -1,8 +1,6 @@
-// COPIED FROM FLUID FRAMEWORK
-
-import { SessionId, StableId, UuidString } from "../types";
+import { SessionId, StableId, UuidString } from "./types";
 import { v4, NIL } from "uuid";
-import { assert } from "../copied-utils/assert";
+import { assert } from "./copied-utils/assert";
 
 const hexadecimalCharCodes = Array.from("09afAF").map((c) => c.charCodeAt(0)) as [
 	zero: number,
@@ -27,7 +25,7 @@ export const nilUuid = assertIsUuidString(NIL);
 /**
  * Asserts that the given string is a UUID
  */
-export function assertIsUuidString(uuidString: string): UuidString {
+function assertIsUuidString(uuidString: string): UuidString {
 	assert(isUuidString(uuidString), 0x4a2 /* Expected an UuidString */);
 	return uuidString;
 }
@@ -36,7 +34,7 @@ export function assertIsUuidString(uuidString: string): UuidString {
  * Returns true iff the given string is a valid UUID-like string of hexadecimal characters
  * 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'
  */
-export function isUuidString(str: string): str is UuidString {
+function isUuidString(str: string): str is UuidString {
 	for (let i = 0; i < str.length; i++) {
 		switch (i) {
 			case 8:
@@ -63,20 +61,13 @@ export function isUuidString(str: string): str is UuidString {
  * Generate a random session ID
  */
 export function createSessionId(): SessionId {
-	return generateStableId() as SessionId;
-}
-
-/**
- * Generate a random stable ID
- */
-export function generateStableId(): StableId {
-	return assertIsStableId(v4());
+	return assertIsStableId(v4()) as SessionId;
 }
 
 /**
  * Asserts that the given string is a stable ID.
  */
-export function assertIsStableId(stableId: string): StableId {
+function assertIsStableId(stableId: string): StableId {
 	assert(isStableId(stableId), 0x4a3 /* Expected a StableId */);
 	return stableId;
 }
@@ -93,7 +84,7 @@ export function assertIsSessionId(stableId: string): SessionId {
  * Returns true iff the given string is a valid Version 4, variant 2 UUID
  * 'xxxxxxxx-xxxx-4xxx-vxxx-xxxxxxxxxxxx'
  */
-export function isStableId(str: string): str is StableId {
+function isStableId(str: string): str is StableId {
 	if (str.length !== 36) {
 		return false;
 	}
@@ -132,10 +123,6 @@ export function isStableId(str: string): str is StableId {
 	}
 
 	return true;
-}
-
-export function fail(message: string): never {
-	throw new Error(message);
 }
 
 export function isNaN(num: any): boolean {

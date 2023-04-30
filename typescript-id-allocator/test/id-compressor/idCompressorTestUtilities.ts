@@ -29,7 +29,7 @@ import {
 	SessionSpaceCompressedId,
 	StableId,
 } from "../../src/types";
-import { assertIsSessionId, createSessionId, fail } from "../../src/util/utilities";
+import { assertIsSessionId, createSessionId } from "../../src/utilities";
 import {
 	compressorEquals,
 	FinalCompressedId,
@@ -39,6 +39,7 @@ import {
 	isLocalId,
 	ReadonlyIdCompressor,
 } from "./testCommon";
+import { fail } from "../../src/copied-utils";
 
 /**
  * A readonly `Map` which is known to contain a value for every possible key
