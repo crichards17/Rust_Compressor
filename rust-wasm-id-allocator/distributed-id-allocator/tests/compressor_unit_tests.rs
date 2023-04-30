@@ -44,14 +44,26 @@ fn test_cluster_spans_reserved_bits() {
 }
 
 #[test]
+fn test_can_set_cluster_capacity() {
+    let mut compressor = IdCompressor::new();
+    assert_eq!(
+        compressor.get_cluster_capacity(),
+        IdCompressor::get_default_cluster_capacity()
+    );
+    let capacity = 5;
+    assert!(compressor.set_cluster_capacity(capacity).is_ok());
+    assert_eq!(compressor.get_cluster_capacity(), capacity);
+}
+
+#[test]
 fn test_detects_invalid_cluster_capacities() {
-    let mut compressor_1 = IdCompressor::new();
+    let mut compressor = IdCompressor::new();
     assert!(matches!(
-        compressor_1.set_cluster_capacity(0).unwrap_err(),
+        compressor.set_cluster_capacity(0).unwrap_err(),
         AllocatorError::InvalidClusterCapacity
     ));
-    assert!(compressor_1.set_cluster_capacity(1).is_ok());
-    assert!(compressor_1.set_cluster_capacity(u64::MAX).is_ok());
+    assert!(compressor.set_cluster_capacity(1).is_ok());
+    assert!(compressor.set_cluster_capacity(u64::MAX).is_ok());
 }
 
 #[test]
