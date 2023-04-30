@@ -96,10 +96,10 @@ impl IdCompressor {
         if new_cluster_capacity > MAX_DEFAULT_CLUSTER_CAPACITY {
             return Err(JsError::new("Clusters must not exceed max cluster size."));
         }
-        Ok(self
+        self
             .compressor
             .set_cluster_capacity(new_cluster_capacity as u64)
-            .map_err(into_jserror)?)
+            .map_err(into_jserror)
     }
 
     /// Generates a new ID.
