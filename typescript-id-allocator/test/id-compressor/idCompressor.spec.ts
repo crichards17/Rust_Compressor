@@ -29,6 +29,7 @@ describe("IdCompressor", () => {
 		const id = compressor.generateCompressedId();
 		compressor.finalizeCreationRange(compressor.takeNextCreationRange());
 		const opSpaceId = compressor.normalizeToOpSpace(id);
+		assert(compressor.normalizeToSessionSpace(opSpaceId, compressor.localSessionId) === id);
 		for (let i = 0; i < 500; i++) {
 			assert(compressor.normalizeToSessionSpace(opSpaceId, createSessionId()) === id);
 		}
