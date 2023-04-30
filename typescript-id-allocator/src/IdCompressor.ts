@@ -22,6 +22,8 @@ import { ITelemetryLogger } from "@fluidframework/common-definitions";
 
 export const defaultClusterCapacity = WasmIdCompressor.get_default_cluster_capacity();
 const nilToken = WasmIdCompressor.get_nil_token();
+const tokenCacheMaxSize = 300;
+const tokenCacheTarget = 300;
 
 /**
  * See {@link IIdCompressor} and {@link IIdCompressorCore}
@@ -177,6 +179,15 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 			if (wasmSessionToken === undefined) {
 				wasmSessionToken = this.wasmCompressor.get_token(originSessionId);
 				this.sessionTokens.set(originSessionId, wasmSessionToken);
+				if (this.sessionTokens.size > tokenCacheMaxSize) {
+					for (const key of this.sessionTokens.keys()) {
+						if (this.sessionTokens.size > tokenCacheTarget) {
+							this.sessionTokens.delete(key);
+						} else {
+							break;
+						}
+					}
+				}
 			}
 			sessionToken = wasmSessionToken;
 			this.lastUsedToken = sessionToken;
