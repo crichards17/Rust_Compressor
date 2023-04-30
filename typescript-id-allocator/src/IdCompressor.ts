@@ -23,7 +23,7 @@ import { ITelemetryLogger } from "@fluidframework/common-definitions";
 export const defaultClusterCapacity = WasmIdCompressor.get_default_cluster_capacity();
 const nilToken = WasmIdCompressor.get_nil_token();
 const tokenCacheMaxSize = 300;
-const tokenCacheTarget = 300;
+const tokenCacheTarget = 10;
 
 /**
  * See {@link IIdCompressor} and {@link IIdCompressorCore}
