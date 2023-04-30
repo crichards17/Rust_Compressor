@@ -53,6 +53,8 @@ fn test_can_set_cluster_capacity() {
     let capacity = 5;
     assert!(compressor.set_cluster_capacity(capacity).is_ok());
     assert_eq!(compressor.get_cluster_capacity(), capacity);
+    assert!(compressor.set_cluster_capacity(u64::MAX).is_ok());
+    assert_eq!(compressor.get_cluster_capacity(), u64::MAX);
 }
 
 #[test]
@@ -62,8 +64,6 @@ fn test_detects_invalid_cluster_capacities() {
         compressor.set_cluster_capacity(0).unwrap_err(),
         AllocatorError::InvalidClusterCapacity
     ));
-    assert!(compressor.set_cluster_capacity(1).is_ok());
-    assert!(compressor.set_cluster_capacity(u64::MAX).is_ok());
 }
 
 #[test]
