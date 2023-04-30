@@ -23,11 +23,11 @@ impl std::ops::Add<u64> for FinalId {
     }
 }
 
-impl std::ops::AddAssign<u64> for FinalId {
-    fn add_assign(&mut self, rhs: u64) {
-        self.id += rhs;
-    }
-}
+// impl std::ops::AddAssign<u64> for FinalId {
+//     fn add_assign(&mut self, rhs: u64) {
+//         self.id += rhs;
+//     }
+// }
 
 impl std::ops::Sub<FinalId> for FinalId {
     type Output = i64;
