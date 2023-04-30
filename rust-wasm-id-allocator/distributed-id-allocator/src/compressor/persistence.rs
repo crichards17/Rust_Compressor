@@ -10,7 +10,7 @@ pub fn deserialize<FMakeSession>(
 where
     FMakeSession: FnOnce() -> SessionId,
 {
-    let mut deserializer = Deserializer::new(&bytes);
+    let mut deserializer = Deserializer::new(bytes);
     let version = deserializer.take_u64();
     match version {
         1 => v1::deserialize(&mut deserializer, make_session_id),
@@ -166,8 +166,8 @@ pub mod v1 {
                 session_creator: session_space_ref,
                 base_final_id,
                 base_local_id,
-                capacity: capacity,
-                count: count,
+                capacity,
+                count,
             };
             let new_cluster_ref = compressor
                 .sessions

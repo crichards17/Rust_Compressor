@@ -251,10 +251,7 @@ impl SessionSpace {
         search_local: LocalId,
         include_allocated: bool,
     ) -> Option<FinalId> {
-        match self.get_cluster_by_local(search_local, include_allocated) {
-            Some(found_cluster) => Some(found_cluster.get_allocated_final(search_local).unwrap()),
-            None => None,
-        }
+        self.get_cluster_by_local(search_local, include_allocated).map(|found_cluster| found_cluster.get_allocated_final(search_local).unwrap())
     }
 
     fn get_cluster_by_local(
