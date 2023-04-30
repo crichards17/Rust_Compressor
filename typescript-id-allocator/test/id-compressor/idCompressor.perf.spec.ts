@@ -33,7 +33,7 @@ import { runInNewContext } from "vm";
 
 describe.skip("IdCompressor memory pressure", () => {
 	it("Memory pressure measurement", () => {
-		// Curent TS vs. WASM score: 163KB vs 55KB :)
+		// Curent TS vs. WASM score: 163KB vs 73KB :)
 		setFlagsFromString("--expose_gc");
 		const gc = runInNewContext("gc"); // nocommit
 		let averageDiff = 0;
@@ -74,6 +74,7 @@ describe.skip("IdCompressor memory pressure", () => {
 			} else {
 				averageDiff += diff;
 			}
+			compressor.dispose();
 		}
 		throw new Error((averageDiff / runs).toString());
 	});
