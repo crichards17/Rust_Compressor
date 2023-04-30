@@ -28,6 +28,56 @@ import { FinalCompressedId, LocalCompressedId, isFinalId, isLocalId } from "./te
 import { createSessionId } from "../../src/utilities";
 import { assert, fail } from "../../src/copied-utils";
 import { DestinationClient } from "./idCompressorTestUtilities";
+import { setFlagsFromString, getHeapStatistics } from "v8";
+import { runInNewContext } from "vm";
+
+describe.skip("IdCompressor memory pressure", () => {
+	it("Memory pressure measurement", () => {
+		// Curent TS vs. WASM score: 163KB vs 55KB :)
+		setFlagsFromString("--expose_gc");
+		const gc = runInNewContext("gc"); // nocommit
+		let averageDiff = 0;
+		let runs = 15;
+		for (let run = 0; run < runs; run++) {
+			gc();
+			const beforeHeapStats = getHeapStatistics();
+			const numSessions = 10000;
+			const capacity = 10;
+			const numClusters = 3;
+			const compressor = IdCompressor.create();
+			compressor.clusterCapacity = capacity;
+			const sessions: SessionId[] = [];
+			for (let i = 0; i < numSessions; i++) {
+				sessions.push(createSessionId());
+			}
+			for (let i = 0; i < numSessions * numClusters; i++) {
+				const sessionId = sessions[i % numSessions];
+				if (Math.random() > 0.1) {
+					for (let j = 0; j < Math.round(capacity / 2); j++) {
+						compressor.generateCompressedId();
+					}
+					compressor.finalizeCreationRange(compressor.takeNextCreationRange());
+				}
+				compressor.finalizeCreationRange({
+					sessionId,
+					ids: {
+						firstGenCount: Math.floor(i / numSessions) * capacity + 1,
+						count: capacity,
+					},
+				});
+			}
+			gc();
+			const afterHeapStats = getHeapStatistics();
+			const diff = afterHeapStats.used_heap_size - beforeHeapStats.used_heap_size;
+			if (diff < 0) {
+				runs--;
+			} else {
+				averageDiff += diff;
+			}
+		}
+		throw new Error((averageDiff / runs).toString());
+	});
+});
 
 describe("IdCompressor Perf", () => {
 	afterEach(() => {

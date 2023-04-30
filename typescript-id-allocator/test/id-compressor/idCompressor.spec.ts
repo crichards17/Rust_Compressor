@@ -21,39 +21,9 @@ import {
 import { compressorEquals, isFinalId, isLocalId } from "./testCommon";
 import { take } from "../copied-utils/stochastic";
 import { OpSpaceCompressedId, SessionSpaceCompressedId, StableId } from "../../src/types";
-import { createSessionId } from "../../src/utilities";
 import { fail } from "../../src/copied-utils";
-import { IdCompressor } from "../../src/IdCompressor";
-import { setFlagsFromString } from "v8";
-import { runInNewContext } from "vm";
 
 describe("IdCompressor", () => {
-	it("Memory pressure measurement", () => {
-		const numSessions = 5000;
-		const capacity = 10;
-		const compressor = IdCompressor.create();
-		compressor.clusterCapacity = capacity;
-		for (let i = 0; i < numSessions; i++) {
-			if (Math.random() > 0.1) {
-				for (let j = 0; j < capacity; j++) {
-					compressor.generateCompressedId();
-				}
-				compressor.finalizeCreationRange(compressor.takeNextCreationRange());
-			}
-			compressor.finalizeCreationRange({
-				sessionId: createSessionId(),
-				ids: {
-					firstGenCount: 1,
-					count: capacity,
-				},
-			});
-		}
-		setFlagsFromString("--expose_gc");
-		const gc = runInNewContext("gc"); // nocommit
-		gc();
-		console.log(process.memoryUsage().heapUsed);
-	});
-
 	describe("Telemetry", () => {
 		itCompressor("emits first cluster and new cluster telemetry events", () => {
 			const mockLogger = new MockLogger();
