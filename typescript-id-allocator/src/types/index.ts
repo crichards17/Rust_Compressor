@@ -4,6 +4,7 @@ export {
 	SerializedIdCompressorWithNoSession,
 	SerializedIdCompressorWithOngoingSession,
 	VersionedSerializedIdCompressor,
+	currentWrittenVersion,
 } from "./persisted-types";
 
 export { IIdCompressorCore, IIdCompressor } from "./idCompressor";

@@ -21,7 +21,7 @@ import {
 import { compressorEquals, isFinalId, isLocalId } from "./testCommon";
 import { take } from "../copied-utils/stochastic";
 import { OpSpaceCompressedId, SessionSpaceCompressedId, StableId } from "../../src/types";
-import { fail } from "../../src/util/utilities";
+import { fail } from "../../src/copied-utils";
 
 describe("IdCompressor", () => {
 	describe("Telemetry", () => {
