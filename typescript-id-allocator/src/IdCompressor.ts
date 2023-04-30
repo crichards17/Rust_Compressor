@@ -3,7 +3,7 @@ import {
 	InteropIds,
 	InteropTelemetryStats,
 } from "wasm-id-allocator";
-import { assert } from "./copied-utils";
+import { assert, fail } from "./copied-utils";
 import {
 	IdCreationRange,
 	IIdCompressor,
@@ -16,8 +16,8 @@ import {
 	SessionSpaceCompressedId,
 	StableId,
 } from "./types";
-import { currentWrittenVersion } from "./types/persisted-types/0.0.1";
-import { createSessionId, fail, isNaN, uuidStringFromBytes } from "./util/utilities";
+import { currentWrittenVersion } from "./types";
+import { createSessionId, isNaN, uuidStringFromBytes } from "./utilities";
 import { ITelemetryLogger } from "@fluidframework/common-definitions";
 
 export const defaultClusterCapacity = WasmIdCompressor.get_default_cluster_capacity();

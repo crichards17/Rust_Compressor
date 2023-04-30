@@ -21,7 +21,8 @@ import {
 import { compressorEquals, isFinalId, isLocalId } from "./testCommon";
 import { take } from "../copied-utils/stochastic";
 import { OpSpaceCompressedId, SessionSpaceCompressedId, StableId } from "../../src/types";
-import { createSessionId, fail } from "../../src/util/utilities";
+import { createSessionId } from "../../src/utilities";
+import { fail } from "../../src/copied-utils";
 
 describe("IdCompressor", () => {
 	itCompressor("caches and evicts tokens (clearbox)", () => {
