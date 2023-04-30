@@ -41,34 +41,6 @@ impl PartialEq<i64> for LocalId {
     }
 }
 
-impl PartialOrd<i64> for LocalId {
-    fn ge(&self, other: &i64) -> bool {
-        self.id >= *other
-    }
-
-    fn gt(&self, other: &i64) -> bool {
-        self.id > *other
-    }
-
-    fn le(&self, other: &i64) -> bool {
-        self.id <= *other
-    }
-
-    fn lt(&self, other: &i64) -> bool {
-        self.id < *other
-    }
-
-    fn partial_cmp(&self, other: &i64) -> Option<std::cmp::Ordering> {
-        if self.le(other) {
-            Some(std::cmp::Ordering::Less)
-        } else if self.gt(other) {
-            return Some(std::cmp::Ordering::Greater);
-        } else {
-            Some(std::cmp::Ordering::Equal)
-        }
-    }
-}
-
 impl Sub<u64> for LocalId {
     type Output = LocalId;
     fn sub(self, rhs: u64) -> Self::Output {
