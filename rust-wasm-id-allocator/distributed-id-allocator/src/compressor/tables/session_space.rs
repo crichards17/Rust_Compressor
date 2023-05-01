@@ -32,7 +32,7 @@ impl Sessions {
             let new_session_space_ref = SessionSpaceRef {
                 index: new_session_space_index,
             };
-            let new_session_space = SessionSpace::new(session_id, new_session_space_ref);
+            let new_session_space = SessionSpace::new(session_id);
             self.session_list.push(new_session_space);
             new_session_space_ref
         })
@@ -178,16 +178,14 @@ impl Sessions {
 #[derive(Debug)]
 pub struct SessionSpace {
     session_id: SessionId,
-    self_ref: SessionSpaceRef,
     // Sorted on LocalId.
     cluster_chain: Vec<IdCluster>,
 }
 
 impl SessionSpace {
-    pub fn new(session_id: SessionId, self_ref: SessionSpaceRef) -> SessionSpace {
+    pub fn new(session_id: SessionId) -> SessionSpace {
         SessionSpace {
             session_id,
-            self_ref,
             cluster_chain: Vec::new(),
         }
     }
@@ -196,45 +194,46 @@ impl SessionSpace {
         self.session_id
     }
 
-    pub fn get_tail_cluster(&self) -> Option<ClusterRef> {
+    pub fn get_tail_cluster(&self, self_ref: SessionSpaceRef) -> Option<ClusterRef> {
         if self.cluster_chain.is_empty() {
             return None;
         }
         Some(ClusterRef {
-            session_space_ref: self.self_ref,
+            session_space_ref: self_ref,
             cluster_chain_index: self.cluster_chain.len() - 1,
         })
     }
 
     fn get_max_allocated_stable(&self) -> StableId {
-        let tail_cluster = match self.get_tail_cluster() {
-            Some(cluster_ref) => &self.cluster_chain[cluster_ref.cluster_chain_index],
-            None => return self.session_id.into(),
+        let tail_cluster = match self.cluster_chain.len() {
+            0 => return self.session_id.into(),
+            len => &self.cluster_chain[len - 1],
         };
         self.session_id + tail_cluster.max_allocated_local()
     }
 
     pub fn add_empty_cluster(
         &mut self,
+        self_ref: SessionSpaceRef,
         base_final_id: FinalId,
         base_local_id: LocalId,
         capacity: u64,
     ) -> ClusterRef {
         let new_cluster = IdCluster {
-            session_creator: self.self_ref,
+            session_creator: self_ref,
             base_final_id,
             base_local_id,
             capacity,
             count: 0,
         };
-        self.add_cluster(new_cluster)
+        self.add_cluster(self_ref, new_cluster)
     }
 
-    pub fn add_cluster(&mut self, new_cluster: IdCluster) -> ClusterRef {
+    pub fn add_cluster(&mut self, self_ref: SessionSpaceRef, new_cluster: IdCluster) -> ClusterRef {
         self.cluster_chain.push(new_cluster);
         let tail_index = self.cluster_chain.len() - 1;
         ClusterRef {
-            session_space_ref: self.self_ref,
+            session_space_ref: self_ref,
             cluster_chain_index: tail_index,
         }
     }

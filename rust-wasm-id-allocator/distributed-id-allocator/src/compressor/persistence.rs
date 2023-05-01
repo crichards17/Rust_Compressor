@@ -155,7 +155,7 @@ pub mod v1 {
             };
             let session_space_ref = session_ref_remap[session_index as usize];
             let session_space = compressor.sessions.deref_session_space(session_space_ref);
-            let base_local_id = match session_space.get_tail_cluster() {
+            let base_local_id = match session_space.get_tail_cluster(session_space_ref) {
                 Some(cluster_ref) => {
                     let cluster = compressor.sessions.deref_cluster(cluster_ref);
                     cluster.base_local_id - cluster.capacity
@@ -172,7 +172,7 @@ pub mod v1 {
             let new_cluster_ref = compressor
                 .sessions
                 .deref_session_space_mut(session_space_ref)
-                .add_cluster(new_cluster);
+                .add_cluster(session_space_ref, new_cluster);
             compressor
                 .final_space
                 .add_cluster(new_cluster_ref, &compressor.sessions);
