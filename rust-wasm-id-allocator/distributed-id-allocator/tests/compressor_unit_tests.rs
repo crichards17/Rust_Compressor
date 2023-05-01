@@ -624,6 +624,48 @@ fn test_normalize_eager_final_to_op_space() {
 }
 
 #[test]
+fn test_normalize_own_local_to_session_space() {
+    let mut compressor = IdCompressor::new();
+    let session_space_id = compressor.generate_next_id();
+    let op_space_id_unfinalized = compressor.normalize_to_op_space(session_space_id).unwrap();
+
+    // Normalizing an unfinalized local
+    assert_eq!(
+        session_space_id,
+        compressor
+            .normalize_to_session_space(op_space_id_unfinalized, compressor.get_local_session_id())
+            .unwrap()
+    );
+    finalize_next_range(&mut compressor);
+    let op_space_id_finalized = compressor.normalize_to_op_space(session_space_id).unwrap();
+
+    // Normalizing a finalized local (was not an eager final)
+    assert_eq!(
+        session_space_id,
+        compressor
+            .normalize_to_session_space(op_space_id_finalized, compressor.get_local_session_id())
+            .unwrap()
+    );
+}
+
+#[test]
+fn test_normalize_eager_finals_to_session_space() {
+    let mut compressor = IdCompressor::new();
+    _ = compressor.set_cluster_capacity(10);
+    generate_n_ids(&mut compressor, 1);
+    finalize_next_range(&mut compressor);
+
+    let eager_final = compressor.generate_next_id();
+    assert!(eager_final.is_final());
+
+    let op_space_eager_final = compressor.normalize_to_op_space(eager_final).unwrap();
+    let eager_roundtrip_result = compressor
+        .normalize_to_session_space(op_space_eager_final, compressor.get_local_session_id());
+    assert!(eager_roundtrip_result.is_ok());
+    assert_eq!(eager_final, eager_roundtrip_result.unwrap());
+}
+
+#[test]
 fn test_prevents_normalizing_unfinalized_foreign_id_to_session_space() {
     let mut compressor_a = IdCompressor::new();
     let mut compressor_b = IdCompressor::new();
