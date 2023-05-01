@@ -352,6 +352,19 @@ fn test_prevent_finalizing_ranges_out_of_order() {
 }
 
 #[test]
+fn test_prevents_finalizing_malformed_ranges() {
+    let mut compressor = IdCompressor::new();
+    let bad_range = IdRange {
+        id: compressor.get_local_session_id(),
+        range: Some((2, 0)),
+    };
+    assert!(matches!(
+        compressor.finalize_range(&bad_range).unwrap_err(),
+        AllocatorError::MalformedIdRange
+    ));
+}
+
+#[test]
 fn test_finalize_to_clusters_of_varying_size() {
     for i in 1..5 {
         for j in 0..=i {
