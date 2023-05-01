@@ -393,13 +393,39 @@ fn test_cluster_expansion() {
     // Fill the initial cluster
     generate_n_ids(&mut compressor, 5);
     finalize_next_range(&mut compressor);
-    assert_eq!(compressor.get_telemetry_stats().expansion_count, 0);
-    assert_eq!(compressor.get_telemetry_stats().cluster_creation_count, 0);
+    let telemetry = compressor.get_telemetry_stats();
+    assert_eq!(telemetry.expansion_count, 0);
+    assert_eq!(telemetry.cluster_creation_count, 0);
 
     // Expand the initial cluster
     generate_n_ids(&mut compressor, 2);
     finalize_next_range(&mut compressor);
     assert_eq!(compressor.get_telemetry_stats().expansion_count, 1);
+}
+
+#[test]
+fn test_overflows_to_new_cluster() {
+    let mut compressor_a = IdCompressor::new();
+    let mut compressor_b = IdCompressor::new();
+    _ = compressor_a.set_cluster_capacity(3);
+
+    // Finalize initial cluster in compressor_a
+    generate_n_ids(&mut compressor_a, 2);
+    finalize_next_range(&mut compressor_a);
+    assert_eq!(compressor_a.get_telemetry_stats().cluster_creation_count, 1);
+
+    // Finalize new foreign cluster in compressor_a
+    generate_n_ids(&mut compressor_b, 2);
+    let range_b = compressor_b.take_next_range();
+    _ = compressor_a.finalize_range(&range_b);
+    assert_eq!(compressor_a.get_telemetry_stats().cluster_creation_count, 1);
+
+    // Overflow initial local cluster to new cluster
+    generate_n_ids(&mut compressor_a, 8);
+    finalize_next_range(&mut compressor_a);
+    let telemetry = compressor_a.get_telemetry_stats();
+    assert_eq!(telemetry.expansion_count, 0);
+    assert_eq!(telemetry.cluster_creation_count, 1);
 }
 
 #[test]
@@ -434,7 +460,26 @@ fn test_recompress_foreign_stable_id() {
 
 #[test]
 fn test_prevents_recompressing_unknown_stable_ids() {
-    let compressor = IdCompressor::new();
+    let mut compressor = IdCompressor::new_with_session_id(
+        SessionId::from_uuid_string("5fff846a-efd4-42fb-8b78-b32ce2672f70").unwrap(),
+    );
+    _ = compressor.set_cluster_capacity(10);
+    generate_n_ids(&mut compressor, 1);
+    finalize_next_range(&mut compressor);
+
+    // Attempt to recompress an unknown UUID that is less than the max allocated.
+    assert!(matches!(
+        compressor
+            .recompress(StableId::from(
+                Uuid::try_parse("5fff846a-efd4-42fb-8b78-b32ce2672f75")
+                    .ok()
+                    .unwrap()
+            ))
+            .unwrap_err(),
+        AllocatorError::InvalidStableId
+    ));
+
+    // Attempt to recompress an unknown UUID that is greater than the max allocated.
     assert!(matches!(
         compressor
             .recompress(StableId::from(
