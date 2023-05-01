@@ -44,7 +44,7 @@ pub struct IdCompressor {
     generated_id_count: u64,
     // The generation count value for the next IdRange_'s range base.
     next_range_base_generation_count: u64,
-    // Cache of one greater than the last finalized final ID in final space. Used to optimize normalization.
+    // Cache of one greater than the largest finalized final ID in final space. Used to optimize normalization.
     final_id_limit: FinalId,
     // The current value for sizing of new clusters.
     cluster_capacity: u64,
