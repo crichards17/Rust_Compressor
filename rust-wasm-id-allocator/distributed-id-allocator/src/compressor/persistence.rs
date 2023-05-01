@@ -100,8 +100,11 @@ pub mod v1 {
         compressor
             .final_space
             .get_clusters(&compressor.sessions)
-            .for_each(|id_cluster| {
-                write_u64_to_vec(bytes, id_cluster.session_creator.get_index() as u64);
+            .for_each(|(id_cluster, cluster_ref)| {
+                write_u64_to_vec(
+                    bytes,
+                    cluster_ref.get_session_space_ref().get_index() as u64,
+                );
                 write_u64_to_vec(bytes, id_cluster.capacity);
                 write_u64_to_vec(bytes, id_cluster.count);
             });
@@ -163,7 +166,6 @@ pub mod v1 {
                 None => LocalId::from_id(-1),
             };
             let new_cluster = IdCluster {
-                session_creator: session_space_ref,
                 base_final_id,
                 base_local_id,
                 capacity,

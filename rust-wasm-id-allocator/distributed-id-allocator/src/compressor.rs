@@ -448,14 +448,18 @@ impl IdCompressor {
         match id.to_space() {
             CompressedId::Final(final_id) => {
                 match self.final_space.search(final_id, &self.sessions) {
-                    Some(containing_cluster) => {
+                    Some(containing_cluster_ref) => {
+                        let containing_cluster =
+                            self.sessions.deref_cluster(containing_cluster_ref);
+                        let containing_session_space =
+                            containing_cluster_ref.get_session_space_ref();
                         let aligned_local = match containing_cluster.get_aligned_local(final_id) {
                             None => return Err(AllocatorError::InvalidSessionSpaceId),
                             Some(aligned_local) => aligned_local,
                         };
                         if aligned_local < containing_cluster.max_local() {
                             // must be an id generated (allocated or finalized) by the local session, or a finalized id from a remote session
-                            if containing_cluster.session_creator == self.local_session_ref {
+                            if containing_session_space == self.local_session_ref {
                                 if self.session_space_normalizer.contains(aligned_local) {
                                     return Err(AllocatorError::InvalidSessionSpaceId);
                                 }
@@ -469,7 +473,7 @@ impl IdCompressor {
 
                         Ok(self
                             .sessions
-                            .deref_session_space(containing_cluster.session_creator)
+                            .deref_session_space(containing_session_space)
                             .session_id()
                             + aligned_local)
                     }
@@ -508,14 +512,14 @@ impl IdCompressor {
                 }
                 Err(AllocatorError::InvalidStableId)
             }
-            Some((cluster, originator_local)) => {
-                if cluster.session_creator == self.local_session_ref {
+            Some((cluster, session_ref, corresponding_local)) => {
+                if session_ref == self.local_session_ref {
                     // Local session
-                    if self.session_space_normalizer.contains(originator_local) {
-                        Ok(SessionSpaceId::from(originator_local))
-                    } else if originator_local.to_generation_count() <= self.generated_id_count {
+                    if self.session_space_normalizer.contains(corresponding_local) {
+                        Ok(SessionSpaceId::from(corresponding_local))
+                    } else if corresponding_local.to_generation_count() <= self.generated_id_count {
                         // Id is an eager final
-                        match cluster.get_allocated_final(originator_local) {
+                        match cluster.get_allocated_final(corresponding_local) {
                             None => return Err(AllocatorError::InvalidStableId),
                             Some(allocated_final) => Ok(allocated_final.into()),
                         }
@@ -524,10 +528,10 @@ impl IdCompressor {
                     }
                 } else {
                     //Not the local session
-                    if originator_local.to_generation_count()
+                    if corresponding_local.to_generation_count()
                         < cluster.base_local_id.to_generation_count() + cluster.count
                     {
-                        match cluster.get_allocated_final(originator_local) {
+                        match cluster.get_allocated_final(corresponding_local) {
                             None => Err(AllocatorError::InvalidStableId),
                             Some(allocated_final) => Ok(allocated_final.into()),
                         }

@@ -73,7 +73,10 @@ impl Sessions {
         self.session_list.iter()
     }
 
-    pub fn get_containing_cluster(&self, query: StableId) -> Option<(&IdCluster, LocalId)> {
+    pub fn get_containing_cluster(
+        &self,
+        query: StableId,
+    ) -> Option<(&IdCluster, SessionSpaceRef, LocalId)> {
         let mut range = self
             .session_map
             .range((
@@ -92,16 +95,14 @@ impl Sessions {
                 let aligned_local = LocalId::from_generation_count(delta as u64 + 1);
                 match session_space.get_cluster_by_local(aligned_local, true) {
                     Some(cluster_match) => {
-                        let result_session_id = self
-                            .deref_session_space(cluster_match.session_creator)
-                            .session_id();
+                        let result_session_id = session_space.session_id;
                         let cluster_min_stable = result_session_id + cluster_match.base_local_id;
                         let cluster_max_stable = cluster_min_stable + cluster_match.capacity;
                         if query >= cluster_min_stable && query <= cluster_max_stable {
                             let originator_local = LocalId::from_id(
                                 -((query - StableId::from(result_session_id)) as i64) - 1,
                             );
-                            Some((cluster_match, originator_local))
+                            Some((cluster_match, session_space_ref, originator_local))
                         } else {
                             None
                         }
@@ -220,7 +221,6 @@ impl SessionSpace {
         capacity: u64,
     ) -> ClusterRef {
         let new_cluster = IdCluster {
-            session_creator: self_ref,
             base_final_id,
             base_local_id,
             capacity,
@@ -295,7 +295,6 @@ impl SessionSpace {
 
 #[derive(Debug)]
 pub struct IdCluster {
-    pub(crate) session_creator: SessionSpaceRef,
     pub(crate) base_final_id: FinalId,
     pub(crate) base_local_id: LocalId,
     pub(crate) capacity: u64,
@@ -368,8 +367,12 @@ pub struct ClusterRef {
     cluster_chain_index: usize,
 }
 
-#[cfg(debug_assertions)]
 impl ClusterRef {
+    pub fn get_session_space_ref(&self) -> SessionSpaceRef {
+        self.session_space_ref
+    }
+
+    #[cfg(debug_assertions)]
     pub(crate) fn equals_test_only(
         &self,
         other: &ClusterRef,
