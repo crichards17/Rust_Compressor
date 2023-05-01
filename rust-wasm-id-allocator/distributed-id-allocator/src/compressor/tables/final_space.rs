@@ -20,10 +20,6 @@ impl FinalSpace {
         self.clusters.len()
     }
 
-    pub fn is_last(&self, cluster_ref: ClusterRef) -> bool {
-        cluster_ref == self.clusters[self.clusters.len() - 1]
-    }
-
     pub fn add_cluster(&mut self, new_cluster_ref: ClusterRef, _sessions: &Sessions) {
         #[cfg(debug_assertions)]
         if !self.clusters.is_empty() {
@@ -42,11 +38,7 @@ impl FinalSpace {
 
     // Searches the Final table for a cluster whose capacity would include the given Final.
     //   Does not guarantee that the Final has been allocated to the returned cluster.
-    pub fn search<'a>(
-        &self,
-        target_final: FinalId,
-        sessions: &'a Sessions,
-    ) -> Option<&'a IdCluster> {
+    pub fn search(&self, target_final: FinalId, sessions: &Sessions) -> Option<ClusterRef> {
         self.clusters
             .binary_search_by(|current_cluster_ref| {
                 let current_cluster = sessions.deref_cluster(*current_cluster_ref);
@@ -61,7 +53,7 @@ impl FinalSpace {
                 }
             })
             .ok()
-            .map(|index| sessions.deref_cluster(self.clusters[index]))
+            .map(|index| self.clusters[index])
     }
 
     pub fn get_tail_cluster<'a>(&self, sessions: &'a Sessions) -> Option<&'a IdCluster> {
@@ -74,10 +66,10 @@ impl FinalSpace {
     pub fn get_clusters<'a>(
         &'a self,
         sessions: &'a Sessions,
-    ) -> impl Iterator<Item = &'a IdCluster> {
+    ) -> impl Iterator<Item = (&'a IdCluster, ClusterRef)> {
         self.clusters
             .iter()
-            .map(|cluster_ref| sessions.deref_cluster(*cluster_ref))
+            .map(|cluster_ref| (sessions.deref_cluster(*cluster_ref), *cluster_ref))
     }
 
     #[cfg(debug_assertions)]

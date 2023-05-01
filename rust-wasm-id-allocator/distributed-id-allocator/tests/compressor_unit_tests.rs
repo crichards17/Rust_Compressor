@@ -381,6 +381,28 @@ fn test_finalize_to_clusters_of_varying_size() {
 }
 
 #[test]
+fn test_cluster_expansion() {
+    let mut compressor = IdCompressor::new();
+    _ = compressor.set_cluster_capacity(5);
+    _ = compressor.generate_next_id();
+
+    // Create the initial cluster
+    finalize_next_range(&mut compressor);
+    assert_eq!(compressor.get_telemetry_stats().cluster_creation_count, 1);
+
+    // Fill the initial cluster
+    generate_n_ids(&mut compressor, 5);
+    finalize_next_range(&mut compressor);
+    assert_eq!(compressor.get_telemetry_stats().expansion_count, 0);
+    assert_eq!(compressor.get_telemetry_stats().cluster_creation_count, 0);
+
+    // Expand the initial cluster
+    generate_n_ids(&mut compressor, 2);
+    finalize_next_range(&mut compressor);
+    assert_eq!(compressor.get_telemetry_stats().expansion_count, 1);
+}
+
+#[test]
 fn test_recompress_own_stable_id() {
     let mut compressor = IdCompressor::new();
     let session_space_id = compressor.generate_next_id();
