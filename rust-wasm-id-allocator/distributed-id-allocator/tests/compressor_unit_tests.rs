@@ -649,6 +649,35 @@ fn test_normalize_own_local_to_session_space() {
 }
 
 #[test]
+fn test_prevents_normalizing_invalid_locals_to_session_space() {
+    let mut compressor = IdCompressor::new();
+    _ = compressor.set_cluster_capacity(10);
+    generate_n_ids(&mut compressor, 2);
+    let op_space_id = OpSpaceId::from_id(-5);
+    assert!(matches!(
+        compressor
+            .normalize_to_session_space(op_space_id, compressor.get_local_session_id())
+            .unwrap_err(),
+        AllocatorError::InvalidOpSpaceId
+    ));
+}
+
+#[test]
+fn test_prevents_normalizing_ungenerated_finals_to_session_space() {
+    let mut compressor = IdCompressor::new();
+    _ = compressor.set_cluster_capacity(10);
+    generate_n_ids(&mut compressor, 1);
+    finalize_next_range(&mut compressor);
+    let ungenerated_final = OpSpaceId::from_id(5);
+    assert!(matches!(
+        compressor
+            .normalize_to_session_space(ungenerated_final, compressor.get_local_session_id())
+            .unwrap_err(),
+        AllocatorError::InvalidOpSpaceId
+    ));
+}
+
+#[test]
 fn test_normalize_eager_finals_to_session_space() {
     let mut compressor = IdCompressor::new();
     _ = compressor.set_cluster_capacity(10);
