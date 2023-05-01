@@ -42,6 +42,18 @@ use wasm_bindgen::prelude::*;
 //     }
 // }
 
+#[cfg(debug_assertions)]
+#[cfg(target_arch = "wasm32")]
+use std::alloc::System;
+#[cfg(debug_assertions)]
+#[cfg(target_arch = "wasm32")]
+use wasm_tracing_allocator::WasmTracingAllocator;
+
+#[cfg(debug_assertions)]
+#[cfg(target_arch = "wasm32")]
+#[global_allocator]
+static GLOBAL_ALLOCATOR: WasmTracingAllocator<System> = WasmTracingAllocator(System);
+
 #[wasm_bindgen]
 #[derive(Debug)]
 /// A wrapper compressor for efficient API translation from/into WASM.
@@ -96,8 +108,7 @@ impl IdCompressor {
         if new_cluster_capacity > MAX_DEFAULT_CLUSTER_CAPACITY {
             return Err(JsError::new("Clusters must not exceed max cluster size."));
         }
-        self
-            .compressor
+        self.compressor
             .set_cluster_capacity(new_cluster_capacity as u64)
             .map_err(into_jserror)
     }
