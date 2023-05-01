@@ -33,6 +33,7 @@ import { runInNewContext } from "vm";
 
 describe.skip("IdCompressor memory pressure", () => {
 	it("Memory pressure measurement", () => {
+		(global as any).wasmMemory = require("wasm-id-allocator");
 		// Curent TS vs. WASM score: 163KB vs 73KB :)
 		setFlagsFromString("--expose_gc");
 		const gc = runInNewContext("gc"); // nocommit
