@@ -5,7 +5,7 @@ import { createSessionId } from "../src/utilities";
 
 describe.only("IdCompressor memory", () => {
 	it("Trace allocations", async () => {
-		const numSessions = 5;
+		const numSessions = 10000;
 		const capacity = 10;
 		const numClusters = 3;
 		const compressor = IdCompressor.create();
@@ -56,7 +56,7 @@ function dumpAllocations(showCount: boolean): void {
 						.replace(`distributed_id_allocator::`, "")
 						.replace(`wasm_id_allocator::`, "");
 				})
-				.slice(-5)
+				.slice(-7)
 				.join("   "),
 		getValue: showCount ? (_entry) => 1 : (_entry) => _entry.size,
 	});
