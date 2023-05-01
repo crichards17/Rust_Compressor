@@ -49,14 +49,16 @@ function dumpAllocations(showCount: boolean): void {
 				.filter(
 					(s) =>
 						s.indexOf("distributed_id_allocator::") >= 0 ||
-						s.indexOf("wasm_id_allocator::") >= 0,
+						s.indexOf("wasm_id_allocator::") >= 0 ||
+						s.indexOf("vec::") >= 0 ||
+						s.toLowerCase().indexOf("btree") >= 0,
 				)
 				.map((str) => {
 					return str
 						.replace(`distributed_id_allocator::`, "")
 						.replace(`wasm_id_allocator::`, "");
 				})
-				.slice(-7)
+				.slice(-5)
 				.join("   "),
 		getValue: showCount ? (_entry) => 1 : (_entry) => _entry.size,
 	});
