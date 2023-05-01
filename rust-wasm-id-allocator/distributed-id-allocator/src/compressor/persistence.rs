@@ -158,11 +158,8 @@ pub mod v1 {
             };
             let session_space_ref = session_ref_remap[session_index as usize];
             let session_space = compressor.sessions.deref_session_space(session_space_ref);
-            let base_local_id = match session_space.get_tail_cluster(session_space_ref) {
-                Some(cluster_ref) => {
-                    let cluster = compressor.sessions.deref_cluster(cluster_ref);
-                    cluster.base_local_id - cluster.capacity
-                }
+            let base_local_id = match session_space.get_tail_cluster() {
+                Some(cluster) => cluster.base_local_id - cluster.capacity,
                 None => LocalId::from_id(-1),
             };
             let new_cluster = IdCluster {

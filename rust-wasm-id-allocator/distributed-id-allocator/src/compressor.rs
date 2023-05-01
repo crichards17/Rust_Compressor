@@ -143,10 +143,11 @@ impl IdCompressor {
     pub fn generate_next_id(&mut self) -> SessionSpaceId {
         self.generated_id_count += 1;
         let tail_cluster = match self
-            .get_local_session_space()
-            .get_tail_cluster(self.local_session_ref)
+            .sessions
+            .deref_session_space(self.local_session_ref)
+            .get_tail_cluster()
         {
-            Some(tail_cluster_ref) => self.sessions.deref_cluster(tail_cluster_ref),
+            Some(cluster) => cluster,
             None => {
                 // No cluster, return next local
                 return self.generate_next_local_id().into();
@@ -232,26 +233,27 @@ impl IdCompressor {
             return Err(AllocatorError::ClusterCollision);
         }
         let session_space_ref = self.sessions.get_or_create(session_id);
-        let tail_cluster_ref = match self
+        if self
             .sessions
             .deref_session_space_mut(session_space_ref)
-            .get_tail_cluster(session_space_ref)
+            .cluster_chain_is_empty()
         {
-            Some(tail_cluster) => tail_cluster,
-            None => {
-                // This is the first cluster in the session
-                if range_base_local != -1 {
-                    return Err(AllocatorError::RangeFinalizedOutOfOrder);
-                }
-                self.telemetry_stats.cluster_creation_count += 1;
-                self.add_empty_cluster(
-                    session_space_ref,
-                    range_base_local,
-                    self.cluster_capacity + range_len,
-                )
+            // This is the first cluster in the session
+            if range_base_local != -1 {
+                return Err(AllocatorError::RangeFinalizedOutOfOrder);
             }
+            self.telemetry_stats.cluster_creation_count += 1;
+            _ = self.add_empty_cluster(
+                session_space_ref,
+                range_base_local,
+                self.cluster_capacity + range_len,
+            );
         };
-        let tail_cluster = self.sessions.deref_cluster_mut(tail_cluster_ref);
+        let tail_cluster = self
+            .sessions
+            .deref_session_space_mut(session_space_ref)
+            .get_tail_cluster_mut()
+            .unwrap();
         let remaining_capacity = tail_cluster.capacity - tail_cluster.count;
         if tail_cluster.base_local_id - tail_cluster.count != range_base_local {
             return Err(AllocatorError::RangeFinalizedOutOfOrder);
@@ -262,7 +264,9 @@ impl IdCompressor {
         } else {
             let overflow = range_len - remaining_capacity;
             let new_claimed_final_count = overflow + self.cluster_capacity;
-            if self.final_space.is_last(tail_cluster_ref) {
+            if self.final_id_limit >= tail_cluster.base_final_id
+                && self.final_id_limit <= tail_cluster.max_allocated_final()
+            {
                 // Tail_cluster is the last cluster, and so can be expanded.
                 self.telemetry_stats.expansion_count += 1;
                 tail_cluster.capacity += new_claimed_final_count;

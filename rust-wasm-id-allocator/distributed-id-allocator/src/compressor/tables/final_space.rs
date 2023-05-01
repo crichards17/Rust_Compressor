@@ -20,10 +20,6 @@ impl FinalSpace {
         self.clusters.len()
     }
 
-    pub fn is_last(&self, cluster_ref: ClusterRef) -> bool {
-        cluster_ref == self.clusters[self.clusters.len() - 1]
-    }
-
     pub fn add_cluster(&mut self, new_cluster_ref: ClusterRef, _sessions: &Sessions) {
         #[cfg(debug_assertions)]
         if !self.clusters.is_empty() {

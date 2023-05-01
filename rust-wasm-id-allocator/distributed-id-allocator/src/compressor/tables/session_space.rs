@@ -195,14 +195,23 @@ impl SessionSpace {
         self.session_id
     }
 
-    pub fn get_tail_cluster(&self, self_ref: SessionSpaceRef) -> Option<ClusterRef> {
+    pub fn cluster_chain_is_empty(&self) -> bool {
+        self.cluster_chain.is_empty()
+    }
+
+    pub fn get_tail_cluster(&self) -> Option<&IdCluster> {
         if self.cluster_chain.is_empty() {
             return None;
         }
-        Some(ClusterRef {
-            session_space_ref: self_ref,
-            cluster_chain_index: self.cluster_chain.len() - 1,
-        })
+        Some(&self.cluster_chain[self.cluster_chain.len() - 1])
+    }
+
+    pub fn get_tail_cluster_mut(&mut self) -> Option<&mut IdCluster> {
+        if self.cluster_chain.is_empty() {
+            return None;
+        }
+        let last = self.cluster_chain.len() - 1;
+        Some(&mut self.cluster_chain[last])
     }
 
     fn get_max_allocated_stable(&self) -> StableId {
