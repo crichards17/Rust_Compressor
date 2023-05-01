@@ -44,7 +44,7 @@ pub struct IdCompressor {
     generated_id_count: u64,
     // The generation count value for the next IdRange_'s range base.
     next_range_base_generation_count: u64,
-    // Cache of the last finalized final ID in final space. Used to optimize normalization.
+    // Cache of one greater than the last finalized final ID in final space. Used to optimize normalization.
     final_id_limit: FinalId,
     // The current value for sizing of new clusters.
     cluster_capacity: u64,
@@ -249,6 +249,12 @@ impl IdCompressor {
                 self.cluster_capacity + range_len,
             );
         };
+        let final_cluster_base_final = self
+            .final_space
+            .get_tail_cluster(&self.sessions)
+            .unwrap()
+            .base_final_id
+            .clone();
         let tail_cluster = self
             .sessions
             .deref_session_space_mut(session_space_ref)
@@ -264,9 +270,7 @@ impl IdCompressor {
         } else {
             let overflow = range_len - remaining_capacity;
             let new_claimed_final_count = overflow + self.cluster_capacity;
-            if self.final_id_limit >= tail_cluster.base_final_id
-                && self.final_id_limit <= tail_cluster.max_allocated_final()
-            {
+            if tail_cluster.base_final_id == final_cluster_base_final {
                 // Tail_cluster is the last cluster, and so can be expanded.
                 self.telemetry_stats.expansion_count += 1;
                 tail_cluster.capacity += new_claimed_final_count;
