@@ -111,7 +111,7 @@ impl IdCompressor {
     ) -> Result<i64, AllocatorError> {
         match self.sessions.get(session_id) {
             None => Err(AllocatorError::NoTokenForSession),
-            Some(session_space) => Ok(session_space.self_ref().get_index() as i64),
+            Some(session_space) => Ok(session_space.get_index() as i64),
         }
     }
 

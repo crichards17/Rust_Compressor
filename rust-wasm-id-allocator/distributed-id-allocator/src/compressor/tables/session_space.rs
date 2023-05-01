@@ -38,11 +38,8 @@ impl Sessions {
         })
     }
 
-    pub fn get(&self, session_id: SessionId) -> Option<&SessionSpace> {
-        match self.session_map.get(&session_id) {
-            None => None,
-            Some(session_space_ref) => Some(self.deref_session_space(*session_space_ref)),
-        }
+    pub fn get(&self, session_id: SessionId) -> Option<&SessionSpaceRef> {
+        self.session_map.get(&session_id)
     }
 
     pub fn deref_session_space_mut(
@@ -199,10 +196,6 @@ impl SessionSpace {
         self.session_id
     }
 
-    pub fn self_ref(&self) -> SessionSpaceRef {
-        self.self_ref
-    }
-
     pub fn get_tail_cluster(&self) -> Option<ClusterRef> {
         if self.cluster_chain.is_empty() {
             return None;
@@ -251,7 +244,8 @@ impl SessionSpace {
         search_local: LocalId,
         include_allocated: bool,
     ) -> Option<FinalId> {
-        self.get_cluster_by_local(search_local, include_allocated).map(|found_cluster| found_cluster.get_allocated_final(search_local).unwrap())
+        self.get_cluster_by_local(search_local, include_allocated)
+            .map(|found_cluster| found_cluster.get_allocated_final(search_local).unwrap())
     }
 
     fn get_cluster_by_local(
