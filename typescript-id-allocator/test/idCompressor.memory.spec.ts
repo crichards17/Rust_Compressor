@@ -3,7 +3,7 @@ import { IdCompressor } from "../src/IdCompressor";
 import { SessionId } from "../src/types";
 import { createSessionId } from "../src/utilities";
 
-describe.skip("IdCompressor memory", () => {
+describe.only("IdCompressor memory", () => {
 	it("Trace allocations", async () => {
 		const numSessions = 5;
 		const capacity = 10;
