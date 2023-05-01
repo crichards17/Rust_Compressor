@@ -5,7 +5,6 @@
 
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 
-require("wasm-tracing-allocator");
 import {
 	IdCreationRange,
 	SerializedIdCompressorWithNoSession,
@@ -29,57 +28,6 @@ import { FinalCompressedId, LocalCompressedId, isFinalId, isLocalId } from "./te
 import { createSessionId } from "../../src/utilities";
 import { assert, fail } from "../../src/copied-utils";
 import { DestinationClient } from "./idCompressorTestUtilities";
-
-describe.only("IdCompressor memory", () => {
-	it("Trace allocations", () => {
-		const numSessions = 5;
-		const capacity = 10;
-		const numClusters = 3;
-		const compressor = IdCompressor.create();
-		compressor.clusterCapacity = capacity;
-		const sessions: SessionId[] = [];
-		for (let i = 0; i < numSessions; i++) {
-			sessions.push(createSessionId());
-		}
-		for (let i = 0; i < numSessions * numClusters; i++) {
-			const sessionId = sessions[i % numSessions];
-			if (Math.random() > 0.1) {
-				for (let j = 0; j < Math.round(capacity / 2); j++) {
-					compressor.generateCompressedId();
-				}
-				compressor.finalizeCreationRange(compressor.takeNextCreationRange());
-			}
-			compressor.finalizeCreationRange({
-				sessionId,
-				ids: {
-					firstGenCount: Math.floor(i / numSessions) * capacity + 1,
-					count: capacity,
-				},
-			});
-		}
-		(global as any).WasmTracingAllocator.dumpLiveAllocations({
-			keyLabel: "Live Allocations",
-			valueLabel: "Count",
-			getKey: (entry) =>
-				entry.stack
-					.split(/[\n\s]/)
-					.filter(
-						(s) =>
-							s.indexOf("distributed_id_allocator::") >= 0 ||
-							s.indexOf("wasm_id_allocator::") >= 0,
-					)
-					.map((str) => {
-						return str
-							.replace(`distributed_id_allocator::`, "")
-							.replace(`wasm_id_allocator::`, "");
-					})
-					.slice(-5)
-					.join("   "),
-			getValue: (_entry) => 1,
-		});
-		compressor.dispose();
-	});
-});
 
 describe("IdCompressor Perf", () => {
 	afterEach(() => {
