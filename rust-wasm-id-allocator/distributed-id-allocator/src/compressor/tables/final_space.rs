@@ -37,7 +37,7 @@ impl FinalSpace {
     }
 
     // Searches the Final table for a cluster whose capacity would include the given Final.
-    //   Does not guarantee that the Final has been allocated to the returned cluster.
+    //   Does not guarantee that the Final has been generated.
     pub fn search(&self, target_final: FinalId, sessions: &Sessions) -> Option<ClusterRef> {
         self.clusters
             .binary_search_by(|current_cluster_ref| {

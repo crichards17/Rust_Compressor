@@ -537,6 +537,42 @@ fn test_decompress_unknown_id() {
 }
 
 #[test]
+fn test_prevents_decompressing_allocated_ungenerated_ids() {
+    let mut compressor = IdCompressor::new();
+    _ = compressor.set_cluster_capacity(10);
+    generate_n_ids(&mut compressor, 1);
+    finalize_next_range(&mut compressor);
+    let ungenerated_final = SessionSpaceId::from_id(4);
+
+    // ungenerated_final represents a FinalId which has been allocated but not generated,
+    //  and should return an error on decompression.
+    assert!(matches!(
+        compressor.decompress(ungenerated_final).unwrap_err(),
+        AllocatorError::InvalidSessionSpaceId
+    ));
+}
+
+#[test]
+fn test_prevents_decompressing_foreign_eager_finals() {
+    let mut compressor_a = IdCompressor::new();
+    let mut compressor_b = IdCompressor::new();
+    _ = compressor_b.set_cluster_capacity(10);
+
+    generate_n_ids(&mut compressor_a, 1);
+    let range_a = compressor_a.take_next_range();
+    _ = compressor_b.finalize_range(&range_a);
+
+    let foreign_final = SessionSpaceId::from_id(4);
+
+    // Attempting to decompress a FinalId which has been allocated in compressor_b
+    //  but which was created by a foreign session.
+    assert!(matches!(
+        compressor_b.decompress(foreign_final).unwrap_err(),
+        AllocatorError::InvalidSessionSpaceId
+    ));
+}
+
+#[test]
 fn test_decompress_local_before_and_after_finalizing() {
     let mut compressor = IdCompressor::new();
     let session_space_id = compressor.generate_next_id();
