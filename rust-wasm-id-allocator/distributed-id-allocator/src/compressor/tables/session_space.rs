@@ -32,17 +32,14 @@ impl Sessions {
             let new_session_space_ref = SessionSpaceRef {
                 index: new_session_space_index,
             };
-            let new_session_space = SessionSpace::new(session_id, new_session_space_ref);
+            let new_session_space = SessionSpace::new(session_id);
             self.session_list.push(new_session_space);
             new_session_space_ref
         })
     }
 
-    pub fn get(&self, session_id: SessionId) -> Option<&SessionSpace> {
-        match self.session_map.get(&session_id) {
-            None => None,
-            Some(session_space_ref) => Some(self.deref_session_space(*session_space_ref)),
-        }
+    pub fn get(&self, session_id: SessionId) -> Option<&SessionSpaceRef> {
+        self.session_map.get(&session_id)
     }
 
     pub fn deref_session_space_mut(
@@ -76,7 +73,10 @@ impl Sessions {
         self.session_list.iter()
     }
 
-    pub fn get_containing_cluster(&self, query: StableId) -> Option<(&IdCluster, LocalId)> {
+    pub fn get_containing_cluster(
+        &self,
+        query: StableId,
+    ) -> Option<(&IdCluster, SessionSpaceRef, LocalId)> {
         let mut range = self
             .session_map
             .range((
@@ -95,16 +95,14 @@ impl Sessions {
                 let aligned_local = LocalId::from_generation_count(delta as u64 + 1);
                 match session_space.get_cluster_by_local(aligned_local, true) {
                     Some(cluster_match) => {
-                        let result_session_id = self
-                            .deref_session_space(cluster_match.session_creator)
-                            .session_id();
+                        let result_session_id = session_space.session_id;
                         let cluster_min_stable = result_session_id + cluster_match.base_local_id;
                         let cluster_max_stable = cluster_min_stable + cluster_match.capacity;
                         if query >= cluster_min_stable && query <= cluster_max_stable {
                             let originator_local = LocalId::from_id(
                                 -((query - StableId::from(result_session_id)) as i64) - 1,
                             );
-                            Some((cluster_match, originator_local))
+                            Some((cluster_match, session_space_ref, originator_local))
                         } else {
                             None
                         }
@@ -181,16 +179,14 @@ impl Sessions {
 #[derive(Debug)]
 pub struct SessionSpace {
     session_id: SessionId,
-    self_ref: SessionSpaceRef,
     // Sorted on LocalId.
     cluster_chain: Vec<IdCluster>,
 }
 
 impl SessionSpace {
-    pub fn new(session_id: SessionId, self_ref: SessionSpaceRef) -> SessionSpace {
+    pub fn new(session_id: SessionId) -> SessionSpace {
         SessionSpace {
             session_id,
-            self_ref,
             cluster_chain: Vec::new(),
         }
     }
@@ -199,49 +195,54 @@ impl SessionSpace {
         self.session_id
     }
 
-    pub fn self_ref(&self) -> SessionSpaceRef {
-        self.self_ref
+    pub fn cluster_chain_is_empty(&self) -> bool {
+        self.cluster_chain.is_empty()
     }
 
-    pub fn get_tail_cluster(&self) -> Option<ClusterRef> {
+    pub fn get_tail_cluster(&self) -> Option<&IdCluster> {
         if self.cluster_chain.is_empty() {
             return None;
         }
-        Some(ClusterRef {
-            session_space_ref: self.self_ref,
-            cluster_chain_index: self.cluster_chain.len() - 1,
-        })
+        Some(&self.cluster_chain[self.cluster_chain.len() - 1])
+    }
+
+    pub fn get_tail_cluster_mut(&mut self) -> Option<&mut IdCluster> {
+        if self.cluster_chain.is_empty() {
+            return None;
+        }
+        let last = self.cluster_chain.len() - 1;
+        Some(&mut self.cluster_chain[last])
     }
 
     fn get_max_allocated_stable(&self) -> StableId {
-        let tail_cluster = match self.get_tail_cluster() {
-            Some(cluster_ref) => &self.cluster_chain[cluster_ref.cluster_chain_index],
-            None => return self.session_id.into(),
+        let tail_cluster = match self.cluster_chain.len() {
+            0 => return self.session_id.into(),
+            len => &self.cluster_chain[len - 1],
         };
         self.session_id + tail_cluster.max_allocated_local()
     }
 
     pub fn add_empty_cluster(
         &mut self,
+        self_ref: SessionSpaceRef,
         base_final_id: FinalId,
         base_local_id: LocalId,
         capacity: u64,
     ) -> ClusterRef {
         let new_cluster = IdCluster {
-            session_creator: self.self_ref,
             base_final_id,
             base_local_id,
             capacity,
             count: 0,
         };
-        self.add_cluster(new_cluster)
+        self.add_cluster(self_ref, new_cluster)
     }
 
-    pub fn add_cluster(&mut self, new_cluster: IdCluster) -> ClusterRef {
+    pub fn add_cluster(&mut self, self_ref: SessionSpaceRef, new_cluster: IdCluster) -> ClusterRef {
         self.cluster_chain.push(new_cluster);
         let tail_index = self.cluster_chain.len() - 1;
         ClusterRef {
-            session_space_ref: self.self_ref,
+            session_space_ref: self_ref,
             cluster_chain_index: tail_index,
         }
     }
@@ -251,7 +252,8 @@ impl SessionSpace {
         search_local: LocalId,
         include_allocated: bool,
     ) -> Option<FinalId> {
-        self.get_cluster_by_local(search_local, include_allocated).map(|found_cluster| found_cluster.get_allocated_final(search_local).unwrap())
+        self.get_cluster_by_local(search_local, include_allocated)
+            .map(|found_cluster| found_cluster.get_allocated_final(search_local).unwrap())
     }
 
     fn get_cluster_by_local(
@@ -302,7 +304,6 @@ impl SessionSpace {
 
 #[derive(Debug)]
 pub struct IdCluster {
-    pub(crate) session_creator: SessionSpaceRef,
     pub(crate) base_final_id: FinalId,
     pub(crate) base_local_id: LocalId,
     pub(crate) capacity: u64,
@@ -375,8 +376,12 @@ pub struct ClusterRef {
     cluster_chain_index: usize,
 }
 
-#[cfg(debug_assertions)]
 impl ClusterRef {
+    pub fn get_session_space_ref(&self) -> SessionSpaceRef {
+        self.session_space_ref
+    }
+
+    #[cfg(debug_assertions)]
     pub(crate) fn equals_test_only(
         &self,
         other: &ClusterRef,
