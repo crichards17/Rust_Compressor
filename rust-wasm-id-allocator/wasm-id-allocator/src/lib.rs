@@ -44,7 +44,11 @@ use wasm_bindgen::prelude::*;
 
 #[cfg(debug_assertions)]
 #[cfg(target_arch = "wasm32")]
-use std::alloc::System;
+use lol_alloc::{AssumeSingleThreaded, FreeListAllocator};
+
+#[cfg(debug_assertions)]
+//#[cfg(target_arch = "wasm32")]
+// use std::alloc::System;
 #[cfg(debug_assertions)]
 #[cfg(target_arch = "wasm32")]
 use wasm_tracing_allocator::WasmTracingAllocator;
@@ -52,7 +56,8 @@ use wasm_tracing_allocator::WasmTracingAllocator;
 #[cfg(debug_assertions)]
 #[cfg(target_arch = "wasm32")]
 #[global_allocator]
-static GLOBAL_ALLOCATOR: WasmTracingAllocator<System> = WasmTracingAllocator(System);
+static GLOBAL_ALLOCATOR: WasmTracingAllocator<AssumeSingleThreaded<FreeListAllocator>> =
+    unsafe { WasmTracingAllocator(AssumeSingleThreaded::new(FreeListAllocator::new())) };
 
 #[wasm_bindgen]
 #[derive(Debug)]
