@@ -417,8 +417,8 @@ impl IdCompressor {
                     .get_local_session_space()
                     .get_cluster_by_allocated_final(final_to_normalize)
                 {
-                    // Exists in local cluster chain
                     Some(containing_cluster) => {
+                        // Exists in local cluster chain
                         let aligned_local =
                             match containing_cluster.get_aligned_local(final_to_normalize) {
                                 None => return Err(AllocatorError::InvalidOpSpaceId),

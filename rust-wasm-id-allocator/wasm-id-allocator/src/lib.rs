@@ -96,8 +96,7 @@ impl IdCompressor {
         if new_cluster_capacity > MAX_DEFAULT_CLUSTER_CAPACITY {
             return Err(JsError::new("Clusters must not exceed max cluster size."));
         }
-        self
-            .compressor
+        self.compressor
             .set_cluster_capacity(new_cluster_capacity as u64)
             .map_err(into_jserror)
     }
@@ -518,5 +517,11 @@ mod tests {
         assert!(compressor
             .compressor
             .equals_test_only(&compressor_serialized_deserialized.compressor, false))
+    }
+
+    #[test]
+    fn test_nil_token() {
+        let token = IdCompressor::get_nil_token();
+        assert_eq!(token, -1 as f64);
     }
 }
