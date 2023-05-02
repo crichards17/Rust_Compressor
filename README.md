@@ -94,7 +94,7 @@ To build the Rust workspace, run `cargo build` from the rust-wasm-id-allocator f
 
 We use [Tarpaulin](https://github.com/xd009642/tarpaulin) to measure code coverage. The following are the coverage results as of the time of this writing:
 
-86.72% coverage, 751/866 lines covered
+91.52% coverage, 788/861 lines covered
 
 ## **TypeScript**
 

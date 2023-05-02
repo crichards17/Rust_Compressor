@@ -437,6 +437,7 @@ fn test_overflows_to_new_cluster() {
     generate_n_ids(&mut compressor_a, 8);
     finalize_next_range(&mut compressor_a);
     let telemetry = compressor_a.get_telemetry_stats();
+    assert_eq!(telemetry.eager_final_count, 3);
     assert_eq!(telemetry.expansion_count, 0);
     assert_eq!(telemetry.cluster_creation_count, 1);
 }
