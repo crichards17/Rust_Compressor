@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./rust-wasm-id-allocator
+        working-directory: ./typescript-id-allocator
 
     strategy:
       matrix:
@@ -23,14 +23,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
+      - run: cd ./typescript-id-allocator
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v3
         with:
           node-version: ${{ matrix.node-version }}
           cache: "npm"
       - run: npm ci
-        working-directory: ./typescript-id-allocator
       - run: npm run build
-        working-directory: ./typescript-id-allocator
       - run: npm run test
-        working-directory: ./typescript-id-allocator
