@@ -29,5 +29,6 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: "npm"
           cache-dependency-path: typescript-id-allocator/package-lock.json
+      - run: cargo install wasm-snip
       - run: npm run build
       - run: npm run test
