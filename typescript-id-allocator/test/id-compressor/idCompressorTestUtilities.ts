@@ -150,6 +150,39 @@ export class CompressorFactory {
 }
 
 /**
+ * Utility for building a huge compressor.
+ * Build via the compressor factory.
+ */
+export function buildHugeCompressor(
+	numSessions = 10000,
+	capacity = 10,
+	numClustersPerSession = 3,
+): IdCompressor {
+	const compressor = CompressorFactory.createCompressorWithSession(createSessionId(), capacity);
+	const sessions: SessionId[] = [];
+	for (let i = 0; i < numSessions; i++) {
+		sessions.push(createSessionId());
+	}
+	for (let i = 0; i < numSessions * numClustersPerSession; i++) {
+		const sessionId = sessions[i % numSessions];
+		if (Math.random() > 0.1) {
+			for (let j = 0; j < Math.round(capacity / 2); j++) {
+				compressor.generateCompressedId();
+			}
+			compressor.finalizeCreationRange(compressor.takeNextCreationRange());
+		}
+		compressor.finalizeCreationRange({
+			sessionId,
+			ids: {
+				firstGenCount: Math.floor(i / numSessions) * capacity + 1,
+				count: capacity,
+			},
+		});
+	}
+	return compressor;
+}
+
+/**
  * A closed map from NamedClient to T.
  */
 export type ClientMap<T> = ClosedMap<Client, T>;

@@ -19,6 +19,7 @@ import {
 	Client,
 	CompressorFactory,
 	IdCompressorTestNetwork,
+	buildHugeCompressor,
 	makeOpGenerator,
 	performFuzzActions,
 	sessionIds,
@@ -327,29 +328,45 @@ describe("IdCompressor Perf", () => {
 		});
 	});
 
-	benchmark({
-		type,
-		title: `serialize an IdCompressor`,
-		before: () => {
-			setupCompressors(defaultClusterCapacity, false, true);
-		},
-		benchmarkFn: () => {
-			perfCompressor!.serialize(false);
-		},
+	benchmarkWithFlag((manySessions) => {
+		benchmark({
+			type,
+			title: `serialize an IdCompressor (${
+				manySessions ? "many sessions" : "many clusters"
+			})`,
+			before: () => {
+				if (manySessions) {
+					perfCompressor = buildHugeCompressor(undefined, defaultClusterCapacity);
+				} else {
+					setupCompressors(defaultClusterCapacity, false, true);
+				}
+			},
+			benchmarkFn: () => {
+				perfCompressor!.serialize(false);
+			},
+		});
 	});
 
-	let serialized!: SerializedIdCompressorWithNoSession;
-	const overrideRemoteSessionId = createSessionId();
-	benchmark({
-		type,
-		title: `deserialize an IdCompressor`,
-		before: () => {
-			setupCompressors(defaultClusterCapacity, false, true);
-			serialized = perfCompressor.serialize(false);
-		},
-		benchmarkFn: () => {
-			const compressor = IdCompressor.deserialize(serialized, overrideRemoteSessionId);
-			compressor.dispose();
-		},
+	benchmarkWithFlag((manySessions) => {
+		let serialized!: SerializedIdCompressorWithNoSession;
+		const overrideRemoteSessionId = createSessionId();
+		benchmark({
+			type,
+			title: `deserialize an IdCompressor (${
+				manySessions ? "many sessions" : "many clusters"
+			})`,
+			before: () => {
+				if (manySessions) {
+					perfCompressor = buildHugeCompressor(undefined, defaultClusterCapacity);
+				} else {
+					setupCompressors(defaultClusterCapacity, false, true);
+				}
+				serialized = perfCompressor.serialize(false);
+			},
+			benchmarkFn: () => {
+				const compressor = IdCompressor.deserialize(serialized, overrideRemoteSessionId);
+				compressor.dispose();
+			},
+		});
 	});
 });
