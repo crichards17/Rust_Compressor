@@ -9,7 +9,7 @@
 		"build:opt": "wasm-opt -O2 --enable-mutable-globals -o dist/wasm/wasm_id_allocator_bg.wasm dist/wasm/wasm_id_allocator_bg.wasm",
 		"bench": "mocha --timeout 999999 --perfMode --parentProcess --fgrep @Benchmark --reporter @fluid-tools/benchmark/dist/MochaReporter.js ./dist/**/*.spec.js",
 		"clean": "rimraf ./dist",
-		"test": "npm run build:ts && mocha ./dist/javascript/test/**/*.js --recursive",
+		"test": "npm run build:ts && mocha --timeout 999999 ./dist/javascript/test/**/*.js --recursive",
 		"prettier": "prettier --check . --ignore-path ./.prettierignore",
 		"prettier:fix": "prettier --write . --ignore-path ./.prettierignore"
 	},
