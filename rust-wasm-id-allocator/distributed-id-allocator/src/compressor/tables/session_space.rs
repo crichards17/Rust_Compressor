@@ -11,6 +11,9 @@ use std::ops::Bound;
 pub struct Sessions {
     session_map: BTreeMap<SessionId, SessionSpaceRef>,
     session_list: Vec<SessionSpace>,
+    // Session IDs are stored in little endian byte form in a compact array to accelerate serialization.
+    // When a session ID is queried (via session space ref) the bytes are converted to a u128/Session ID.
+    // This tradeoff favors serialization at a small penalty to the (already slow) path of decompress/recompress.
     session_ids: Vec<u8>,
 }
 
@@ -46,8 +49,7 @@ impl Sessions {
         let bytes: [u8; 16] = self.session_ids[index..index + size_of::<u128>()]
             .try_into()
             .unwrap();
-        let id_128 = u128::from_le_bytes(bytes);
-        session_id_from_id_u128(id_128)
+        session_id_from_id_u128(u128::from_le_bytes(bytes))
     }
 
     pub fn get(&self, session_id: SessionId) -> Option<&SessionSpaceRef> {
@@ -82,7 +84,7 @@ impl Sessions {
     }
 
     pub fn get_session_id_slice(&self) -> &[u8] {
-        &self.session_ids[0..]
+        &self.session_ids
     }
 
     pub fn get_containing_cluster(
