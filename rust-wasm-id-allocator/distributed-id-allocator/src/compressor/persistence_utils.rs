@@ -8,14 +8,31 @@ impl<'a> Deserializer<'a> {
     }
 
     pub fn take_u64(&mut self) -> u64 {
+        #[cfg(target_endian = "little")]
+        {
+            let ptr = std::ptr::addr_of!(self.bytes[0]) as *const u64;
+            let val = unsafe { std::ptr::read_unaligned(ptr) };
+            self.bytes = &self.bytes[8..];
+            val
+        }
+        #[cfg(not(target_endian = "little"))]
         self.take_one(u64::from_le_bytes)
     }
 
     pub fn take_u128(&mut self) -> u128 {
+        #[cfg(target_endian = "little")]
+        {
+            let ptr = std::ptr::addr_of!(self.bytes[0]) as *const u128;
+            let val = unsafe { std::ptr::read_unaligned(ptr) };
+            self.bytes = &self.bytes[16..];
+            val
+        }
+        #[cfg(not(target_endian = "little"))]
         self.take_one(u128::from_le_bytes)
     }
 
     #[inline]
+    #[cfg(not(target_endian = "little"))]
     fn take_one<FBuild, T, const SIZE: usize>(&mut self, builder: FBuild) -> T
     where
         FBuild: Fn([u8; SIZE]) -> T,
