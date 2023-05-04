@@ -1,7 +1,3 @@
-/*
-The local/UUID space within an individual Session.
-Effectively represents the cluster chain for a given session.
-*/
 use id_types::session_id::{session_id_from_id_u128, stable_id_from_stable_id};
 use id_types::{FinalId, LocalId, SessionId, StableId};
 use std::cmp::Ordering;
@@ -10,6 +6,8 @@ use std::mem::size_of;
 use std::ops::Bound;
 
 #[derive(Debug)]
+/// The local/UUID space within an individual Session.
+/// Effectively represents the cluster chain for a given session.
 pub struct Sessions {
     session_map: BTreeMap<SessionId, SessionSpaceRef>,
     session_list: Vec<SessionSpace>,
@@ -206,7 +204,7 @@ pub struct SessionSpace {
 impl SessionSpace {
     pub fn new() -> SessionSpace {
         SessionSpace {
-            cluster_chain: Vec::new(),
+            cluster_chain: Vec::with_capacity(1),
         }
     }
 
