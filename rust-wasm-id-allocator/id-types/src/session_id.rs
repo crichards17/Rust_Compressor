@@ -41,9 +41,16 @@ impl SessionId {
         }
     }
 
-    /// Creates a new SessionId from the supplied UUID in bit form. Intended for internal use only.
+    /// Creates a new SessionId from the supplied UUID in number form. Intended for internal use only.
     pub fn from_uuid_u128(uuid_u128: u128) -> SessionId {
         uuid::Builder::from_u128(uuid_u128).into_uuid().into()
+    }
+
+    /// Creates a new SessionId from the supplied u128 in internal ID form. Intended for internal use only.
+    pub fn from_id_u128(id_u128: u128) -> SessionId {
+        SessionId {
+            id: StableId { id: id_u128 },
+        }
     }
 }
 
@@ -56,6 +63,12 @@ impl From<Uuid> for SessionId {
 impl From<SessionId> for String {
     fn from(value: SessionId) -> Self {
         value.id.into()
+    }
+}
+
+impl From<SessionId> for [u8; 16] {
+    fn from(value: SessionId) -> Self {
+        value.id.id.to_le_bytes()
     }
 }
 

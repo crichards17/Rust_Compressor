@@ -90,11 +90,7 @@ pub mod v1 {
         write_u64_to_vec(bytes, compressor.cluster_capacity);
         write_u64_to_vec(bytes, compressor.sessions.get_session_count() as u64);
 
-        compressor
-            .sessions
-            .get_session_spaces()
-            .map(|session_space| StableId::from(session_space.session_id()).into())
-            .for_each(|session_u128| write_u128_to_vec(bytes, session_u128));
+        bytes.extend_from_slice(compressor.sessions.get_session_id_slice());
 
         write_u64_to_vec(bytes, compressor.final_space.get_cluster_count() as u64);
         compressor
@@ -136,7 +132,7 @@ pub mod v1 {
         let mut session_ref_remap = Vec::new();
         for _ in 0..session_count {
             let session_uuid_u128 = deserializer.take_u128();
-            let session_id = SessionId::from_uuid_u128(session_uuid_u128);
+            let session_id = SessionId::from_id_u128(session_uuid_u128);
             if !with_local_state && session_id == compressor.session_id {
                 return Err(DeserializationError::InvalidResumedSession);
             }

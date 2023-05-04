@@ -5,7 +5,7 @@ use uuid::Uuid;
 /// A compressed version 4, variant 1 UUID (https://datatracker.ietf.org/doc/html/rfc4122).
 /// Can be converted to a UUID, u128, or String as needed.
 pub struct StableId {
-    id: u128,
+    pub(crate) id: u128,
 }
 
 impl StableId {

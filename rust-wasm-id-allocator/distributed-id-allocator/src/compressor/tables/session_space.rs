@@ -6,12 +6,14 @@ use id_types::session_id::from_stable_id;
 use id_types::{FinalId, LocalId, SessionId, StableId};
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
+use std::mem::size_of;
 use std::ops::Bound;
 
 #[derive(Debug)]
 pub struct Sessions {
     session_map: BTreeMap<SessionId, SessionSpaceRef>,
     session_list: Vec<SessionSpace>,
+    session_ids: Vec<u8>,
 }
 
 impl Sessions {
@@ -19,6 +21,7 @@ impl Sessions {
         Sessions {
             session_map: BTreeMap::new(),
             session_list: Vec::new(),
+            session_ids: Vec::new(),
         }
     }
 
@@ -32,10 +35,21 @@ impl Sessions {
             let new_session_space_ref = SessionSpaceRef {
                 index: new_session_space_index,
             };
-            let new_session_space = SessionSpace::new(session_id);
+            let new_session_space = SessionSpace::new();
             self.session_list.push(new_session_space);
+            self.session_ids
+                .extend_from_slice(&<[u8; 16]>::from(session_id));
             new_session_space_ref
         })
+    }
+
+    pub fn get_session_id(&self, session_space_ref: SessionSpaceRef) -> SessionId {
+        let index = session_space_ref.index * size_of::<u128>();
+        let bytes: [u8; 16] = self.session_ids[index..index + size_of::<u128>()]
+            .try_into()
+            .unwrap();
+        let id_128 = u128::from_le_bytes(bytes);
+        SessionId::from_id_u128(id_128)
     }
 
     pub fn get(&self, session_id: SessionId) -> Option<&SessionSpaceRef> {
@@ -69,8 +83,8 @@ impl Sessions {
             .cluster_chain[cluster_ref.cluster_chain_index]
     }
 
-    pub fn get_session_spaces(&self) -> impl Iterator<Item = &SessionSpace> {
-        self.session_list.iter()
+    pub fn get_session_id_slice(&self) -> &[u8] {
+        &self.session_ids[0..]
     }
 
     pub fn get_containing_cluster(
@@ -88,14 +102,15 @@ impl Sessions {
             None => None,
             Some((_, &session_space_ref)) => {
                 let session_space = self.deref_session_space(session_space_ref);
-                if query > session_space.get_max_allocated_stable() {
+                let session_id = self.get_session_id(session_space_ref);
+                if query > session_space.get_max_allocated_stable(session_id) {
                     return None;
                 }
-                let delta: u128 = query - StableId::from(session_space.session_id);
+                let delta: u128 = query - StableId::from(session_id);
                 let aligned_local = LocalId::from_generation_count(delta as u64 + 1);
                 match session_space.get_cluster_by_local(aligned_local, true) {
                     Some(cluster_match) => {
-                        let result_session_id = session_space.session_id;
+                        let result_session_id = session_id;
                         let cluster_min_stable = result_session_id + cluster_match.base_local_id;
                         let cluster_max_stable = cluster_min_stable + cluster_match.capacity;
                         if query >= cluster_min_stable && query <= cluster_max_stable {
@@ -129,24 +144,30 @@ impl Sessions {
         match range.next() {
             None => false,
             Some((_, &session_space_ref)) => {
-                let result_session_space = self.deref_session_space(session_space_ref);
-                originator != result_session_space.session_id
-                    && range_base <= result_session_space.get_max_allocated_stable()
+                let session_space = self.deref_session_space(session_space_ref);
+                let session_id = self.get_session_id(session_space_ref);
+                originator != session_id
+                    && range_base <= session_space.get_max_allocated_stable(session_id)
             }
         }
     }
 
     #[cfg(debug_assertions)]
     pub(crate) fn equals_test_only(&self, other: &Sessions) -> bool {
-        fn get_sorted_sessions(session_space: &Sessions) -> impl Iterator<Item = &SessionSpace> {
-            let mut filtered: Vec<&SessionSpace> = session_space
-                .session_list
-                .iter()
-                .filter(|&session_space| !session_space.cluster_chain.is_empty())
+        fn get_sorted_sessions(
+            sessions: &Sessions,
+        ) -> impl Iterator<Item = (&SessionSpace, SessionId)> {
+            let mut filtered: Vec<(&SessionSpace, SessionId)> = (0..sessions.session_list.len())
+                .filter(|index| !sessions.session_list[*index].cluster_chain_is_empty())
+                .map(|index| {
+                    (
+                        &sessions.session_list[index],
+                        sessions.get_session_id(SessionSpaceRef { index }),
+                    )
+                })
                 .collect();
-            filtered.sort_by(|session_space_a, session_space_b| {
-                session_space_a.session_id.cmp(&session_space_b.session_id)
-            });
+            filtered
+                .sort_by(|&(_, session_id_a), &(_, session_id_b)| session_id_a.cmp(&session_id_b));
             filtered.into_iter()
         }
         let mut filtered_a = get_sorted_sessions(self);
@@ -160,15 +181,15 @@ impl Sessions {
             if session_space_a.is_none() && session_space_b.is_none() {
                 return true;
             }
-            let session_space_a = session_space_a.unwrap();
-            let session_space_b = session_space_b.unwrap();
-            if session_space_a.session_id != session_space_b.session_id
+            let (session_space_a, session_id_a) = session_space_a.unwrap();
+            let (session_space_b, session_id_b) = session_space_b.unwrap();
+            if session_id_a != session_id_a
                 || session_space_a.cluster_chain != session_space_b.cluster_chain
             {
                 return false;
             }
-            if !self.session_map.contains_key(&session_space_a.session_id)
-                || !other.session_map.contains_key(&session_space_b.session_id)
+            if !self.session_map.contains_key(&session_id_a)
+                || !other.session_map.contains_key(&session_id_b)
             {
                 return false;
             }
@@ -178,21 +199,15 @@ impl Sessions {
 
 #[derive(Debug)]
 pub struct SessionSpace {
-    session_id: SessionId,
-    // Sorted on LocalId.
+    // All clusters in the session space, sorted on LocalId.
     cluster_chain: Vec<IdCluster>,
 }
 
 impl SessionSpace {
-    pub fn new(session_id: SessionId) -> SessionSpace {
+    pub fn new() -> SessionSpace {
         SessionSpace {
-            session_id,
             cluster_chain: Vec::new(),
         }
-    }
-
-    pub fn session_id(&self) -> SessionId {
-        self.session_id
     }
 
     pub fn cluster_chain_is_empty(&self) -> bool {
@@ -214,12 +229,12 @@ impl SessionSpace {
         Some(&mut self.cluster_chain[last])
     }
 
-    fn get_max_allocated_stable(&self) -> StableId {
+    fn get_max_allocated_stable(&self, session_id: SessionId) -> StableId {
         let tail_cluster = match self.cluster_chain.len() {
-            0 => return self.session_id.into(),
+            0 => return session_id.into(),
             len => &self.cluster_chain[len - 1],
         };
-        self.session_id + tail_cluster.max_allocated_local()
+        session_id + tail_cluster.max_allocated_local()
     }
 
     pub fn add_empty_cluster(
@@ -388,12 +403,8 @@ impl ClusterRef {
         sessions_self: &Sessions,
         sessions_other: &Sessions,
     ) -> bool {
-        let session_id_a = sessions_self
-            .deref_session_space(self.session_space_ref)
-            .session_id();
-        let session_id_b = sessions_other
-            .deref_session_space(other.session_space_ref)
-            .session_id();
+        let session_id_a = sessions_self.get_session_id(self.session_space_ref);
+        let session_id_b = sessions_other.get_session_id(other.session_space_ref);
         session_id_a == session_id_b && self.cluster_chain_index == other.cluster_chain_index
     }
 }
