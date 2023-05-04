@@ -20,9 +20,6 @@ impl<'a> Deserializer<'a> {
     where
         FBuild: Fn([u8; SIZE]) -> T,
     {
-        if SIZE > self.bytes.len() {
-            panic!()
-        }
         let val = builder(self.bytes[..SIZE].try_into().unwrap());
         self.bytes = &self.bytes[SIZE..];
         val
