@@ -2,7 +2,7 @@
 The local/UUID space within an individual Session.
 Effectively represents the cluster chain for a given session.
 */
-use id_types::session_id::from_stable_id;
+use id_types::session_id::{session_id_from_id_u128, stable_id_from_stable_id};
 use id_types::{FinalId, LocalId, SessionId, StableId};
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
@@ -49,7 +49,7 @@ impl Sessions {
             .try_into()
             .unwrap();
         let id_128 = u128::from_le_bytes(bytes);
-        SessionId::from_id_u128(id_128)
+        session_id_from_id_u128(id_128)
     }
 
     pub fn get(&self, session_id: SessionId) -> Option<&SessionSpaceRef> {
@@ -95,7 +95,7 @@ impl Sessions {
             .session_map
             .range((
                 Bound::Excluded(SessionId::nil()),
-                Bound::Included(from_stable_id(query)),
+                Bound::Included(stable_id_from_stable_id(query)),
             ))
             .rev();
         match range.next() {
@@ -138,7 +138,7 @@ impl Sessions {
             .session_map
             .range((
                 Bound::Excluded(SessionId::nil()),
-                Bound::Included(from_stable_id(range_max)),
+                Bound::Included(stable_id_from_stable_id(range_max)),
             ))
             .rev();
         match range.next() {

@@ -40,18 +40,25 @@ impl SessionId {
             }
         }
     }
+}
 
-    /// Creates a new SessionId from the supplied UUID in number form. Intended for internal use only.
-    pub fn from_uuid_u128(uuid_u128: u128) -> SessionId {
-        uuid::Builder::from_u128(uuid_u128).into_uuid().into()
-    }
+/// Creates a new SessionId from the supplied UUID in number form.
+/// Free function to keep it internal.
+pub fn session_id_from_uuid_u128(uuid_u128: u128) -> SessionId {
+    uuid::Builder::from_u128(uuid_u128).into_uuid().into()
+}
 
-    /// Creates a new SessionId from the supplied u128 in internal ID form. Intended for internal use only.
-    pub fn from_id_u128(id_u128: u128) -> SessionId {
-        SessionId {
-            id: StableId { id: id_u128 },
-        }
+/// Creates a new SessionId from the supplied u128 in internal ID form.
+/// Free function to keep it internal.
+pub fn session_id_from_id_u128(id_u128: u128) -> SessionId {
+    SessionId {
+        id: StableId { id: id_u128 },
     }
+}
+
+/// Internal type conversion
+pub fn stable_id_from_stable_id(stable_id: StableId) -> SessionId {
+    SessionId { id: stable_id }
 }
 
 impl From<Uuid> for SessionId {
@@ -82,11 +89,6 @@ impl From<SessionId> for StableId {
     fn from(value: SessionId) -> Self {
         value.id
     }
-}
-
-/// Internal type conversion
-pub fn from_stable_id(stable_id: StableId) -> SessionId {
-    SessionId { id: stable_id }
 }
 
 impl std::ops::Add<LocalId> for SessionId {
