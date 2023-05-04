@@ -47,7 +47,14 @@ describe("IdCompressor Perf", () => {
 	): IdCompressorTestNetwork {
 		const perfNetwork = new IdCompressorTestNetwork(clusterSize);
 		const maxClusterSize = 25;
-		const generator = take(1000, makeOpGenerator({ validateInterval: 2000, maxClusterSize }));
+		const generator = take(
+			1000,
+			makeOpGenerator({
+				validateInterval: 2000,
+				maxClusterSize,
+				outsideAllocationFraction: 0.9,
+			}),
+		);
 		if (perfNetwork.initialClusterSize > maxClusterSize) {
 			perfNetwork.enqueueCapacityChange(maxClusterSize);
 		}
