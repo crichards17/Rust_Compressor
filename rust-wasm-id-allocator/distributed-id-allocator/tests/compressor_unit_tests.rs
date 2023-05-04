@@ -44,14 +44,26 @@ fn test_cluster_spans_reserved_bits() {
 }
 
 #[test]
+fn test_can_set_cluster_capacity() {
+    let mut compressor = IdCompressor::new();
+    assert_eq!(
+        compressor.get_cluster_capacity(),
+        IdCompressor::get_default_cluster_capacity()
+    );
+    let capacity = 5;
+    assert!(compressor.set_cluster_capacity(capacity).is_ok());
+    assert_eq!(compressor.get_cluster_capacity(), capacity);
+    assert!(compressor.set_cluster_capacity(u64::MAX).is_ok());
+    assert_eq!(compressor.get_cluster_capacity(), u64::MAX);
+}
+
+#[test]
 fn test_detects_invalid_cluster_capacities() {
-    let mut compressor_1 = IdCompressor::new();
+    let mut compressor = IdCompressor::new();
     assert!(matches!(
-        compressor_1.set_cluster_capacity(0).unwrap_err(),
+        compressor.set_cluster_capacity(0).unwrap_err(),
         AllocatorError::InvalidClusterCapacity
     ));
-    assert!(compressor_1.set_cluster_capacity(1).is_ok());
-    assert!(compressor_1.set_cluster_capacity(u64::MAX).is_ok());
 }
 
 #[test]
@@ -340,6 +352,19 @@ fn test_prevent_finalizing_ranges_out_of_order() {
 }
 
 #[test]
+fn test_prevents_finalizing_malformed_ranges() {
+    let mut compressor = IdCompressor::new();
+    let bad_range = IdRange {
+        id: compressor.get_local_session_id(),
+        range: Some((2, 0)),
+    };
+    assert!(matches!(
+        compressor.finalize_range(&bad_range).unwrap_err(),
+        AllocatorError::MalformedIdRange
+    ));
+}
+
+#[test]
 fn test_finalize_to_clusters_of_varying_size() {
     for i in 1..5 {
         for j in 0..=i {
@@ -366,6 +391,55 @@ fn test_finalize_to_clusters_of_varying_size() {
             }
         }
     }
+}
+
+#[test]
+fn test_cluster_expansion() {
+    let mut compressor = IdCompressor::new();
+    _ = compressor.set_cluster_capacity(5);
+    _ = compressor.generate_next_id();
+
+    // Create the initial cluster
+    finalize_next_range(&mut compressor);
+    assert_eq!(compressor.get_telemetry_stats().cluster_creation_count, 1);
+
+    // Fill the initial cluster
+    generate_n_ids(&mut compressor, 5);
+    finalize_next_range(&mut compressor);
+    let telemetry = compressor.get_telemetry_stats();
+    assert_eq!(telemetry.expansion_count, 0);
+    assert_eq!(telemetry.cluster_creation_count, 0);
+
+    // Expand the initial cluster
+    generate_n_ids(&mut compressor, 2);
+    finalize_next_range(&mut compressor);
+    assert_eq!(compressor.get_telemetry_stats().expansion_count, 1);
+}
+
+#[test]
+fn test_overflows_to_new_cluster() {
+    let mut compressor_a = IdCompressor::new();
+    let mut compressor_b = IdCompressor::new();
+    _ = compressor_a.set_cluster_capacity(3);
+
+    // Finalize initial cluster in compressor_a
+    generate_n_ids(&mut compressor_a, 2);
+    finalize_next_range(&mut compressor_a);
+    assert_eq!(compressor_a.get_telemetry_stats().cluster_creation_count, 1);
+
+    // Finalize new foreign cluster in compressor_a
+    generate_n_ids(&mut compressor_b, 2);
+    let range_b = compressor_b.take_next_range();
+    _ = compressor_a.finalize_range(&range_b);
+    assert_eq!(compressor_a.get_telemetry_stats().cluster_creation_count, 1);
+
+    // Overflow initial local cluster to new cluster
+    generate_n_ids(&mut compressor_a, 8);
+    finalize_next_range(&mut compressor_a);
+    let telemetry = compressor_a.get_telemetry_stats();
+    assert_eq!(telemetry.eager_final_count, 3);
+    assert_eq!(telemetry.expansion_count, 0);
+    assert_eq!(telemetry.cluster_creation_count, 1);
 }
 
 #[test]
@@ -400,7 +474,26 @@ fn test_recompress_foreign_stable_id() {
 
 #[test]
 fn test_prevents_recompressing_unknown_stable_ids() {
-    let compressor = IdCompressor::new();
+    let mut compressor = IdCompressor::new_with_session_id(
+        SessionId::from_uuid_string("5fff846a-efd4-42fb-8b78-b32ce2672f70").unwrap(),
+    );
+    _ = compressor.set_cluster_capacity(10);
+    generate_n_ids(&mut compressor, 1);
+    finalize_next_range(&mut compressor);
+
+    // Attempt to recompress an unknown UUID that is less than the max allocated.
+    assert!(matches!(
+        compressor
+            .recompress(StableId::from(
+                Uuid::try_parse("5fff846a-efd4-42fb-8b78-b32ce2672f75")
+                    .ok()
+                    .unwrap()
+            ))
+            .unwrap_err(),
+        AllocatorError::InvalidStableId
+    ));
+
+    // Attempt to recompress an unknown UUID that is greater than the max allocated.
     assert!(matches!(
         compressor
             .recompress(StableId::from(
@@ -441,6 +534,42 @@ fn test_decompress_unknown_id() {
             .decompress(SessionSpaceId::from_id(0))
             .unwrap_err(),
         AllocatorError::InvalidSessionSpaceId,
+    ));
+}
+
+#[test]
+fn test_prevents_decompressing_allocated_ungenerated_ids() {
+    let mut compressor = IdCompressor::new();
+    _ = compressor.set_cluster_capacity(10);
+    generate_n_ids(&mut compressor, 1);
+    finalize_next_range(&mut compressor);
+    let ungenerated_final = SessionSpaceId::from_id(4);
+
+    // ungenerated_final represents a FinalId which has been allocated but not generated,
+    //  and should return an error on decompression.
+    assert!(matches!(
+        compressor.decompress(ungenerated_final).unwrap_err(),
+        AllocatorError::InvalidSessionSpaceId
+    ));
+}
+
+#[test]
+fn test_prevents_decompressing_foreign_eager_finals() {
+    let mut compressor_a = IdCompressor::new();
+    let mut compressor_b = IdCompressor::new();
+    _ = compressor_b.set_cluster_capacity(10);
+
+    generate_n_ids(&mut compressor_a, 1);
+    let range_a = compressor_a.take_next_range();
+    _ = compressor_b.finalize_range(&range_a);
+
+    let foreign_final = SessionSpaceId::from_id(4);
+
+    // Attempting to decompress a FinalId which has been allocated in compressor_b
+    //  but which was created by a foreign session.
+    assert!(matches!(
+        compressor_b.decompress(foreign_final).unwrap_err(),
+        AllocatorError::InvalidSessionSpaceId
     ));
 }
 
@@ -529,6 +658,77 @@ fn test_normalize_eager_final_to_op_space() {
         compressor.normalize_to_session_space(normalized_id, compressor.get_local_session_id());
     assert!(normalize_to_session_result.is_ok());
     assert_eq!(normalize_to_session_result.ok().unwrap(), eager_final);
+}
+
+#[test]
+fn test_normalize_own_local_to_session_space() {
+    let mut compressor = IdCompressor::new();
+    let session_space_id = compressor.generate_next_id();
+    let op_space_id_unfinalized = compressor.normalize_to_op_space(session_space_id).unwrap();
+
+    // Normalizing an unfinalized local
+    assert_eq!(
+        session_space_id,
+        compressor
+            .normalize_to_session_space(op_space_id_unfinalized, compressor.get_local_session_id())
+            .unwrap()
+    );
+    finalize_next_range(&mut compressor);
+    let op_space_id_finalized = compressor.normalize_to_op_space(session_space_id).unwrap();
+
+    // Normalizing a finalized local (was not an eager final)
+    assert_eq!(
+        session_space_id,
+        compressor
+            .normalize_to_session_space(op_space_id_finalized, compressor.get_local_session_id())
+            .unwrap()
+    );
+}
+
+#[test]
+fn test_prevents_normalizing_invalid_locals_to_session_space() {
+    let mut compressor = IdCompressor::new();
+    _ = compressor.set_cluster_capacity(10);
+    generate_n_ids(&mut compressor, 2);
+    let op_space_id = OpSpaceId::from_id(-5);
+    assert!(matches!(
+        compressor
+            .normalize_to_session_space(op_space_id, compressor.get_local_session_id())
+            .unwrap_err(),
+        AllocatorError::InvalidOpSpaceId
+    ));
+}
+
+#[test]
+fn test_prevents_normalizing_ungenerated_finals_to_session_space() {
+    let mut compressor = IdCompressor::new();
+    _ = compressor.set_cluster_capacity(10);
+    generate_n_ids(&mut compressor, 1);
+    finalize_next_range(&mut compressor);
+    let ungenerated_final = OpSpaceId::from_id(5);
+    assert!(matches!(
+        compressor
+            .normalize_to_session_space(ungenerated_final, compressor.get_local_session_id())
+            .unwrap_err(),
+        AllocatorError::InvalidOpSpaceId
+    ));
+}
+
+#[test]
+fn test_normalize_eager_finals_to_session_space() {
+    let mut compressor = IdCompressor::new();
+    _ = compressor.set_cluster_capacity(10);
+    generate_n_ids(&mut compressor, 1);
+    finalize_next_range(&mut compressor);
+
+    let eager_final = compressor.generate_next_id();
+    assert!(eager_final.is_final());
+
+    let op_space_eager_final = compressor.normalize_to_op_space(eager_final).unwrap();
+    let eager_roundtrip_result = compressor
+        .normalize_to_session_space(op_space_eager_final, compressor.get_local_session_id());
+    assert!(eager_roundtrip_result.is_ok());
+    assert_eq!(eager_final, eager_roundtrip_result.unwrap());
 }
 
 #[test]

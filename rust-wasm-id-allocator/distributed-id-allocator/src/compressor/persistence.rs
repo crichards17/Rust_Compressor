@@ -10,7 +10,7 @@ pub fn deserialize<FMakeSession>(
 where
     FMakeSession: FnOnce() -> SessionId,
 {
-    let mut deserializer = Deserializer::new(&bytes);
+    let mut deserializer = Deserializer::new(bytes);
     let version = deserializer.take_u64();
     match version {
         1 => v1::deserialize(&mut deserializer, make_session_id),
@@ -100,8 +100,11 @@ pub mod v1 {
         compressor
             .final_space
             .get_clusters(&compressor.sessions)
-            .for_each(|id_cluster| {
-                write_u64_to_vec(bytes, id_cluster.session_creator.get_index() as u64);
+            .for_each(|(id_cluster, cluster_ref)| {
+                write_u64_to_vec(
+                    bytes,
+                    cluster_ref.get_session_space_ref().get_index() as u64,
+                );
                 write_u64_to_vec(bytes, id_cluster.capacity);
                 write_u64_to_vec(bytes, id_cluster.count);
             });
@@ -156,23 +159,19 @@ pub mod v1 {
             let session_space_ref = session_ref_remap[session_index as usize];
             let session_space = compressor.sessions.deref_session_space(session_space_ref);
             let base_local_id = match session_space.get_tail_cluster() {
-                Some(cluster_ref) => {
-                    let cluster = compressor.sessions.deref_cluster(cluster_ref);
-                    cluster.base_local_id - cluster.capacity
-                }
+                Some(cluster) => cluster.base_local_id - cluster.capacity,
                 None => LocalId::from_id(-1),
             };
             let new_cluster = IdCluster {
-                session_creator: session_space_ref,
                 base_final_id,
                 base_local_id,
-                capacity: capacity,
-                count: count,
+                capacity,
+                count,
             };
             let new_cluster_ref = compressor
                 .sessions
                 .deref_session_space_mut(session_space_ref)
-                .add_cluster(new_cluster);
+                .add_cluster(session_space_ref, new_cluster);
             compressor
                 .final_space
                 .add_cluster(new_cluster_ref, &compressor.sessions);

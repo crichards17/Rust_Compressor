@@ -19,14 +19,15 @@ import {
 	Client,
 	CompressorFactory,
 	IdCompressorTestNetwork,
+	buildHugeCompressor,
 	makeOpGenerator,
 	performFuzzActions,
 	sessionIds,
 } from "./idCompressorTestUtilities";
 import { defaultClusterCapacity, IdCompressor } from "../../src/IdCompressor";
 import { FinalCompressedId, LocalCompressedId, isFinalId, isLocalId } from "./testCommon";
-import { createSessionId, fail } from "../../src/util/utilities";
-import { assert } from "../../src/copied-utils";
+import { createSessionId } from "../../src/utilities";
+import { assert, fail } from "../../src/copied-utils";
 import { DestinationClient } from "./idCompressorTestUtilities";
 
 describe("IdCompressor Perf", () => {
@@ -46,7 +47,14 @@ describe("IdCompressor Perf", () => {
 	): IdCompressorTestNetwork {
 		const perfNetwork = new IdCompressorTestNetwork(clusterSize);
 		const maxClusterSize = 25;
-		const generator = take(1000, makeOpGenerator({ validateInterval: 2000, maxClusterSize }));
+		const generator = take(
+			1000,
+			makeOpGenerator({
+				validateInterval: 2000,
+				maxClusterSize,
+				outsideAllocationFraction: 0.9,
+			}),
+		);
 		if (perfNetwork.initialClusterSize > maxClusterSize) {
 			perfNetwork.enqueueCapacityChange(maxClusterSize);
 		}
@@ -327,29 +335,45 @@ describe("IdCompressor Perf", () => {
 		});
 	});
 
-	benchmark({
-		type,
-		title: `serialize an IdCompressor`,
-		before: () => {
-			setupCompressors(defaultClusterCapacity, false, true);
-		},
-		benchmarkFn: () => {
-			perfCompressor!.serialize(false);
-		},
+	benchmarkWithFlag((manySessions) => {
+		benchmark({
+			type,
+			title: `serialize an IdCompressor (${
+				manySessions ? "many sessions" : "many clusters"
+			})`,
+			before: () => {
+				if (manySessions) {
+					perfCompressor = buildHugeCompressor(undefined, defaultClusterCapacity);
+				} else {
+					setupCompressors(defaultClusterCapacity, false, true);
+				}
+			},
+			benchmarkFn: () => {
+				perfCompressor!.serialize(false);
+			},
+		});
 	});
 
-	let serialized!: SerializedIdCompressorWithNoSession;
-	const overrideRemoteSessionId = createSessionId();
-	benchmark({
-		type,
-		title: `deserialize an IdCompressor`,
-		before: () => {
-			setupCompressors(defaultClusterCapacity, false, true);
-			serialized = perfCompressor.serialize(false);
-		},
-		benchmarkFn: () => {
-			const compressor = IdCompressor.deserialize(serialized, overrideRemoteSessionId);
-			compressor.dispose();
-		},
+	benchmarkWithFlag((manySessions) => {
+		let serialized!: SerializedIdCompressorWithNoSession;
+		const overrideRemoteSessionId = createSessionId();
+		benchmark({
+			type,
+			title: `deserialize an IdCompressor (${
+				manySessions ? "many sessions" : "many clusters"
+			})`,
+			before: () => {
+				if (manySessions) {
+					perfCompressor = buildHugeCompressor(undefined, defaultClusterCapacity);
+				} else {
+					setupCompressors(defaultClusterCapacity, false, true);
+				}
+				serialized = perfCompressor.serialize(false);
+			},
+			benchmarkFn: () => {
+				const compressor = IdCompressor.deserialize(serialized, overrideRemoteSessionId);
+				compressor.dispose();
+			},
+		});
 	});
 });

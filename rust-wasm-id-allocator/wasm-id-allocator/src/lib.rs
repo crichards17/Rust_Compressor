@@ -65,7 +65,7 @@ impl IdCompressor {
         IdCompressorCore::get_default_cluster_capacity() as f64
     }
 
-    /// Returns the default cluster capacity. This static is exposed on the compressor to comply with wasm-bindgen.
+    /// Returns the compressor's NIL_TOKEN static value as an f64.
     pub fn get_nil_token() -> f64 {
         NIL_TOKEN as f64
     }
@@ -103,10 +103,9 @@ impl IdCompressor {
         if new_cluster_capacity > MAX_DEFAULT_CLUSTER_CAPACITY {
             return Err(JsError::new("Clusters must not exceed max cluster size."));
         }
-        Ok(self
-            .compressor
+        self.compressor
             .set_cluster_capacity(new_cluster_capacity as u64)
-            .map_err(into_jserror)?)
+            .map_err(into_jserror)
     }
 
     /// Generates a new ID.
@@ -525,5 +524,11 @@ mod tests {
         assert!(compressor
             .compressor
             .equals_test_only(&compressor_serialized_deserialized.compressor, false))
+    }
+
+    #[test]
+    fn test_nil_token() {
+        let token = IdCompressor::get_nil_token();
+        assert_eq!(token, -1 as f64);
     }
 }

@@ -29,7 +29,7 @@ import {
 	SessionSpaceCompressedId,
 	StableId,
 } from "../../src/types";
-import { assertIsSessionId, createSessionId, fail } from "../../src/util/utilities";
+import { assertIsSessionId, createSessionId } from "../../src/utilities";
 import {
 	compressorEquals,
 	FinalCompressedId,
@@ -39,6 +39,7 @@ import {
 	isLocalId,
 	ReadonlyIdCompressor,
 } from "./testCommon";
+import { fail } from "../../src/copied-utils";
 
 /**
  * A readonly `Map` which is known to contain a value for every possible key
@@ -54,22 +55,22 @@ export enum Client {
 	Client3 = "Client3",
 }
 
-/** Identifies a compressor with respect to a specific operation */
-export enum SemanticClient {
-	LocalClient = "LocalClient",
-}
-
 /** Identifies categories of compressors */
 export enum MetaClient {
 	All = "All",
+}
+
+/** Identifies a compressor inside the network but outside the three specially tracked clients. */
+export enum OutsideClient {
+	Remote = "Remote",
 }
 
 /**
  * Used to attribute actions to clients in a distributed collaboration session.
  * `Local` implies a local and unsequenced operation. All others imply sequenced operations.
  */
-export type OriginatingClient = Client | SemanticClient;
-export const OriginatingClient = { ...Client, ...SemanticClient };
+export type OriginatingClient = Client | OutsideClient;
+export const OriginatingClient = { ...Client, ...OutsideClient };
 
 /** Identifies a compressor to which to send an operation */
 export type DestinationClient = Client | MetaClient;
@@ -149,6 +150,39 @@ export class CompressorFactory {
 }
 
 /**
+ * Utility for building a huge compressor.
+ * Build via the compressor factory.
+ */
+export function buildHugeCompressor(
+	numSessions = 10000,
+	capacity = 10,
+	numClustersPerSession = 3,
+): IdCompressor {
+	const compressor = CompressorFactory.createCompressorWithSession(createSessionId(), capacity);
+	const sessions: SessionId[] = [];
+	for (let i = 0; i < numSessions; i++) {
+		sessions.push(createSessionId());
+	}
+	for (let i = 0; i < numSessions * numClustersPerSession; i++) {
+		const sessionId = sessions[i % numSessions];
+		if (Math.random() > 0.1) {
+			for (let j = 0; j < Math.round(capacity / 2); j++) {
+				compressor.generateCompressedId();
+			}
+			compressor.finalizeCreationRange(compressor.takeNextCreationRange());
+		}
+		compressor.finalizeCreationRange({
+			sessionId,
+			ids: {
+				firstGenCount: Math.floor(i / numSessions) * capacity + 1,
+				count: capacity,
+			},
+		});
+	}
+	return compressor;
+}
+
+/**
  * A closed map from NamedClient to T.
  */
 export type ClientMap<T> = ClosedMap<Client, T>;
@@ -173,7 +207,7 @@ export const sessionIds = makeSessionIds();
 /** Information about a generated ID in a network to be validated by tests */
 export interface TestIdData {
 	readonly id: SessionSpaceCompressedId;
-	readonly originatingClient: Client;
+	readonly originatingClient: OriginatingClient;
 	readonly sessionId: SessionId;
 	readonly isSequenced: boolean;
 }
@@ -187,7 +221,12 @@ export class IdCompressorTestNetwork {
 	private readonly compressors: ClientMap<IdCompressor>;
 	/** The log of operations seen by the server so far. Append-only. */
 	private readonly serverOperations: (
-		| [creationRange: IdCreationRange, opSpaceIds: OpSpaceCompressedId[], clientFrom: Client]
+		| [
+				creationRange: IdCreationRange,
+				opSpaceIds: OpSpaceCompressedId[],
+				clientFrom: OriginatingClient,
+				sessionIdFrom: SessionId,
+		  ]
 		| number
 	)[] = [];
 	/** An index into `serverOperations` for each client which represents how many operations have been delivered to that client */
@@ -197,14 +236,7 @@ export class IdCompressorTestNetwork {
 	/** All ids that a client has received from the server, in order. */
 	private readonly sequencedIdLogs: ClientMap<TestIdData[]>;
 
-	public constructor(
-		public readonly initialClusterSize = 5,
-		private readonly onIdReceived?: (
-			network: IdCompressorTestNetwork,
-			clientTo: Client,
-			ids: TestIdData[],
-		) => void,
-	) {
+	public constructor(public readonly initialClusterSize = 5) {
 		const compressors = new Map<Client, IdCompressor>();
 		const clientProgress = new Map<Client, number>();
 		const clientIds = new Map<Client, TestIdData[]>();
@@ -300,13 +332,14 @@ export class IdCompressorTestNetwork {
 	private addNewId(
 		client: Client,
 		id: SessionSpaceCompressedId,
-		originatingClient: Client,
+		originatingClient: OriginatingClient,
+		sessionIdFrom: SessionId,
 		isSequenced: boolean,
 	): void {
 		const idData = {
 			id,
 			originatingClient,
-			sessionId: sessionIds.get(originatingClient),
+			sessionId: sessionIdFrom,
 			isSequenced,
 		};
 		const clientIds = this.idLogs.get(client);
@@ -315,24 +348,55 @@ export class IdCompressorTestNetwork {
 			const sequencedIds = this.sequencedIdLogs.get(client);
 			sequencedIds.push(idData);
 		}
-		this.onIdReceived?.(this, client, clientIds);
 	}
 
 	/**
 	 * Allocates a new range of local IDs and enqueues them for future delivery via a `testIdDelivery` action.
 	 * Calls to this method determine the total order of delivery, regardless of when `deliverOperations` is called.
 	 */
-	public allocateAndSendIds(client: Client, numIds: number): OpSpaceCompressedId[] {
+	public allocateAndSendIds(clientFrom: Client, numIds: number): OpSpaceCompressedId[] {
+		return this.allocateAndSendIdsFromRemoteClient(
+			clientFrom,
+			sessionIds.get(clientFrom),
+			numIds,
+		);
+	}
+
+	/**
+	 * Same contract as `allocateAndSendIds`, but the originating client will be a client with the supplied sessionId.
+	 */
+	public allocateAndSendIdsFromRemoteClient(
+		clientFrom: OriginatingClient,
+		sessionIdFrom: SessionId,
+		numIds: number,
+	): OpSpaceCompressedId[] {
 		assert(numIds > 0, "Must allocate a non-zero number of IDs");
-		const compressor = this.compressors.get(client);
-		const sessionSpaceIds = generateCompressedIds(compressor, numIds);
-		for (let i = 0; i < numIds; i++) {
-			this.addNewId(client, sessionSpaceIds[i], client, false);
+		if (clientFrom === OriginatingClient.Remote) {
+			let range: IdCreationRange = {
+				sessionId: sessionIdFrom,
+				ids: {
+					firstGenCount: 1,
+					count: numIds,
+				},
+			};
+			const opSpaceIds: OpSpaceCompressedId[] = [];
+			for (let i = 0; i < numIds; i++) {
+				opSpaceIds.push(-(i + 1) as OpSpaceCompressedId);
+			}
+			this.serverOperations.push([range, opSpaceIds, clientFrom, sessionIdFrom]);
+			return opSpaceIds;
+		} else {
+			assert(sessionIdFrom === sessionIds.get(clientFrom));
+			const compressor = this.compressors.get(clientFrom);
+			const sessionSpaceIds = generateCompressedIds(compressor, numIds);
+			for (let i = 0; i < numIds; i++) {
+				this.addNewId(clientFrom, sessionSpaceIds[i], clientFrom, sessionIdFrom, false);
+			}
+			const opSpaceIds = sessionSpaceIds.map((id) => compressor.normalizeToOpSpace(id));
+			const creationRange = compressor.takeNextCreationRange();
+			this.serverOperations.push([creationRange, opSpaceIds, clientFrom, sessionIdFrom]);
+			return opSpaceIds;
 		}
-		const opSpaceIds = sessionSpaceIds.map((id) => compressor.normalizeToOpSpace(id));
-		const creationRange = compressor.takeNextCreationRange();
-		this.serverOperations.push([creationRange, opSpaceIds, client]);
-		return opSpaceIds;
 	}
 
 	/**
@@ -365,7 +429,7 @@ export class IdCompressorTestNetwork {
 				if (typeof operation === "number") {
 					compressorTo.clusterCapacity = operation;
 				} else {
-					const [range, opSpaceIds, clientFrom] = operation;
+					const [range, opSpaceIds, clientFrom, sessionIdFrom] = operation;
 					compressorTo.finalizeCreationRange(range);
 
 					const ids = range.ids;
@@ -375,7 +439,13 @@ export class IdCompressorTestNetwork {
 								id,
 								range.sessionId,
 							);
-							this.addNewId(clientTo, sessionSpaceId, clientFrom, true);
+							this.addNewId(
+								clientTo,
+								sessionSpaceId,
+								clientFrom,
+								sessionIdFrom,
+								true,
+							);
 						}
 					}
 				}
@@ -430,7 +500,7 @@ export class IdCompressorTestNetwork {
 
 		const uuids = new Set<StableId>();
 		const finalIds = new Set<FinalCompressedId>();
-		const idIndicesAggregator = new Map<Client, number>();
+		const idIndicesAggregator = new Map<SessionId, number>();
 
 		function* getIdLogEntries(
 			columnIndex: number,
@@ -458,29 +528,28 @@ export class IdCompressorTestNetwork {
 		}
 
 		for (let i = 0; i < maxLogLength; i++) {
-			const idCreators: Client[] = [];
-			let originatingClient: Client | undefined;
+			let idCreatorCount = 0;
+			let originatingSession: SessionId | undefined;
 			for (const [current, next] of getIdLogEntries(i)) {
 				const [compressorA, idDataA] = current;
 				const sessionSpaceIdA = idDataA.id;
-				const idIndex = getOrCreate(
-					idIndicesAggregator,
-					idDataA.originatingClient,
-					() => 0,
-				);
-				originatingClient ??= idDataA.originatingClient;
+				const idIndex = getOrCreate(idIndicesAggregator, idDataA.sessionId, () => 0);
+				originatingSession ??= idDataA.sessionId;
 				assert(
-					idDataA.originatingClient === originatingClient,
+					idDataA.sessionId === originatingSession,
 					"Test infra gave wrong originating client to TestIdData",
 				);
 
 				// Only one client should have this ID as local in its session space, as only one client could have created this ID
 				if (isLocalId(sessionSpaceIdA)) {
-					assert.strictEqual(
-						idDataA.sessionId,
-						this.compressors.get(originatingClient).localSessionId,
-					);
-					idCreators.push(originatingClient);
+					if (originatingSession !== OriginatingClient.Remote) {
+						assert.strictEqual(
+							idDataA.sessionId,
+							this.compressors.get(idDataA.originatingClient as Client)
+								.localSessionId,
+						);
+					}
+					idCreatorCount++;
 				}
 
 				const uuidASessionSpace = compressorA.decompress(sessionSpaceIdA);
@@ -526,11 +595,12 @@ export class IdCompressorTestNetwork {
 				}
 			}
 
+			assert(idCreatorCount <= 1, "Only one client can create an ID.");
 			assert.strictEqual(uuids.size, finalIds.size);
-			assert(originatingClient !== undefined, "Expected originating client to be defined");
+			assert(originatingSession !== undefined, "Expected originating client to be defined");
 			idIndicesAggregator.set(
-				originatingClient,
-				(idIndicesAggregator.get(originatingClient) ??
+				originatingSession,
+				(idIndicesAggregator.get(originatingSession) ??
 					fail("Expected pre-existing index for originating client")) + 1,
 			);
 		}
@@ -631,6 +701,12 @@ interface AllocateIds {
 	numIds: number;
 }
 
+interface AllocateOutsideIds {
+	type: "allocateOutsideIds";
+	sessionId: SessionId;
+	numIds: number;
+}
+
 interface DeliverAllOperations {
 	type: "deliverAllOperations";
 }
@@ -658,6 +734,7 @@ interface Validate {
 
 type Operation =
 	| AllocateIds
+	| AllocateOutsideIds
 	| DeliverSomeOperations
 	| DeliverAllOperations
 	| ChangeCapacity
@@ -676,20 +753,24 @@ export interface OperationGenerationConfig {
 	maxClusterSize?: number;
 	/** Number of ops between validation ops. Default: 200 */
 	validateInterval?: number;
+	/** Fraction of ID allocations that are from an outside client (not Client1/2/3). */
+	outsideAllocationFraction?: number;
 }
 
 const defaultOptions = {
 	maxClusterSize: 25,
 	validateInterval: 200,
+	outsideAllocationFraction: 0.1,
 };
 
 export function makeOpGenerator(
 	options: OperationGenerationConfig,
 ): Generator<Operation, FuzzTestState> {
-	const { maxClusterSize, validateInterval } = {
+	const { maxClusterSize, validateInterval, outsideAllocationFraction } = {
 		...defaultOptions,
 		...options,
 	};
+	assert(outsideAllocationFraction >= 0 && outsideAllocationFraction <= 1);
 
 	function allocateIdsGenerator({
 		activeClients,
@@ -702,6 +783,19 @@ export function makeOpGenerator(
 		return {
 			type: "allocateIds",
 			client,
+			numIds,
+		};
+	}
+
+	function allocateOutsideIdsGenerator({
+		clusterSize,
+		random,
+	}: FuzzTestState): AllocateOutsideIds {
+		const maxIdsPerUsage = clusterSize * 2;
+		const numIds = Math.floor(random.real(0, 1) ** 3 * maxIdsPerUsage) + 1;
+		return {
+			type: "allocateOutsideIds",
+			sessionId: createSessionId(),
 			numIds,
 		};
 	}
@@ -747,10 +841,12 @@ export function makeOpGenerator(
 		return { type: "reconnect", client: random.pick(activeClients) };
 	}
 
+	const allocationWeight = 16;
 	return interleave(
 		createWeightedGenerator<Operation, FuzzTestState>([
 			[changeCapacityGenerator, 1],
-			[allocateIdsGenerator, 16],
+			[allocateIdsGenerator, Math.round(allocationWeight * (1 - outsideAllocationFraction))],
+			[allocateOutsideIdsGenerator, Math.round(allocationWeight * outsideAllocationFraction)],
 			[deliverAllOperationsGenerator, 2],
 			[deliverSomeOperationsGenerator, 6],
 			[reconnectGenerator, 1],
@@ -795,7 +891,15 @@ export function performFuzzActions(
 		generator,
 		{
 			allocateIds: (state, { client, numIds }) => {
-				network.allocateAndSendIds(client, numIds);
+				network.allocateAndSendIdsFromRemoteClient(client, sessionIds.get(client), numIds);
+				return state;
+			},
+			allocateOutsideIds: (state, { sessionId, numIds }) => {
+				network.allocateAndSendIdsFromRemoteClient(
+					OriginatingClient.Remote,
+					sessionId,
+					numIds,
+				);
 				return state;
 			},
 			changeCapacity: (state, op) => {
