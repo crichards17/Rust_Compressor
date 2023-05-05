@@ -50,7 +50,10 @@ pub mod v1 {
             },
         },
     };
-    use id_types::{FinalId, LocalId, SessionId, StableId};
+    use id_types::{
+        session_id::{session_id_from_id_u128, session_id_from_uuid_u128},
+        FinalId, LocalId, SessionId, StableId,
+    };
 
     // Layout
     // has_local_state: bool as u64
@@ -90,11 +93,7 @@ pub mod v1 {
         write_u64_to_vec(bytes, compressor.cluster_capacity);
         write_u64_to_vec(bytes, compressor.sessions.get_session_count() as u64);
 
-        compressor
-            .sessions
-            .get_session_spaces()
-            .map(|session_space| StableId::from(session_space.session_id()).into())
-            .for_each(|session_u128| write_u128_to_vec(bytes, session_u128));
+        bytes.extend_from_slice(compressor.sessions.get_session_id_slice());
 
         write_u64_to_vec(bytes, compressor.final_space.get_cluster_count() as u64);
         compressor
@@ -123,7 +122,7 @@ pub mod v1 {
             true => {
                 let session_uuid_u128 = deserializer.take_u128();
                 let mut compressor =
-                    IdCompressor::new_with_session_id(SessionId::from_uuid_u128(session_uuid_u128));
+                    IdCompressor::new_with_session_id(session_id_from_uuid_u128(session_uuid_u128));
                 compressor.generated_id_count = deserializer.take_u64();
                 compressor.next_range_base_generation_count = deserializer.take_u64();
                 compressor.session_space_normalizer = deserialize_normalizer(deserializer);
@@ -136,7 +135,7 @@ pub mod v1 {
         let mut session_ref_remap = Vec::new();
         for _ in 0..session_count {
             let session_uuid_u128 = deserializer.take_u128();
-            let session_id = SessionId::from_uuid_u128(session_uuid_u128);
+            let session_id = session_id_from_id_u128(session_uuid_u128);
             if !with_local_state && session_id == compressor.session_id {
                 return Err(DeserializationError::InvalidResumedSession);
             }
