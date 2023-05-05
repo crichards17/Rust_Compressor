@@ -51,8 +51,9 @@ pub mod v1 {
         },
     };
     use id_types::{
+        final_id::final_id_from_id,
         session_id::{session_id_from_id_u128, session_id_from_uuid_u128},
-        FinalId, LocalId, SessionId, StableId,
+        LocalId, SessionId, StableId,
     };
 
     // Layout
@@ -144,7 +145,7 @@ pub mod v1 {
         }
 
         let cluster_count = deserializer.take_u64();
-        let mut base_final_id = FinalId::from_id(0);
+        let mut base_final_id = final_id_from_id(0);
         for _ in 0..cluster_count {
             let session_index = deserializer.take_u64();
             let capacity = deserializer.take_u64();
@@ -171,7 +172,7 @@ pub mod v1 {
             .get_tail_cluster(&compressor.sessions)
         {
             Some(cluster) => cluster.base_final_id() + cluster.count(),
-            None => FinalId::from_id(0),
+            None => final_id_from_id(0),
         };
         Ok(compressor)
     }

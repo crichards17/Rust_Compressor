@@ -2,18 +2,17 @@
 /// A compressed ID that is stable and unique within the scope of network of compressors (i.e. a document).
 /// It can only be used/decompressed in the context of the originating document.
 pub struct FinalId {
-    id: u64,
+    pub(super) id: u64,
 }
 
-impl FinalId {
-    pub(super) fn id(&self) -> u64 {
-        self.id
-    }
+/// Creates a final ID from a u64. Intended for internal use only.
+pub const fn final_id_from_id(id: u64) -> FinalId {
+    FinalId { id }
+}
 
-    /// Creates a final ID from a u64. Intended for internal use only.
-    pub fn from_id(id: u64) -> Self {
-        FinalId { id }
-    }
+/// Creates a final ID from a u64. Intended for internal use only.
+pub fn get_id_from_final_id(final_id: FinalId) -> u64 {
+    final_id.id
 }
 
 impl std::ops::Add<u64> for FinalId {

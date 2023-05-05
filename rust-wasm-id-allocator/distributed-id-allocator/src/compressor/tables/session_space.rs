@@ -7,9 +7,9 @@ use std::ops::Bound;
 
 use super::id_cluster::{ClusterProperties, IdCluster};
 
-#[derive(Debug)]
 /// The local/UUID space within an individual Session.
 /// Effectively represents the cluster chain for a given session.
+#[derive(Debug)]
 pub struct Sessions {
     session_map: BTreeMap<SessionId, SessionSpaceRef>,
     session_list: Vec<SessionSpace>,

@@ -1,3 +1,5 @@
+use crate::final_id::final_id_from_id;
+
 use super::*;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
@@ -24,7 +26,7 @@ impl SessionSpaceId {
         if self.is_local() {
             CompressedId::Local(LocalId::from_id(self.id))
         } else {
-            CompressedId::Final(FinalId::from_id(self.id as u64))
+            CompressedId::Final(final_id_from_id(self.id as u64))
         }
     }
 
@@ -48,7 +50,7 @@ impl From<LocalId> for SessionSpaceId {
 impl From<FinalId> for SessionSpaceId {
     fn from(final_id: FinalId) -> Self {
         SessionSpaceId {
-            id: final_id.id() as i64,
+            id: final_id.id as i64,
         }
     }
 }

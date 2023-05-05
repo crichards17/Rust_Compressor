@@ -5,6 +5,7 @@ use self::persistence::DeserializationError;
 use self::tables::final_space::FinalSpace;
 use self::tables::session_space::{ClusterRef, SessionSpace, SessionSpaceRef, Sessions};
 use self::tables::session_space_normalizer::SessionSpaceNormalizer;
+use id_types::final_id::final_id_from_id;
 use id_types::*;
 
 /// The reserved value for an unknown token index.
@@ -80,7 +81,7 @@ impl IdCompressor {
             next_range_base_generation_count: LocalId::from_id(-1).to_generation_count(),
             sessions,
             final_space: FinalSpace::new(),
-            final_id_limit: FinalId::from_id(0),
+            final_id_limit: final_id_from_id(0),
             session_space_normalizer: SessionSpaceNormalizer::new(),
             cluster_capacity: persistence::DEFAULT_CLUSTER_CAPACITY,
             telemetry_stats: TelemetryStats::EMPTY,
@@ -304,7 +305,7 @@ impl IdCompressor {
     ) -> ClusterRef {
         let next_base_final = match self.final_space.get_tail_cluster(&self.sessions) {
             Some(cluster) => cluster.base_final_id() + cluster.capacity(),
-            None => FinalId::from_id(0),
+            None => final_id_from_id(0),
         };
         let session_space = self.sessions.deref_session_space_mut(session_space_ref);
         let new_cluster_ref = session_space.add_empty_cluster(
