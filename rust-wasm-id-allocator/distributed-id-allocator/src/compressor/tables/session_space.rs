@@ -14,6 +14,7 @@ pub struct Sessions {
     // Session IDs are stored in little endian byte form in a compact array to accelerate serialization.
     // When a session ID is queried (via session space ref) the bytes are converted to a u128/Session ID.
     // This tradeoff favors serialization at a small penalty to the (already slow) path of decompress/recompress.
+    // NOTE: this is indexed by session_space_ref.index * sizeof(u128)
     session_ids: Vec<u8>,
 }
 
