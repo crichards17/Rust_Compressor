@@ -207,7 +207,7 @@ pub struct SessionSpace {
 impl SessionSpace {
     pub fn new() -> SessionSpace {
         SessionSpace {
-            cluster_chain: Vec::with_capacity(1),
+            cluster_chain: Vec::new(),
         }
     }
 
