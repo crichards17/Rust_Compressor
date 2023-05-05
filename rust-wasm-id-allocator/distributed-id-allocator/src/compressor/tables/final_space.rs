@@ -1,6 +1,9 @@
 use id_types::FinalId;
 
-use super::session_space::{ClusterRef, IdCluster, Sessions};
+use super::{
+    id_cluster::IdCluster,
+    session_space::{ClusterRef, Sessions},
+};
 use std::cmp::Ordering;
 
 #[derive(Debug)]
@@ -23,10 +26,10 @@ impl FinalSpace {
     pub fn add_cluster(&mut self, new_cluster_ref: ClusterRef, _sessions: &Sessions) {
         #[cfg(debug_assertions)]
         if !self.clusters.is_empty() {
-            let new_cluster_base_final = _sessions.deref_cluster(new_cluster_ref).base_final_id;
+            let new_cluster_base_final = _sessions.deref_cluster(new_cluster_ref).base_final_id();
             let last_cluster_base_final = _sessions
                 .deref_cluster(self.clusters[self.clusters.len() - 1])
-                .base_final_id;
+                .base_final_id();
             assert!(
                 new_cluster_base_final > last_cluster_base_final,
                 "Cluster insert to final_space is out of order."
@@ -41,7 +44,7 @@ impl FinalSpace {
     pub fn search(&self, target_final: FinalId, sessions: &Sessions) -> Option<ClusterRef> {
         self.clusters
             .binary_search_by(|current_cluster_ref| {
-                let current_cluster = sessions.deref_cluster(*current_cluster_ref);
+                let current_cluster = sessions.deref_cluster(*current_cluster_ref).properties();
                 let cluster_base_final = current_cluster.base_final_id;
                 let cluster_max_final = cluster_base_final + (current_cluster.capacity - 1);
                 if cluster_max_final < target_final {

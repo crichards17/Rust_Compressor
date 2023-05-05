@@ -147,7 +147,7 @@ impl IdCompressor {
             .deref_session_space(self.local_session_ref)
             .get_tail_cluster()
         {
-            Some(cluster) => cluster,
+            Some(cluster) => cluster.properties(),
             None => {
                 // No cluster, return next local
                 return self.generate_next_local_id().into();
@@ -253,41 +253,44 @@ impl IdCompressor {
             .final_space
             .get_tail_cluster(&self.sessions)
             .unwrap()
-            .base_final_id;
+            .base_final_id();
         let tail_cluster = self
             .sessions
             .deref_session_space_mut(session_space_ref)
             .get_tail_cluster_mut()
             .unwrap();
-        let remaining_capacity = tail_cluster.capacity - tail_cluster.count;
-        if tail_cluster.base_local_id - tail_cluster.count != range_base_local {
+        let properties = tail_cluster.properties();
+        let remaining_capacity = properties.capacity - properties.count;
+        if properties.base_local_id - properties.count != range_base_local {
             return Err(AllocatorError::RangeFinalizedOutOfOrder);
         }
         if remaining_capacity >= range_len {
             // The current range fits in the existing cluster
-            tail_cluster.count += range_len;
+            tail_cluster.set_count(properties.count + range_len);
         } else {
             let overflow = range_len - remaining_capacity;
             let new_claimed_final_count = overflow + self.cluster_capacity;
-            if tail_cluster.base_final_id == last_cluster_base_final {
+            if properties.base_final_id == last_cluster_base_final {
                 // Tail_cluster is the last cluster, and so can be expanded.
                 self.telemetry_stats.expansion_count += 1;
-                tail_cluster.capacity += new_claimed_final_count;
-                tail_cluster.count += range_len;
+                tail_cluster.set_capacity(properties.capacity + new_claimed_final_count);
+                tail_cluster.set_count(properties.count + range_len);
             } else {
                 // Tail cluster is not the last cluster. Fill and overflow to new.
                 self.telemetry_stats.cluster_creation_count += 1;
-                tail_cluster.count = tail_cluster.capacity;
+                tail_cluster.set_count(properties.capacity);
                 let new_cluster_ref = self.add_empty_cluster(
                     session_space_ref,
                     range_base_local - remaining_capacity,
                     new_claimed_final_count,
                 );
-                self.sessions.deref_cluster_mut(new_cluster_ref).count += overflow;
+                self.sessions
+                    .deref_cluster_mut(new_cluster_ref)
+                    .set_count(overflow);
             }
         }
         self.final_id_limit = match self.final_space.get_tail_cluster(&self.sessions) {
-            Some(cluster) => cluster.base_final_id + cluster.count,
+            Some(cluster) => cluster.base_final_id() + cluster.count(),
             None => self.final_id_limit,
         };
         Ok(())
@@ -300,7 +303,7 @@ impl IdCompressor {
         capacity: u64,
     ) -> ClusterRef {
         let next_base_final = match self.final_space.get_tail_cluster(&self.sessions) {
-            Some(cluster) => cluster.base_final_id + cluster.capacity,
+            Some(cluster) => cluster.base_final_id() + cluster.capacity(),
             None => FinalId::from_id(0),
         };
         let session_space = self.sessions.deref_session_space_mut(session_space_ref);
@@ -418,11 +421,13 @@ impl IdCompressor {
                 {
                     Some(containing_cluster) => {
                         // Exists in local cluster chain
-                        let aligned_local =
-                            match containing_cluster.get_aligned_local(final_to_normalize) {
-                                None => return Err(AllocatorError::InvalidOpSpaceId),
-                                Some(aligned_local) => aligned_local,
-                            };
+                        let aligned_local = match containing_cluster
+                            .properties()
+                            .get_aligned_local(final_to_normalize)
+                        {
+                            None => return Err(AllocatorError::InvalidOpSpaceId),
+                            Some(aligned_local) => aligned_local,
+                        };
                         if self.session_space_normalizer.contains(aligned_local) {
                             Ok(SessionSpaceId::from(aligned_local))
                         } else if aligned_local.to_generation_count() <= self.generated_id_count {
@@ -458,13 +463,14 @@ impl IdCompressor {
                     Some(containing_cluster_ref) => {
                         let containing_cluster =
                             self.sessions.deref_cluster(containing_cluster_ref);
+                        let cluster_properties = containing_cluster.properties();
                         let containing_session_space =
                             containing_cluster_ref.get_session_space_ref();
-                        let aligned_local = match containing_cluster.get_aligned_local(final_id) {
+                        let aligned_local = match cluster_properties.get_aligned_local(final_id) {
                             None => return Err(AllocatorError::InvalidSessionSpaceId),
                             Some(aligned_local) => aligned_local,
                         };
-                        if aligned_local < containing_cluster.max_local() {
+                        if aligned_local < cluster_properties.max_local() {
                             // must be an id generated (allocated or finalized) by the local session, or a finalized id from a remote session
                             if containing_session_space == self.local_session_ref {
                                 if self.session_space_normalizer.contains(aligned_local) {
@@ -516,13 +522,14 @@ impl IdCompressor {
                 Err(AllocatorError::InvalidStableId)
             }
             Some((cluster, session_ref, corresponding_local)) => {
+                let cluster_properties = cluster.properties();
                 if session_ref == self.local_session_ref {
                     // Local session
                     if self.session_space_normalizer.contains(corresponding_local) {
                         Ok(SessionSpaceId::from(corresponding_local))
                     } else if corresponding_local.to_generation_count() <= self.generated_id_count {
                         // Id is an eager final
-                        match cluster.get_allocated_final(corresponding_local) {
+                        match cluster_properties.get_allocated_final(corresponding_local) {
                             None => return Err(AllocatorError::InvalidStableId),
                             Some(allocated_final) => Ok(allocated_final.into()),
                         }
@@ -532,9 +539,10 @@ impl IdCompressor {
                 } else {
                     //Not the local session
                     if corresponding_local.to_generation_count()
-                        < cluster.base_local_id.to_generation_count() + cluster.count
+                        < cluster_properties.base_local_id.to_generation_count()
+                            + cluster_properties.count
                     {
-                        match cluster.get_allocated_final(corresponding_local) {
+                        match cluster_properties.get_allocated_final(corresponding_local) {
                             None => Err(AllocatorError::InvalidStableId),
                             Some(allocated_final) => Ok(allocated_final.into()),
                         }

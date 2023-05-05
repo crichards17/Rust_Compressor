@@ -43,7 +43,7 @@ pub mod v1 {
         compressor::{
             persistence_utils::{write_u128_to_vec, write_u64_to_vec, Deserializer},
             tables::{
-                session_space::IdCluster,
+                id_cluster::IdCluster,
                 session_space_normalizer::persistence::v1::{
                     deserialize_normalizer, serialize_normalizer,
                 },
@@ -104,8 +104,9 @@ pub mod v1 {
                     bytes,
                     cluster_ref.get_session_space_ref().get_index() as u64,
                 );
-                write_u64_to_vec(bytes, id_cluster.capacity);
-                write_u64_to_vec(bytes, id_cluster.count);
+                let properties = id_cluster.properties();
+                write_u64_to_vec(bytes, properties.capacity);
+                write_u64_to_vec(bytes, properties.count);
             });
     }
 
@@ -143,30 +144,20 @@ pub mod v1 {
         }
 
         let cluster_count = deserializer.take_u64();
+        let mut base_final_id = FinalId::from_id(0);
         for _ in 0..cluster_count {
             let session_index = deserializer.take_u64();
             let capacity = deserializer.take_u64();
             let count = deserializer.take_u64();
-
-            let base_final_id = match compressor
-                .final_space
-                .get_tail_cluster(&compressor.sessions)
-            {
-                Some(cluster) => cluster.base_final_id + cluster.capacity,
-                None => FinalId::from_id(0),
-            };
             let session_space_ref = session_ref_remap[session_index as usize];
             let session_space = compressor.sessions.deref_session_space(session_space_ref);
             let base_local_id = match session_space.get_tail_cluster() {
-                Some(cluster) => cluster.base_local_id - cluster.capacity,
+                Some(cluster) => cluster.base_local_id() - cluster.capacity(),
                 None => LocalId::from_id(-1),
             };
-            let new_cluster = IdCluster {
-                base_final_id,
-                base_local_id,
-                capacity,
-                count,
-            };
+            let new_cluster = IdCluster::new(base_final_id, base_local_id, capacity, count);
+            let cluster_properties = new_cluster.properties();
+            base_final_id = cluster_properties.base_final_id + cluster_properties.capacity;
             let new_cluster_ref = compressor
                 .sessions
                 .deref_session_space_mut(session_space_ref)
@@ -179,7 +170,7 @@ pub mod v1 {
             .final_space
             .get_tail_cluster(&compressor.sessions)
         {
-            Some(cluster) => cluster.base_final_id + cluster.count,
+            Some(cluster) => cluster.base_final_id() + cluster.count(),
             None => FinalId::from_id(0),
         };
         Ok(compressor)

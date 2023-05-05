@@ -5,6 +5,8 @@ use std::collections::BTreeMap;
 use std::mem::size_of;
 use std::ops::Bound;
 
+use super::id_cluster::{ClusterProperties, IdCluster};
+
 #[derive(Debug)]
 /// The local/UUID space within an individual Session.
 /// Effectively represents the cluster chain for a given session.
@@ -111,9 +113,11 @@ impl Sessions {
                 let aligned_local = LocalId::from_generation_count(delta as u64 + 1);
                 match session_space.get_cluster_by_local(aligned_local, true) {
                     Some(cluster_match) => {
+                        let cluster_properties = cluster_match.properties();
                         let result_session_id = session_id;
-                        let cluster_min_stable = result_session_id + cluster_match.base_local_id;
-                        let cluster_max_stable = cluster_min_stable + cluster_match.capacity;
+                        let cluster_min_stable =
+                            result_session_id + cluster_properties.base_local_id;
+                        let cluster_max_stable = cluster_min_stable + cluster_properties.capacity;
                         if query >= cluster_min_stable && query <= cluster_max_stable {
                             let originator_local = LocalId::from_id(
                                 -((query - StableId::from(result_session_id)) as i64) - 1,
@@ -235,7 +239,7 @@ impl SessionSpace {
             0 => return session_id.into(),
             len => &self.cluster_chain[len - 1],
         };
-        session_id + tail_cluster.max_allocated_local()
+        session_id + tail_cluster.properties().max_allocated_local()
     }
 
     pub fn add_empty_cluster(
@@ -245,12 +249,7 @@ impl SessionSpace {
         base_local_id: LocalId,
         capacity: u64,
     ) -> ClusterRef {
-        let new_cluster = IdCluster {
-            base_final_id,
-            base_local_id,
-            capacity,
-            count: 0,
-        };
+        let new_cluster = IdCluster::new(base_final_id, base_local_id, capacity, 0);
         self.add_cluster(self_ref, new_cluster)
     }
 
@@ -269,7 +268,12 @@ impl SessionSpace {
         include_allocated: bool,
     ) -> Option<FinalId> {
         self.get_cluster_by_local(search_local, include_allocated)
-            .map(|found_cluster| found_cluster.get_allocated_final(search_local).unwrap())
+            .map(|found_cluster| {
+                found_cluster
+                    .properties()
+                    .get_allocated_final(search_local)
+                    .unwrap()
+            })
     }
 
     fn get_cluster_by_local(
@@ -277,18 +281,20 @@ impl SessionSpace {
         search_local: LocalId,
         include_allocated: bool,
     ) -> Option<&IdCluster> {
-        let last_valid_local: fn(current_cluster: &IdCluster) -> u64 = if include_allocated {
+        let last_valid_local: fn(current_cluster: &ClusterProperties) -> u64 = if include_allocated
+        {
             |current_cluster| current_cluster.capacity - 1
         } else {
             |current_cluster| current_cluster.count - 1
         };
 
         match self.cluster_chain.binary_search_by(|current_cluster| {
+            let cluster_properties = current_cluster.properties();
             let cluster_last_local =
-                current_cluster.base_local_id - last_valid_local(current_cluster);
+                cluster_properties.base_local_id - last_valid_local(&cluster_properties);
             if cluster_last_local > search_local {
                 Ordering::Less
-            } else if current_cluster.base_local_id < search_local {
+            } else if cluster_properties.base_local_id < search_local {
                 return Ordering::Greater;
             } else {
                 Ordering::Equal
@@ -299,11 +305,13 @@ impl SessionSpace {
         }
     }
 
-    // TODO: include contract about allocated not finalized
+    /// Searches for the cluster containing the supplied final.
+    /// Includes allocated but not finalized space in the cluster.
     pub fn get_cluster_by_allocated_final(&self, search_final: FinalId) -> Option<&IdCluster> {
         match self.cluster_chain.binary_search_by(|current_cluster| {
-            let cluster_base_final = current_cluster.base_final_id;
-            let cluster_last_final = cluster_base_final + (current_cluster.capacity - 1);
+            let cluster_properties = current_cluster.properties();
+            let cluster_base_final = cluster_properties.base_final_id;
+            let cluster_last_final = cluster_base_final + (cluster_properties.capacity - 1);
             if cluster_last_final < search_final {
                 Ordering::Less
             } else if cluster_base_final > search_final {
@@ -315,55 +323,6 @@ impl SessionSpace {
             Ok(found_cluster_index) => Some(&self.cluster_chain[found_cluster_index]),
             Err(_) => None,
         }
-    }
-}
-
-#[derive(Debug)]
-pub struct IdCluster {
-    pub(crate) base_final_id: FinalId,
-    pub(crate) base_local_id: LocalId,
-    pub(crate) capacity: u64,
-    pub(crate) count: u64,
-}
-
-impl IdCluster {
-    pub fn get_allocated_final(&self, local_within: LocalId) -> Option<FinalId> {
-        let cluster_offset =
-            local_within.to_generation_count() - self.base_local_id.to_generation_count();
-        if cluster_offset < self.capacity {
-            Some(self.base_final_id + cluster_offset)
-        } else {
-            None
-        }
-    }
-
-    pub fn get_aligned_local(&self, contained_final: FinalId) -> Option<LocalId> {
-        if contained_final < self.base_final_id || contained_final > self.max_allocated_final() {
-            return None;
-        }
-        let final_delta = contained_final - self.base_final_id;
-        Some(self.base_local_id - final_delta as u64)
-    }
-
-    pub fn max_allocated_final(&self) -> FinalId {
-        self.base_final_id + (self.capacity - 1)
-    }
-
-    pub fn max_local(&self) -> LocalId {
-        self.base_local_id - (self.count - 1)
-    }
-
-    pub fn max_allocated_local(&self) -> LocalId {
-        self.base_local_id - (self.capacity - 1)
-    }
-}
-
-impl PartialEq for IdCluster {
-    fn eq(&self, other: &Self) -> bool {
-        self.base_final_id == other.base_final_id
-            && self.base_local_id == other.base_local_id
-            && self.capacity == other.capacity
-            && self.count == other.count
     }
 }
 
