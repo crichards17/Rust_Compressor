@@ -1,4 +1,4 @@
-use id_types::session_id::{session_id_from_id_u128, stable_id_from_stable_id};
+use id_types::session_id::{session_id_from_id_u128, session_id_from_stable_id};
 use id_types::{FinalId, LocalId, SessionId, StableId};
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
@@ -95,7 +95,7 @@ impl Sessions {
             .session_map
             .range((
                 Bound::Excluded(SessionId::nil()),
-                Bound::Included(stable_id_from_stable_id(query)),
+                Bound::Included(session_id_from_stable_id(query)),
             ))
             .rev();
         match range.next() {
@@ -138,7 +138,7 @@ impl Sessions {
             .session_map
             .range((
                 Bound::Excluded(SessionId::nil()),
-                Bound::Included(stable_id_from_stable_id(range_max)),
+                Bound::Included(session_id_from_stable_id(range_max)),
             ))
             .rev();
         match range.next() {

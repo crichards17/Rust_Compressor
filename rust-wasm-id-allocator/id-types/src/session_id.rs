@@ -57,7 +57,7 @@ pub fn session_id_from_id_u128(id_u128: u128) -> SessionId {
 }
 
 /// Internal type conversion
-pub fn stable_id_from_stable_id(stable_id: StableId) -> SessionId {
+pub fn session_id_from_stable_id(stable_id: StableId) -> SessionId {
     SessionId { id: stable_id }
 }
 
