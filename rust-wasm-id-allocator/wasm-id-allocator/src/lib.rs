@@ -535,4 +535,10 @@ mod tests {
             .compressor
             .equals_test_only(&compressor_serialized_deserialized.compressor, false))
     }
+
+    #[test]
+    fn test_nil_token() {
+        let token = IdCompressor::get_nil_token();
+        assert_eq!(token, -1 as f64);
+    }
 }

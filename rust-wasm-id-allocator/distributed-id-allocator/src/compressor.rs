@@ -211,7 +211,7 @@ impl IdCompressor {
             range,
         }: &IdRange,
     ) -> Result<(), AllocatorError> {
-        // Check if the block has IDs
+        // Check if the range has IDs
         let (range_base_gen_count, range_len) = match range {
             None => {
                 return Ok(());
@@ -224,7 +224,7 @@ impl IdCompressor {
 
         let range_base_local = LocalId::from_generation_count(range_base_gen_count);
         let range_base_stable = StableId::from(session_id) + range_base_local;
-        // Checks collision for the maximum new-cluster span (the condition in which the current tail cluster is exactly full)
+        // Checks collision for the maximum new cluster span (the condition in which the current tail cluster is exactly full)
         if self.sessions.range_collides(
             session_id,
             range_base_stable,
@@ -238,7 +238,7 @@ impl IdCompressor {
             .deref_session_space_mut(session_space_ref)
             .cluster_chain_is_empty()
         {
-            // This is the first cluster in the session
+            // This is the first cluster in the session space
             if range_base_local != -1 {
                 return Err(AllocatorError::RangeFinalizedOutOfOrder);
             }
@@ -249,12 +249,11 @@ impl IdCompressor {
                 self.cluster_capacity + range_len,
             );
         };
-        let final_cluster_base_final = self
+        let last_cluster_base_final = self
             .final_space
             .get_tail_cluster(&self.sessions)
             .unwrap()
-            .base_final_id
-            .clone();
+            .base_final_id;
         let tail_cluster = self
             .sessions
             .deref_session_space_mut(session_space_ref)
@@ -265,18 +264,18 @@ impl IdCompressor {
             return Err(AllocatorError::RangeFinalizedOutOfOrder);
         }
         if remaining_capacity >= range_len {
-            // The current IdBlock range fits in the existing cluster
+            // The current range fits in the existing cluster
             tail_cluster.count += range_len;
         } else {
             let overflow = range_len - remaining_capacity;
             let new_claimed_final_count = overflow + self.cluster_capacity;
-            if tail_cluster.base_final_id == final_cluster_base_final {
+            if tail_cluster.base_final_id == last_cluster_base_final {
                 // Tail_cluster is the last cluster, and so can be expanded.
                 self.telemetry_stats.expansion_count += 1;
                 tail_cluster.capacity += new_claimed_final_count;
                 tail_cluster.count += range_len;
             } else {
-                // Tail_cluster is not the last cluster. Fill and overflow to new.
+                // Tail cluster is not the last cluster. Fill and overflow to new.
                 self.telemetry_stats.cluster_creation_count += 1;
                 tail_cluster.count = tail_cluster.capacity;
                 let new_cluster_ref = self.add_empty_cluster(
@@ -417,8 +416,8 @@ impl IdCompressor {
                     .get_local_session_space()
                     .get_cluster_by_allocated_final(final_to_normalize)
                 {
-                    // Exists in local cluster chain
                     Some(containing_cluster) => {
+                        // Exists in local cluster chain
                         let aligned_local =
                             match containing_cluster.get_aligned_local(final_to_normalize) {
                                 None => return Err(AllocatorError::InvalidOpSpaceId),
