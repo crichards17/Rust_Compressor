@@ -37,23 +37,25 @@ impl ErrorString for DeserializationError {
 }
 
 pub mod v1 {
+    use std::{collections::BTreeMap, mem::size_of};
+
     use super::DeserializationError;
     use crate::{
         compressor::IdCompressor,
         compressor::{
-            persistence_utils::{write_u128_to_vec, write_u64_to_vec, Deserializer},
+            persistence_utils::{write_u64_to_vec, Deserializer},
             tables::{
-                session_space::IdCluster,
-                session_space_normalizer::persistence::v1::{
-                    deserialize_normalizer, serialize_normalizer,
+                final_space::FinalSpace,
+                session_space::{IdCluster, SessionSpace, SessionSpaceRef, Sessions},
+                session_space_normalizer::{
+                    persistence::v1::{deserialize_normalizer, serialize_normalizer},
+                    SessionSpaceNormalizer,
                 },
             },
+            TelemetryStats,
         },
     };
-    use id_types::{
-        session_id::{session_id_from_id_u128, session_id_from_uuid_u128},
-        FinalId, LocalId, SessionId, StableId,
-    };
+    use id_types::{FinalId, LocalId, SessionId};
 
     // Layout
     // has_local_state: bool as u64
@@ -75,7 +77,7 @@ pub mod v1 {
     pub fn serialize_with_local(compressor: &IdCompressor) -> Vec<u8> {
         let mut bytes: Vec<u8> = Vec::new();
         serialize_header(true, &mut bytes);
-        write_u128_to_vec(&mut bytes, StableId::from(compressor.session_id).into());
+        write_u64_to_vec(&mut bytes, compressor.local_session_ref.index as u64);
         write_u64_to_vec(&mut bytes, compressor.generated_id_count);
         write_u64_to_vec(&mut bytes, compressor.next_range_base_generation_count);
         serialize_normalizer(&compressor.session_space_normalizer, &mut bytes);
@@ -117,29 +119,61 @@ pub mod v1 {
         FMakeSession: FnOnce() -> SessionId,
     {
         let with_local_state = deserializer.take_u64() != 0;
-        let mut compressor = match with_local_state {
-            false => IdCompressor::new_with_session_id(make_session_id()),
-            true => {
-                let session_uuid_u128 = deserializer.take_u128();
-                let mut compressor =
-                    IdCompressor::new_with_session_id(session_id_from_uuid_u128(session_uuid_u128));
-                compressor.generated_id_count = deserializer.take_u64();
-                compressor.next_range_base_generation_count = deserializer.take_u64();
-                compressor.session_space_normalizer = deserialize_normalizer(deserializer);
-                compressor
-            }
+        let local_state = match with_local_state {
+            false => None,
+            true => Some((
+                deserializer.take_u64(),
+                deserializer.take_u64(),
+                deserializer.take_u64(),
+                deserialize_normalizer(deserializer),
+            )),
         };
 
-        compressor.cluster_capacity = deserializer.take_u64();
-        let session_count = deserializer.take_u64();
-        let mut session_ref_remap = Vec::new();
+        let cluster_capacity = deserializer.take_u64();
+        let mut session_count = deserializer.take_u64() as usize;
+        let session_ids = deserializer.take_slice(session_count * size_of::<u128>());
+        let mut sessions = Sessions::new();
+        sessions.session_ids.extend_from_slice(session_ids);
+        let local_index = if with_local_state {
+            local_state.as_ref().unwrap().0 as usize
+        } else {
+            sessions
+                .session_ids
+                .extend_from_slice(&<[u8; 16]>::from(make_session_id()));
+            session_count += 1;
+            session_count - 1
+        };
         for _ in 0..session_count {
-            let session_uuid_u128 = deserializer.take_u128();
-            let session_id = session_id_from_id_u128(session_uuid_u128);
-            if !with_local_state && session_id == compressor.session_id {
-                return Err(DeserializationError::InvalidResumedSession);
-            }
-            session_ref_remap.push(compressor.sessions.get_or_create(session_id));
+            sessions.session_list.push(SessionSpace::new());
+        }
+        sessions.session_map = BTreeMap::from_iter((0..session_count).map(|session_space_index| {
+            let space_ref = SessionSpaceRef {
+                index: session_space_index,
+            };
+            (sessions.get_session_id(space_ref), space_ref)
+        }));
+
+        let local_ref = SessionSpaceRef { index: local_index };
+        let session_id = sessions.get_session_id(local_ref);
+        let mut compressor = IdCompressor {
+            session_id,
+            local_session_ref: local_ref,
+            generated_id_count: 0,
+            next_range_base_generation_count: LocalId::from_id(-1).to_generation_count(),
+            sessions,
+            final_space: FinalSpace::new(),
+            final_id_limit: FinalId::from_id(0),
+            session_space_normalizer: SessionSpaceNormalizer::new(),
+            cluster_capacity,
+            telemetry_stats: TelemetryStats::EMPTY,
+        };
+
+        if let Some((_, generated_id_count, next_range_base_generation_count, normalizer)) =
+            local_state
+        {
+            compressor.generated_id_count = generated_id_count;
+            compressor.next_range_base_generation_count = next_range_base_generation_count;
+            compressor.session_space_normalizer = normalizer;
         }
 
         let cluster_count = deserializer.take_u64();
@@ -155,7 +189,9 @@ pub mod v1 {
                 Some(cluster) => cluster.base_final_id + cluster.capacity,
                 None => FinalId::from_id(0),
             };
-            let session_space_ref = session_ref_remap[session_index as usize];
+            let session_space_ref = SessionSpaceRef {
+                index: session_index as usize,
+            };
             let session_space = compressor.sessions.deref_session_space(session_space_ref);
             let base_local_id = match session_space.get_tail_cluster() {
                 Some(cluster) => cluster.base_local_id - cluster.capacity,

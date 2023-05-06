@@ -9,13 +9,13 @@ use std::ops::Bound;
 /// The local/UUID space within an individual Session.
 /// Effectively represents the cluster chain for a given session.
 pub struct Sessions {
-    session_map: BTreeMap<SessionId, SessionSpaceRef>,
-    session_list: Vec<SessionSpace>,
+    pub session_map: BTreeMap<SessionId, SessionSpaceRef>,
+    pub session_list: Vec<SessionSpace>,
     // Session IDs are stored in little endian byte form in a compact array to accelerate serialization.
     // When a session ID is queried (via session space ref) the bytes are converted to a u128/Session ID.
     // This tradeoff favors serialization at a small penalty to the (already slow) path of decompress/recompress.
     // NOTE: this is indexed by session_space_ref.index * sizeof(u128)
-    session_ids: Vec<u8>,
+    pub session_ids: Vec<u8>,
 }
 
 impl Sessions {
@@ -370,7 +370,7 @@ impl PartialEq for IdCluster {
 // Maps to an index in the session_list
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct SessionSpaceRef {
-    index: usize,
+    pub index: usize,
 }
 
 impl SessionSpaceRef {

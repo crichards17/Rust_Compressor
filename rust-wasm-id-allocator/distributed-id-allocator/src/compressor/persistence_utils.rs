@@ -11,8 +11,10 @@ impl<'a> Deserializer<'a> {
         self.take_one(u64::from_le_bytes)
     }
 
-    pub fn take_u128(&mut self) -> u128 {
-        self.take_one(u128::from_le_bytes)
+    pub fn take_slice(&mut self, len: usize) -> &[u8] {
+        let slice = &self.bytes[..len];
+        self.bytes = &self.bytes[len..];
+        slice
     }
 
     #[inline]
@@ -39,56 +41,51 @@ pub fn write_u64_to_vec(buffer: &mut Vec<u8>, num: u64) {
     write_to_vec(buffer, num, |val: u64| val.to_le_bytes());
 }
 
-#[inline]
-pub fn write_u128_to_vec(buffer: &mut Vec<u8>, num: u128) {
-    write_to_vec(buffer, num, |val: u128| val.to_le_bytes());
-}
+// #[cfg(test)]
+// mod tests {
+//     use id_types::{SessionId, StableId};
 
-#[cfg(test)]
-mod tests {
-    use id_types::{SessionId, StableId};
+//     use super::*;
 
-    use super::*;
+//     #[test]
+//     fn test_serde_utils() {
+//         let mut bytes: Vec<u8> = Vec::new();
 
-    #[test]
-    fn test_serde_utils() {
-        let mut bytes: Vec<u8> = Vec::new();
+//         vec![1, 2, 3]
+//             .iter()
+//             .for_each(|val| write_u64_to_vec(&mut bytes, *val));
 
-        vec![1, 2, 3]
-            .iter()
-            .for_each(|val| write_u64_to_vec(&mut bytes, *val));
+//         let u128s_original = vec![
+//             u128::from(StableId::from(SessionId::new())),
+//             u128::from(StableId::from(SessionId::new())),
+//             u128::from(StableId::from(SessionId::new())),
+//         ];
+//         u128s_original
+//             .iter()
+//             .for_each(|val| write_u128_to_vec(&mut bytes, *val));
 
-        let u128s_original = vec![
-            u128::from(StableId::from(SessionId::new())),
-            u128::from(StableId::from(SessionId::new())),
-            u128::from(StableId::from(SessionId::new())),
-        ];
-        u128s_original
-            .iter()
-            .for_each(|val| write_u128_to_vec(&mut bytes, *val));
+//         let mut deser = Deserializer::new(&bytes);
 
-        let mut deser = Deserializer::new(&bytes);
+//         let mut u64s = vec![];
+//         for _ in 0..3 {
+//             u64s.push(deser.take_u64())
+//         }
 
-        let mut u64s = vec![];
-        for _ in 0..3 {
-            u64s.push(deser.take_u64())
-        }
+//         let mut u128s = vec![];
+//         for _ in 0..3 {
+//             u128s.push(deser.take_u128())
+//         }
 
-        let mut u128s = vec![];
-        for _ in 0..3 {
-            u128s.push(deser.take_u128())
-        }
+//         assert_eq!(u64s, vec![1, 2, 3]);
+//         assert_eq!(u128s, u128s_original);
+//     }
 
-        assert_eq!(u64s, vec![1, 2, 3]);
-        assert_eq!(u128s, u128s_original);
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_malformed_input() {
-        let mut bytes: Vec<u8> = Vec::new();
-        write_u64_to_vec(&mut bytes, 42);
-        let mut deser = Deserializer::new(&bytes);
-        _ = deser.take_u128();
-    }
-}
+//     #[test]
+//     #[should_panic]
+//     fn test_malformed_input() {
+//         let mut bytes: Vec<u8> = Vec::new();
+//         write_u64_to_vec(&mut bytes, 42);
+//         let mut deser = Deserializer::new(&bytes);
+//         _ = deser.take_u128();
+//     }
+// }
