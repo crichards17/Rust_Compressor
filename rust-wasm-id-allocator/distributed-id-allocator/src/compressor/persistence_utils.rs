@@ -7,6 +7,10 @@ impl<'a> Deserializer<'a> {
         Self { bytes }
     }
 
+    pub fn take_u32(&mut self) -> u32 {
+        self.take_one(u32::from_le_bytes)
+    }
+
     pub fn take_u64(&mut self) -> u64 {
         self.take_one(u64::from_le_bytes)
     }
@@ -32,6 +36,11 @@ where
 {
     let val_arr = builder(val);
     bytes.extend_from_slice(&val_arr);
+}
+
+#[inline]
+pub fn write_u32_to_vec(buffer: &mut Vec<u8>, num: u32) {
+    write_to_vec(buffer, num, |val: u32| val.to_le_bytes());
 }
 
 #[inline]
