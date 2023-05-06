@@ -210,10 +210,20 @@ pub mod v1 {
 
         #[test]
         fn test_empty_compressor_should_have_no_sessions() {
-            let compressor = IdCompressor::new();
+            let mut compressor = IdCompressor::new();
+            let mut compressor_2 = IdCompressor::new();
+
             let serialized = compressor.serialize(false);
             let deserialized = IdCompressor::deserialize(&serialized).unwrap();
             assert_eq!(deserialized.sessions.get_session_count(), 1);
+
+            _ = compressor_2.generate_next_id();
+            let range = compressor_2.take_next_range();
+            _ = compressor.finalize_range(&range);
+
+            let serialized = compressor.serialize(false);
+            let deserialized = IdCompressor::deserialize(&serialized).unwrap();
+            assert_eq!(deserialized.sessions.get_session_count(), 2);
         }
     }
 }
