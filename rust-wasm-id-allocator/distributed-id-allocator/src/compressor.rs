@@ -478,11 +478,7 @@ impl IdCompressor {
                             }
                         }
 
-                        Ok(self
-                            .sessions
-                            .deref_session_space(containing_session_space)
-                            .session_id()
-                            + aligned_local)
+                        Ok(self.sessions.get_session_id(containing_session_space) + aligned_local)
                     }
                     None => Err(AllocatorError::InvalidSessionSpaceId),
                 }

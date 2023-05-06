@@ -20,13 +20,9 @@ impl<'a> Deserializer<'a> {
     where
         FBuild: Fn([u8; SIZE]) -> T,
     {
-        if SIZE > self.bytes.len() {
-            panic!()
-        }
-        let mut val_arr: [u8; SIZE] = [0; SIZE];
-        val_arr[..SIZE].copy_from_slice(&self.bytes[..SIZE]);
+        let val = builder(self.bytes[..SIZE].try_into().unwrap());
         self.bytes = &self.bytes[SIZE..];
-        builder(val_arr)
+        val
     }
 }
 
@@ -35,9 +31,7 @@ where
     FToBytes: Fn(T) -> [u8; SIZE],
 {
     let val_arr = builder(val);
-    for byte in val_arr {
-        bytes.push(byte);
-    }
+    bytes.extend_from_slice(&val_arr);
 }
 
 #[inline]
