@@ -18,6 +18,33 @@ struct SmallCluster {
     count: u32,
 }
 
+impl SmallCluster {
+    pub fn base_final_id(&self) -> FinalId {
+        final_id_from_id(self.base_final_id as u64)
+    }
+
+    pub fn base_local_id(&self) -> LocalId {
+        LocalId::from_generation_count(self.base_local_gen_count.get() as u64)
+    }
+
+    pub fn capacity(&self) -> u64 {
+        self.capacity.get() as u64
+    }
+
+    pub fn count(&self) -> u64 {
+        self.count as u64
+    }
+
+    pub fn properties(&self) -> ClusterProperties {
+        ClusterProperties {
+            base_final_id: self.base_final_id(),
+            base_local_id: self.base_local_id(),
+            capacity: self.capacity(),
+            count: self.count(),
+        }
+    }
+}
+
 #[derive(PartialEq, Debug)]
 enum ClusterType {
     Big(Box<ClusterProperties>),
@@ -69,30 +96,28 @@ impl IdCluster {
     pub fn base_final_id(&self) -> FinalId {
         match &self.cluster {
             ClusterType::Big(boxed) => boxed.base_final_id,
-            ClusterType::Small(small) => final_id_from_id(small.base_final_id as u64),
+            ClusterType::Small(small) => small.base_final_id(),
         }
     }
 
     pub fn base_local_id(&self) -> LocalId {
         match &self.cluster {
             ClusterType::Big(boxed) => boxed.base_local_id,
-            ClusterType::Small(small) => {
-                LocalId::from_generation_count(small.base_local_gen_count.get() as u64)
-            }
+            ClusterType::Small(small) => small.base_local_id(),
         }
     }
 
     pub fn capacity(&self) -> u64 {
         match &self.cluster {
             ClusterType::Big(boxed) => boxed.capacity,
-            ClusterType::Small(small) => small.capacity.get() as u64,
+            ClusterType::Small(small) => small.capacity(),
         }
     }
 
     pub fn count(&self) -> u64 {
         match &self.cluster {
             ClusterType::Big(boxed) => boxed.count,
-            ClusterType::Small(small) => small.count as u64,
+            ClusterType::Small(small) => small.count(),
         }
     }
 
@@ -127,14 +152,7 @@ impl IdCluster {
     pub fn properties(&self) -> ClusterProperties {
         match &self.cluster {
             ClusterType::Big(boxed) => *boxed.as_ref(),
-            ClusterType::Small(small) => ClusterProperties {
-                base_final_id: final_id_from_id(small.base_final_id as u64),
-                base_local_id: LocalId::from_generation_count(
-                    small.base_local_gen_count.get() as u64
-                ),
-                capacity: small.capacity.get() as u64,
-                count: small.count as u64,
-            },
+            ClusterType::Small(small) => small.properties(),
         }
     }
 }
