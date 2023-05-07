@@ -54,8 +54,9 @@ pub mod v1 {
     };
     use id_types::{
         final_id::{final_id_from_id, get_id_from_final_id},
+        local_id::local_id_from_id,
         session_id::{session_id_from_id_u128, session_id_from_uuid_u128},
-        LocalId, SessionId, StableId,
+        SessionId, StableId,
     };
 
     // Layout
@@ -187,21 +188,14 @@ pub mod v1 {
         };
 
         let cluster_count = deserializer.take_u64();
+        let mut base_final_id = final_id_from_id(0);
         for _ in 0..cluster_count {
             let (session_index, capacity, count) = read_cluster(deserializer);
-
-            let base_final_id = match compressor
-                .final_space
-                .get_tail_cluster(&compressor.sessions)
-            {
-                Some(cluster) => cluster.base_final_id + cluster.capacity,
-                None => final_id_from_id(0),
-            };
             let session_space_ref = session_ref_remap[session_index as usize];
             let session_space = compressor.sessions.deref_session_space(session_space_ref);
             let base_local_id = match session_space.get_tail_cluster() {
                 Some(cluster) => cluster.base_local_id - cluster.capacity,
-                None => LocalId::from_id(-1),
+                None => local_id_from_id(-1),
             };
             let new_cluster = IdCluster {
                 base_final_id,
@@ -209,6 +203,7 @@ pub mod v1 {
                 capacity,
                 count,
             };
+            base_final_id = base_final_id + capacity;
             let new_cluster_ref = compressor
                 .sessions
                 .deref_session_space_mut(session_space_ref)
@@ -233,7 +228,7 @@ pub mod v1 {
 
         #[test]
         fn assert_local_id_alignment() {
-            assert_eq!(LocalId::from_id(-1).to_generation_count(), 1);
+            assert_eq!(local_id_from_id(-1).to_generation_count(), 1);
         }
     }
 }

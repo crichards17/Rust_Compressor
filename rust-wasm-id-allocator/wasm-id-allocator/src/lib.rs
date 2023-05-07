@@ -297,7 +297,7 @@ impl TestOnly {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use id_types::LocalId;
+    use id_types::{local_id::get_id_from_local_id, LocalId};
 
     const _STABLE_ID_1: &str = "748540ca-b7c5-4c99-83ff-c1b8e02c09d6";
     const _STABLE_ID_2: &str = "0002c79e-b536-4776-b000-000266c252d5";
@@ -363,7 +363,8 @@ mod tests {
             count,
         } = interop_id_range.unwrap();
         assert_eq!(
-            LocalId::from_generation_count(first_local_gen_count as u64).id() as f64,
+            get_id_from_local_id(LocalId::from_generation_count(first_local_gen_count as u64))
+                as f64,
             generated_ids[0]
         );
         assert_eq!(count, generated_ids.len() as f64);

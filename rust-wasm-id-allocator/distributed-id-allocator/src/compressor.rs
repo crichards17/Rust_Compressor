@@ -6,6 +6,7 @@ use self::tables::final_space::FinalSpace;
 use self::tables::session_space::{ClusterRef, SessionSpace, SessionSpaceRef, Sessions};
 use self::tables::session_space_normalizer::SessionSpaceNormalizer;
 use id_types::final_id::final_id_from_id;
+use id_types::local_id::local_id_from_id;
 use id_types::*;
 
 /// The reserved value for an unknown token index.
@@ -78,7 +79,7 @@ impl IdCompressor {
             session_id,
             local_session_ref: sessions.get_or_create(session_id),
             generated_id_count: 0,
-            next_range_base_generation_count: LocalId::from_id(-1).to_generation_count(),
+            next_range_base_generation_count: local_id_from_id(-1).to_generation_count(),
             sessions,
             final_space: FinalSpace::new(),
             final_id_limit: final_id_from_id(0),
@@ -168,7 +169,7 @@ impl IdCompressor {
 
     fn generate_next_local_id(&mut self) -> LocalId {
         self.telemetry_stats.local_id_count += 1;
-        let new_local = LocalId::from_id(-(self.generated_id_count as i64));
+        let new_local = local_id_from_id(-(self.generated_id_count as i64));
         self.session_space_normalizer.add_local_range(new_local, 1);
         new_local
     }

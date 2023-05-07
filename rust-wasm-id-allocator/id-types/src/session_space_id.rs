@@ -1,4 +1,7 @@
-use crate::final_id::final_id_from_id;
+use crate::{
+    final_id::final_id_from_id,
+    local_id::{get_id_from_local_id, local_id_from_id},
+};
 
 use super::*;
 
@@ -24,7 +27,7 @@ impl SessionSpaceId {
     /// Maps the ID to local or final space. Intended for internal use only.
     pub fn to_space(&self) -> CompressedId {
         if self.is_local() {
-            CompressedId::Local(LocalId::from_id(self.id))
+            CompressedId::Local(local_id_from_id(self.id))
         } else {
             CompressedId::Final(final_id_from_id(self.id as u64))
         }
@@ -43,7 +46,9 @@ impl SessionSpaceId {
 
 impl From<LocalId> for SessionSpaceId {
     fn from(local_id: LocalId) -> Self {
-        SessionSpaceId { id: local_id.id() }
+        SessionSpaceId {
+            id: get_id_from_local_id(local_id),
+        }
     }
 }
 
