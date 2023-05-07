@@ -199,7 +199,7 @@ describe("IdCompressor", () => {
 			mockLogger.assertMatchAny([
 				{
 					eventName: "RuntimeIdCompressor:SerializedIdCompressorSize",
-					size: 80,
+					size: 64,
 				},
 			]);
 		});
