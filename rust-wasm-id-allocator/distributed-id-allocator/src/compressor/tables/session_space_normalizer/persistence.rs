@@ -42,14 +42,14 @@ mod tests {
     use crate::compressor::{
         persistence_utils::Deserializer, tables::session_space_normalizer::SessionSpaceNormalizer,
     };
-    use id_types::LocalId;
+    use id_types::local_id::local_id_from_id;
 
     #[test]
     fn test_serde_normalizer() {
         let mut session_space_normalizer = SessionSpaceNormalizer::new();
-        session_space_normalizer.add_local_range(LocalId::from_id(-1), 2);
-        session_space_normalizer.add_local_range(LocalId::from_id(-3), 4);
-        session_space_normalizer.add_local_range(LocalId::from_id(-15), 1);
+        session_space_normalizer.add_local_range(local_id_from_id(-1), 2);
+        session_space_normalizer.add_local_range(local_id_from_id(-3), 4);
+        session_space_normalizer.add_local_range(local_id_from_id(-15), 1);
 
         let mut bytes: Vec<u8> = Vec::new();
         serialize_normalizer(&session_space_normalizer, &mut bytes);

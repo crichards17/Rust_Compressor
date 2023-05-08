@@ -1,3 +1,8 @@
+use crate::{
+    final_id::final_id_from_id,
+    local_id::{get_id_from_local_id, local_id_from_id},
+};
+
 use super::*;
 
 #[derive(Clone, Copy, Debug, PartialOrd, Ord, PartialEq, Eq)]
@@ -22,9 +27,9 @@ impl OpSpaceId {
     /// Maps the ID to local or final space. Intended for internal use only.
     pub fn to_space(&self) -> CompressedId {
         if self.is_local() {
-            CompressedId::Local(LocalId::from_id(self.id))
+            CompressedId::Local(local_id_from_id(self.id))
         } else {
-            CompressedId::Final(FinalId::from_id(self.id as u64))
+            CompressedId::Final(final_id_from_id(self.id as u64))
         }
     }
 
@@ -42,13 +47,15 @@ impl OpSpaceId {
 impl From<FinalId> for OpSpaceId {
     fn from(final_id: FinalId) -> Self {
         OpSpaceId {
-            id: final_id.id() as i64,
+            id: final_id.id as i64,
         }
     }
 }
 
 impl From<LocalId> for OpSpaceId {
     fn from(local_id: LocalId) -> Self {
-        OpSpaceId { id: local_id.id() }
+        OpSpaceId {
+            id: get_id_from_local_id(local_id),
+        }
     }
 }

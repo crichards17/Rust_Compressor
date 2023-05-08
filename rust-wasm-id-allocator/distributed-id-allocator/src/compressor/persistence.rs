@@ -11,7 +11,7 @@ where
     FMakeSession: FnOnce() -> SessionId,
 {
     let mut deserializer = Deserializer::new(bytes);
-    let version = deserializer.take_u64();
+    let version = deserializer.take_u32();
     match version {
         1 => v1::deserialize(&mut deserializer, make_session_id),
         _ => Err(DeserializationError::UnknownVersion),
@@ -41,7 +41,9 @@ pub mod v1 {
     use crate::{
         compressor::IdCompressor,
         compressor::{
-            persistence_utils::{write_u128_to_vec, write_u64_to_vec, Deserializer},
+            persistence_utils::{
+                write_u128_to_vec, write_u32_to_vec, write_u64_to_vec, Deserializer,
+            },
             tables::{
                 session_space::IdCluster,
                 session_space_normalizer::persistence::v1::{
@@ -51,47 +53,60 @@ pub mod v1 {
         },
     };
     use id_types::{
+        final_id::{final_id_from_id, get_id_from_final_id},
+        local_id::local_id_from_id,
         session_id::{session_id_from_id_u128, session_id_from_uuid_u128},
-        FinalId, LocalId, SessionId, StableId,
+        SessionId, StableId,
     };
     use std::mem::size_of;
 
     // Layout
-    // version: u64
-    // has_local_state: bool as u64
+    // version: u32
+    // has_local_state: bool as u32
+    // clusters_are_32_bit: bool as u32
+    // if has_local_state
     //      session_uuid_u128: u128,
     //      generated_id_count: u64,
     //      next_range_base_generation_count: u64,
     //      persistent_normalizer: PersistenceNormalizer,
     // cluster_capacity: u64,
-    // session_uuid_u128s: Vec<u128>,
-    // cluster_data: Vec<(session_index: u64, capacity: u64, count: u64)>,
+    // session_uuid_u128s: u128[],
+    // cluster_data: (session_index: u64, capacity: u64, count: u64)[],
 
     pub fn serialize(compressor: &IdCompressor) -> Vec<u8> {
         let mut bytes: Vec<u8> = Vec::new();
-        serialize_header(false, &mut bytes);
-        serialize_finalized(compressor, &mut bytes);
+        let is_32_bit = serialize_header(compressor, false, &mut bytes);
+        serialize_finalized(compressor, is_32_bit, &mut bytes);
         bytes
     }
 
     pub fn serialize_with_local(compressor: &IdCompressor) -> Vec<u8> {
         let mut bytes: Vec<u8> = Vec::new();
-        serialize_header(true, &mut bytes);
+        let is_32_bit = serialize_header(compressor, true, &mut bytes);
         write_u128_to_vec(&mut bytes, StableId::from(compressor.session_id).into());
         write_u64_to_vec(&mut bytes, compressor.generated_id_count);
         write_u64_to_vec(&mut bytes, compressor.next_range_base_generation_count);
         serialize_normalizer(&compressor.session_space_normalizer, &mut bytes);
-        serialize_finalized(compressor, &mut bytes);
+        serialize_finalized(compressor, is_32_bit, &mut bytes);
         bytes
     }
 
-    fn serialize_header(is_local: bool, bytes: &mut Vec<u8>) {
+    fn serialize_header(compressor: &IdCompressor, is_local: bool, bytes: &mut Vec<u8>) -> bool {
         // Version
-        write_u64_to_vec(bytes, 1);
-        write_u64_to_vec(bytes, is_local as u64);
+        write_u32_to_vec(bytes, 1);
+        write_u32_to_vec(bytes, is_local as u32);
+        let is_32_bit = match compressor
+            .final_space
+            .get_tail_cluster(&compressor.sessions)
+        {
+            Some(cluster) => get_id_from_final_id(cluster.max_allocated_final()),
+            None => 0,
+        } < u32::MAX as u64;
+        write_u32_to_vec(bytes, is_32_bit as u32);
+        is_32_bit
     }
 
-    fn serialize_finalized(compressor: &IdCompressor, bytes: &mut Vec<u8>) {
+    fn serialize_finalized(compressor: &IdCompressor, is_32_bit: bool, bytes: &mut Vec<u8>) {
         write_u64_to_vec(bytes, compressor.cluster_capacity);
         let session_count = compressor.sessions.get_session_count();
         // The only empty session (if there is one) will be the local session.
@@ -110,17 +125,34 @@ pub mod v1 {
             &compressor.sessions.get_session_id_slice()[session_count_delta * size_of::<u128>()..];
         bytes.extend_from_slice(session_slice);
 
+        let write_cluster: fn(
+            cluster: &IdCluster,
+            session_index_override: usize,
+            bytes: &mut Vec<u8>,
+        ) = if is_32_bit {
+            |cluster, session_index_override, bytes| {
+                write_u32_to_vec(bytes, session_index_override as u32);
+                write_u32_to_vec(bytes, cluster.capacity as u32);
+                write_u32_to_vec(bytes, cluster.count as u32);
+            }
+        } else {
+            |cluster, session_index_override, bytes| {
+                write_u64_to_vec(bytes, session_index_override as u64);
+                write_u64_to_vec(bytes, cluster.capacity);
+                write_u64_to_vec(bytes, cluster.count);
+            }
+        };
+
         write_u64_to_vec(bytes, compressor.final_space.get_cluster_count() as u64);
         compressor
             .final_space
             .get_clusters(&compressor.sessions)
             .for_each(|(id_cluster, cluster_ref)| {
-                write_u64_to_vec(
+                write_cluster(
+                    id_cluster,
+                    cluster_ref.get_session_space_ref().get_index() - session_count_delta,
                     bytes,
-                    (cluster_ref.get_session_space_ref().get_index() - session_count_delta) as u64,
-                );
-                write_u64_to_vec(bytes, id_cluster.capacity);
-                write_u64_to_vec(bytes, id_cluster.count);
+                )
             });
     }
 
@@ -131,7 +163,8 @@ pub mod v1 {
     where
         FMakeSession: FnOnce() -> SessionId,
     {
-        let with_local_state = deserializer.take_u64() != 0;
+        let with_local_state = deserializer.take_u32() != 0;
+        let is_32_bit = deserializer.take_u32() != 0;
         let mut compressor = match with_local_state {
             false => IdCompressor::new_with_session_id(make_session_id()),
             true => {
@@ -156,24 +189,27 @@ pub mod v1 {
             session_ref_remap.push(compressor.sessions.get_or_create(session_id));
         }
 
-        let cluster_count = deserializer.take_u64();
-        for _ in 0..cluster_count {
-            let session_index = deserializer.take_u64();
-            let capacity = deserializer.take_u64();
-            let count = deserializer.take_u64();
+        let read_cluster: fn(deserializer: &mut Deserializer) -> (u64, u64, u64) = if is_32_bit {
+            |deser| {
+                (
+                    deser.take_u32() as u64,
+                    deser.take_u32() as u64,
+                    deser.take_u32() as u64,
+                )
+            }
+        } else {
+            |deser| (deser.take_u64(), deser.take_u64(), deser.take_u64())
+        };
 
-            let base_final_id = match compressor
-                .final_space
-                .get_tail_cluster(&compressor.sessions)
-            {
-                Some(cluster) => cluster.base_final_id + cluster.capacity,
-                None => FinalId::from_id(0),
-            };
+        let cluster_count = deserializer.take_u64();
+        let mut base_final_id = final_id_from_id(0);
+        for _ in 0..cluster_count {
+            let (session_index, capacity, count) = read_cluster(deserializer);
             let session_space_ref = session_ref_remap[session_index as usize];
             let session_space = compressor.sessions.deref_session_space(session_space_ref);
             let base_local_id = match session_space.get_tail_cluster() {
                 Some(cluster) => cluster.base_local_id - cluster.capacity,
-                None => LocalId::from_id(-1),
+                None => local_id_from_id(-1),
             };
             let new_cluster = IdCluster {
                 base_final_id,
@@ -181,6 +217,7 @@ pub mod v1 {
                 capacity,
                 count,
             };
+            base_final_id = base_final_id + capacity;
             let new_cluster_ref = compressor
                 .sessions
                 .deref_session_space_mut(session_space_ref)
@@ -194,7 +231,7 @@ pub mod v1 {
             .get_tail_cluster(&compressor.sessions)
         {
             Some(cluster) => cluster.base_final_id + cluster.count,
-            None => FinalId::from_id(0),
+            None => final_id_from_id(0),
         };
         Ok(compressor)
     }
@@ -205,7 +242,7 @@ pub mod v1 {
 
         #[test]
         fn assert_local_id_alignment() {
-            assert_eq!(LocalId::from_id(-1).to_generation_count(), 1);
+            assert_eq!(local_id_from_id(-1).to_generation_count(), 1);
         }
 
         #[test]

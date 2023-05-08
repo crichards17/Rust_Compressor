@@ -1,3 +1,4 @@
+use id_types::local_id::local_id_from_id;
 use id_types::session_id::{session_id_from_id_u128, session_id_from_stable_id};
 use id_types::{FinalId, LocalId, SessionId, StableId};
 use std::cmp::Ordering;
@@ -115,7 +116,7 @@ impl Sessions {
                         let cluster_min_stable = result_session_id + cluster_match.base_local_id;
                         let cluster_max_stable = cluster_min_stable + cluster_match.capacity;
                         if query >= cluster_min_stable && query <= cluster_max_stable {
-                            let originator_local = LocalId::from_id(
+                            let originator_local = local_id_from_id(
                                 -((query - StableId::from(result_session_id)) as i64) - 1,
                             );
                             Some((cluster_match, session_space_ref, originator_local))
