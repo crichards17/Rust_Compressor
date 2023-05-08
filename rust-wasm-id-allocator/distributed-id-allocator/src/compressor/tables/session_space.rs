@@ -185,7 +185,7 @@ impl Sessions {
             }
             let (session_space_a, session_id_a) = session_space_a.unwrap();
             let (session_space_b, session_id_b) = session_space_b.unwrap();
-            if session_id_a != session_id_a
+            if session_id_a != session_id_b
                 || session_space_a.cluster_chain != session_space_b.cluster_chain
             {
                 return false;

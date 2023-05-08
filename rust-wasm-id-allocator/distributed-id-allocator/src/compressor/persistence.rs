@@ -58,6 +58,7 @@ pub mod v1 {
         session_id::{session_id_from_id_u128, session_id_from_uuid_u128},
         SessionId, StableId,
     };
+    use std::mem::size_of;
 
     // Layout
     // version: u32
@@ -69,8 +70,8 @@ pub mod v1 {
     //      next_range_base_generation_count: u64,
     //      persistent_normalizer: PersistenceNormalizer,
     // cluster_capacity: u64,
-    // session_uuid_u128s: Vec<u128>,
-    // cluster_data: Vec<(session_index: u64, capacity: u64, count: u64)>,
+    // session_uuid_u128s: u128[],
+    // cluster_data: (session_index: u64, capacity: u64, count: u64)[],
 
     pub fn serialize(compressor: &IdCompressor) -> Vec<u8> {
         let mut bytes: Vec<u8> = Vec::new();
@@ -106,38 +107,55 @@ pub mod v1 {
     }
 
     fn serialize_finalized(compressor: &IdCompressor, is_32_bit: bool, bytes: &mut Vec<u8>) {
-        let write_cluster: fn(cluster: &IdCluster, cluster_ref: ClusterRef, bytes: &mut Vec<u8>) =
-            if is_32_bit {
-                |cluster, cluster_ref, bytes| {
-                    write_u32_to_vec(
-                        bytes,
-                        cluster_ref.get_session_space_ref().get_index() as u32,
-                    );
-                    write_u32_to_vec(bytes, cluster.capacity as u32);
-                    write_u32_to_vec(bytes, cluster.count as u32);
-                }
-            } else {
-                |cluster, cluster_ref, bytes| {
-                    write_u64_to_vec(
-                        bytes,
-                        cluster_ref.get_session_space_ref().get_index() as u64,
-                    );
-                    write_u64_to_vec(bytes, cluster.capacity);
-                    write_u64_to_vec(bytes, cluster.count);
-                }
-            };
-
         write_u64_to_vec(bytes, compressor.cluster_capacity);
-        write_u64_to_vec(bytes, compressor.sessions.get_session_count() as u64);
+        let session_count = compressor.sessions.get_session_count();
+        // The only empty session (if there is one) will be the local session.
+        // It is stored first in the session vector, so to avoid accumulating empty
+        // sessions in the serialized state we must omit it by slicing off the first
+        // session id, reducing the session count by 1, and adjusting all cluster
+        // session indexes by 1.
+        let session_count_delta = if compressor.generated_id_count == 0 {
+            1
+        } else {
+            0
+        };
+        write_u64_to_vec(bytes, (session_count - session_count_delta) as u64);
 
-        bytes.extend_from_slice(compressor.sessions.get_session_id_slice());
+        let session_slice =
+            &compressor.sessions.get_session_id_slice()[session_count_delta * size_of::<u128>()..];
+        bytes.extend_from_slice(session_slice);
+
+        let write_cluster: fn(
+            cluster: &IdCluster,
+            cluster_ref: ClusterRef,
+            session_count_delta: usize,
+            bytes: &mut Vec<u8>,
+        ) = if is_32_bit {
+            |cluster, cluster_ref, session_count_delta, bytes| {
+                write_u32_to_vec(
+                    bytes,
+                    (cluster_ref.get_session_space_ref().get_index() - session_count_delta) as u32,
+                );
+                write_u32_to_vec(bytes, cluster.capacity as u32);
+                write_u32_to_vec(bytes, cluster.count as u32);
+            }
+        } else {
+            |cluster, cluster_ref, session_count_delta, bytes| {
+                write_u64_to_vec(
+                    bytes,
+                    (cluster_ref.get_session_space_ref().get_index() - session_count_delta) as u64,
+                );
+                write_u64_to_vec(bytes, cluster.capacity);
+                write_u64_to_vec(bytes, cluster.count);
+            }
+        };
 
         write_u64_to_vec(bytes, compressor.final_space.get_cluster_count() as u64);
         compressor
             .final_space
             .get_clusters(&compressor.sessions)
             .for_each(|(id_cluster, cluster_ref)| {
-                write_cluster(id_cluster, cluster_ref, bytes);
+                write_cluster(id_cluster, cluster_ref, session_count_delta, bytes)
             });
     }
 
@@ -167,8 +185,7 @@ pub mod v1 {
         let session_count = deserializer.take_u64();
         let mut session_ref_remap = Vec::new();
         for _ in 0..session_count {
-            let session_uuid_u128 = deserializer.take_u128();
-            let session_id = session_id_from_id_u128(session_uuid_u128);
+            let session_id = session_id_from_id_u128(deserializer.take_u128());
             if !with_local_state && session_id == compressor.session_id {
                 return Err(DeserializationError::InvalidResumedSession);
             }
@@ -229,6 +246,24 @@ pub mod v1 {
         #[test]
         fn assert_local_id_alignment() {
             assert_eq!(local_id_from_id(-1).to_generation_count(), 1);
+        }
+
+        #[test]
+        fn test_empty_compressor_should_have_no_sessions() {
+            let mut compressor = IdCompressor::new();
+            let mut compressor_2 = IdCompressor::new();
+
+            let serialized = compressor.serialize(false);
+            let deserialized = IdCompressor::deserialize(&serialized).unwrap();
+            assert_eq!(deserialized.sessions.get_session_count(), 1);
+
+            _ = compressor_2.generate_next_id();
+            let range = compressor_2.take_next_range();
+            _ = compressor.finalize_range(&range);
+
+            let serialized = compressor.serialize(false);
+            let deserialized = IdCompressor::deserialize(&serialized).unwrap();
+            assert_eq!(deserialized.sessions.get_session_count(), 2);
         }
     }
 }
