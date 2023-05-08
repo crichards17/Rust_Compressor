@@ -45,7 +45,7 @@ pub mod v1 {
                 write_u128_to_vec, write_u32_to_vec, write_u64_to_vec, Deserializer,
             },
             tables::{
-                session_space::{ClusterRef, IdCluster},
+                session_space::IdCluster,
                 session_space_normalizer::persistence::v1::{
                     deserialize_normalizer, serialize_normalizer,
                 },
@@ -127,24 +127,17 @@ pub mod v1 {
 
         let write_cluster: fn(
             cluster: &IdCluster,
-            cluster_ref: ClusterRef,
-            session_count_delta: usize,
+            session_index_override: usize,
             bytes: &mut Vec<u8>,
         ) = if is_32_bit {
-            |cluster, cluster_ref, session_count_delta, bytes| {
-                write_u32_to_vec(
-                    bytes,
-                    (cluster_ref.get_session_space_ref().get_index() - session_count_delta) as u32,
-                );
+            |cluster, session_index_override, bytes| {
+                write_u32_to_vec(bytes, session_index_override as u32);
                 write_u32_to_vec(bytes, cluster.capacity as u32);
                 write_u32_to_vec(bytes, cluster.count as u32);
             }
         } else {
-            |cluster, cluster_ref, session_count_delta, bytes| {
-                write_u64_to_vec(
-                    bytes,
-                    (cluster_ref.get_session_space_ref().get_index() - session_count_delta) as u64,
-                );
+            |cluster, session_index_override, bytes| {
+                write_u64_to_vec(bytes, session_index_override as u64);
                 write_u64_to_vec(bytes, cluster.capacity);
                 write_u64_to_vec(bytes, cluster.count);
             }
@@ -155,7 +148,11 @@ pub mod v1 {
             .final_space
             .get_clusters(&compressor.sessions)
             .for_each(|(id_cluster, cluster_ref)| {
-                write_cluster(id_cluster, cluster_ref, session_count_delta, bytes)
+                write_cluster(
+                    id_cluster,
+                    cluster_ref.get_session_space_ref().get_index() - session_count_delta,
+                    bytes,
+                )
             });
     }
 
