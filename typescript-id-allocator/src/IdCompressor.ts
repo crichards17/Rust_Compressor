@@ -160,7 +160,7 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 
 	private idOrError<TId extends number>(idNum: number): TId {
 		if (isNaN(idNum)) {
-			throw new Error("Invalid ID to normalize.");
+			throw new TypeError("Invalid ID to normalize.");
 		}
 		return idNum as TId;
 	}
@@ -231,11 +231,12 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 			eventName: "RuntimeIdCompressor:SerializedIdCompressorSize",
 			size: bytes.length,
 		});
-		const serialized: SerializedIdCompressor = {
+		// Use branding utility
+		// eslint-disable-next-line @typescript-eslint/consistent-type-assertions
+		return {
 			bytes,
 			version: currentWrittenVersion,
 		} as SerializedIdCompressor;
-		return serialized;
 	}
 
 	public static deserialize(serialized: SerializedIdCompressorWithOngoingSession): IdCompressor;
