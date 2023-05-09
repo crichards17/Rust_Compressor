@@ -4,9 +4,9 @@
  */
 
 import { TestOnly } from "wasm-id-allocator";
-import { IdCompressor } from "../../src/IdCompressor";
-import { SessionSpaceCompressedId, StableId, OpSpaceCompressedId } from "../../src/types";
-import { uuidStringFromBytes } from "../../src/utilities";
+import { IdCompressor } from "../../../src/IdCompressor";
+import { SessionSpaceCompressedId, StableId, OpSpaceCompressedId } from "../../../src/types";
+import { uuidStringFromBytes } from "../../../src/utilities";
 
 /**
  * An identifier (v4 UUID) that has been shortened by a distributed compression algorithm.

@@ -5,6 +5,7 @@
 
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 
+import { benchmark, BenchmarkType } from "@fluid-tools/benchmark";
 import {
 	IdCreationRange,
 	SerializedIdCompressorWithNoSession,
@@ -12,23 +13,22 @@ import {
 	SessionSpaceCompressedId,
 	SessionId,
 	StableId,
-} from "../../src/types";
-import { benchmark, BenchmarkType } from "@fluid-tools/benchmark";
+} from "../../../src/types";
 import { take } from "../copied-utils/stochastic";
+import { defaultClusterCapacity, IdCompressor } from "../../../src/IdCompressor";
+import { createSessionId } from "../../../src/utilities";
+import { assert, fail } from "../../../src/copied-utils";
+import { FinalCompressedId, LocalCompressedId, isFinalId, isLocalId } from "./testCommon";
 import {
 	Client,
 	CompressorFactory,
+	DestinationClient,
 	IdCompressorTestNetwork,
 	buildHugeCompressor,
 	makeOpGenerator,
 	performFuzzActions,
 	sessionIds,
 } from "./idCompressorTestUtilities";
-import { defaultClusterCapacity, IdCompressor } from "../../src/IdCompressor";
-import { FinalCompressedId, LocalCompressedId, isFinalId, isLocalId } from "./testCommon";
-import { createSessionId } from "../../src/utilities";
-import { assert, fail } from "../../src/copied-utils";
-import { DestinationClient } from "./idCompressorTestUtilities";
 
 describe("IdCompressor Perf", () => {
 	afterEach(() => {
@@ -235,9 +235,7 @@ describe("IdCompressor Perf", () => {
 				}
 				const client = isLocalOriginator ? localClient : remoteClient;
 				const idFromSession = getIdMadeBy(client, true, network);
-				opSpaceId = network
-					.getCompressor(client)
-					.normalizeToOpSpace(idFromSession) as OpSpaceCompressedId;
+				opSpaceId = network.getCompressor(client).normalizeToOpSpace(idFromSession);
 			},
 			benchmarkFn: () => {
 				perfCompressor!.normalizeToSessionSpace(opSpaceId, remoteSessionId);

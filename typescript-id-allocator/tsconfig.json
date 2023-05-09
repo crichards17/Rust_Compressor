@@ -16,5 +16,6 @@
 		"pretty": true,
 		"lib": ["ES2017", "ES2018.Promise", "DOM", "DOM.Iterable"],
 		"outDir": "./dist/javascript",
+		"rootDir": "../typescript-id-allocator",
 	},
 }

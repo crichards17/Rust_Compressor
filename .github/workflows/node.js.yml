@@ -31,4 +31,6 @@ jobs:
           cache-dependency-path: typescript-id-allocator/package-lock.json
       - run: cargo install wasm-snip
       - run: npm run build --verbose
+      - run: npm run eslint
+      - run: npm run prettier
       - run: npm run test --verbose

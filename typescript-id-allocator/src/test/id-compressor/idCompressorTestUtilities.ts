@@ -3,9 +3,8 @@
  * Licensed under the MIT License.
  */
 
-/* eslint-disable no-bitwise */
-
 import { strict as assert } from "assert";
+import { ITelemetryLogger } from "@fluidframework/common-definitions";
 import {
 	Generator,
 	createWeightedGenerator,
@@ -17,8 +16,7 @@ import {
 	take,
 	BaseFuzzTestState,
 } from "../copied-utils/stochastic";
-import { ITelemetryLogger } from "@fluidframework/common-definitions";
-import { IdCompressor } from "../../src/IdCompressor";
+import { IdCompressor } from "../../../src/IdCompressor";
 import {
 	IdCreationRange,
 	OpSpaceCompressedId,
@@ -28,8 +26,9 @@ import {
 	SessionId,
 	SessionSpaceCompressedId,
 	StableId,
-} from "../../src/types";
-import { assertIsSessionId, createSessionId } from "../../src/utilities";
+} from "../../../src/types";
+import { assertIsSessionId, createSessionId } from "../../../src/utilities";
+import { fail } from "../../../src/copied-utils";
 import {
 	compressorEquals,
 	FinalCompressedId,
@@ -39,7 +38,6 @@ import {
 	isLocalId,
 	ReadonlyIdCompressor,
 } from "./testCommon";
-import { fail } from "../../src/copied-utils";
 
 /**
  * A readonly `Map` which is known to contain a value for every possible key
@@ -76,6 +74,7 @@ export const OriginatingClient = { ...Client, ...OutsideClient };
 export type DestinationClient = Client | MetaClient;
 export const DestinationClient = { ...Client, ...MetaClient };
 
+// eslint-disable-next-line @typescript-eslint/no-extraneous-class
 export class CompressorFactory {
 	private static compressors: IdCompressor[] = [];
 
@@ -121,17 +120,9 @@ export class CompressorFactory {
 		serialized: SerializedIdCompressor,
 		sessionId?: SessionId,
 	): IdCompressor {
-		let compressor: IdCompressor;
-		if (sessionId) {
-			compressor = IdCompressor.deserialize(
-				serialized as SerializedIdCompressorWithNoSession,
-				sessionId,
-			);
-		} else {
-			compressor = IdCompressor.deserialize(
-				serialized as SerializedIdCompressorWithOngoingSession,
-			);
-		}
+		const compressor = sessionId
+			? IdCompressor.deserialize(serialized as SerializedIdCompressorWithNoSession, sessionId)
+			: IdCompressor.deserialize(serialized as SerializedIdCompressorWithOngoingSession);
 		CompressorFactory.compressors.push(compressor);
 		return compressor;
 	}
@@ -372,7 +363,7 @@ export class IdCompressorTestNetwork {
 	): OpSpaceCompressedId[] {
 		assert(numIds > 0, "Must allocate a non-zero number of IDs");
 		if (clientFrom === OriginatingClient.Remote) {
-			let range: IdCreationRange = {
+			const range: IdCreationRange = {
 				sessionId: sessionIdFrom,
 				ids: {
 					firstGenCount: 1,

@@ -1,5 +1,5 @@
-import { SessionId, StableId, UuidString } from "./types";
 import { v4, NIL } from "uuid";
+import { SessionId, StableId, UuidString } from "./types";
 import { assert } from "./copied-utils/assert";
 
 const hexadecimalCharCodes = Array.from("09afAF").map((c) => c.charCodeAt(0)) as [
