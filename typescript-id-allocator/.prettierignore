@@ -1,0 +1,8 @@
+# Ignore output
+dist
+node_modules
+
+# Ignore config files
+*.json
+*.cjs
+.eslintrc.js
