@@ -3,8 +3,10 @@ import {
 	InteropIds,
 	InteropTelemetryStats,
 } from "wasm-id-allocator";
+import { ITelemetryLogger } from "@fluidframework/common-definitions";
 import { assert, fail } from "./copied-utils";
 import {
+	currentWrittenVersion,
 	IdCreationRange,
 	IIdCompressor,
 	IIdCompressorCore,
@@ -16,9 +18,7 @@ import {
 	SessionSpaceCompressedId,
 	StableId,
 } from "./types";
-import { currentWrittenVersion } from "./types";
 import { createSessionId, isNaN, uuidStringFromBytes } from "./utilities";
-import { ITelemetryLogger } from "@fluidframework/common-definitions";
 
 export const defaultClusterCapacity = WasmIdCompressor.get_default_cluster_capacity();
 const nilToken = WasmIdCompressor.get_nil_token();
@@ -196,7 +196,7 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 				assert(id >= 0, "No IDs have ever been finalized by the supplied session.");
 			}
 		}
-		let normalizedId = this.wasmCompressor.normalize_to_session_space(id, sessionToken);
+		const normalizedId = this.wasmCompressor.normalize_to_session_space(id, sessionToken);
 		return this.idOrError<SessionSpaceCompressedId>(normalizedId);
 	}
 
@@ -231,10 +231,11 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 			eventName: "RuntimeIdCompressor:SerializedIdCompressorSize",
 			size: bytes.length,
 		});
-		return {
+		const serialized: SerializedIdCompressor = {
 			bytes,
 			version: currentWrittenVersion,
 		} as SerializedIdCompressor;
+		return serialized;
 	}
 
 	public static deserialize(serialized: SerializedIdCompressorWithOngoingSession): IdCompressor;
