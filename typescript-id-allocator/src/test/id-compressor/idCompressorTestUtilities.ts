@@ -6,6 +6,7 @@
 /* eslint-disable no-bitwise */
 
 import { strict as assert } from "assert";
+import { ITelemetryLogger } from "@fluidframework/common-definitions";
 import {
 	Generator,
 	createWeightedGenerator,
@@ -17,8 +18,7 @@ import {
 	take,
 	BaseFuzzTestState,
 } from "../copied-utils/stochastic";
-import { ITelemetryLogger } from "@fluidframework/common-definitions";
-import { IdCompressor } from "../../src/IdCompressor";
+import { IdCompressor } from "../../../src/IdCompressor";
 import {
 	IdCreationRange,
 	OpSpaceCompressedId,
@@ -28,8 +28,9 @@ import {
 	SessionId,
 	SessionSpaceCompressedId,
 	StableId,
-} from "../../src/types";
-import { assertIsSessionId, createSessionId } from "../../src/utilities";
+} from "../../../src/types";
+import { assertIsSessionId, createSessionId } from "../../../src/utilities";
+import { fail } from "../../../src/copied-utils";
 import {
 	compressorEquals,
 	FinalCompressedId,
@@ -39,7 +40,6 @@ import {
 	isLocalId,
 	ReadonlyIdCompressor,
 } from "./testCommon";
-import { fail } from "../../src/copied-utils";
 
 /**
  * A readonly `Map` which is known to contain a value for every possible key

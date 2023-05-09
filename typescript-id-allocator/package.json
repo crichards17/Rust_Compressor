@@ -10,7 +10,7 @@
 		"bench": "mocha --timeout 999999 --perfMode --parentProcess --fgrep @Benchmark --reporter @fluid-tools/benchmark/dist/MochaReporter.js ./dist/**/*.spec.js",
 		"clean": "rimraf ./dist",
 		"eslint": "eslint src",
-		"test": "npm run build:ts && mocha --timeout 999999 ./dist/javascript/test/**/*.js --recursive",
+		"test": "npm run build:ts && mocha --timeout 999999 ./dist/javascript/src/test/**/*.js --recursive",
 		"prettier": "prettier --check . --ignore-path ./.prettierignore",
 		"prettier:fix": "prettier --write . --ignore-path ./.prettierignore"
 	},
