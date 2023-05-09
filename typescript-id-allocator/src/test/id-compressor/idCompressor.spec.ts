@@ -5,8 +5,8 @@
 
 import { strict as assert } from "assert";
 import { MockLogger } from "@fluidframework/telemetry-utils";
-import { validateAssertionError } from "@fluidframework/test-runtime-utils";
 import { fail } from "../../../src/copied-utils";
+import { validateAssertionError } from "@fluidframework/test-runtime-utils";
 import { take } from "../copied-utils/stochastic";
 import { OpSpaceCompressedId, SessionSpaceCompressedId, StableId } from "../../../src/types";
 import { createSessionId } from "../../../src/utilities";

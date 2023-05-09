@@ -32,4 +32,5 @@ jobs:
       - run: cargo install wasm-snip
       - run: npm run build --verbose
       - run: npm run eslint --verbose
+      - run: npm run prettier --verbose
       - run: npm run test --verbose
