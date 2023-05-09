@@ -3,8 +3,8 @@ import {
 	InteropIds,
 	InteropTelemetryStats,
 } from "wasm-id-allocator";
-import { ITelemetryLogger } from "@fluidframework/common-definitions";
 import { assert, fail } from "./copied-utils";
+import { ITelemetryLogger } from "@fluidframework/common-definitions";
 import {
 	currentWrittenVersion,
 	IdCreationRange,
