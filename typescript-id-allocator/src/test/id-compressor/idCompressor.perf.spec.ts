@@ -235,9 +235,7 @@ describe("IdCompressor Perf", () => {
 				}
 				const client = isLocalOriginator ? localClient : remoteClient;
 				const idFromSession = getIdMadeBy(client, true, network);
-				opSpaceId = network
-					.getCompressor(client)
-					.normalizeToOpSpace(idFromSession) as OpSpaceCompressedId;
+				opSpaceId = network.getCompressor(client).normalizeToOpSpace(idFromSession);
 			},
 			benchmarkFn: () => {
 				perfCompressor!.normalizeToSessionSpace(opSpaceId, remoteSessionId);

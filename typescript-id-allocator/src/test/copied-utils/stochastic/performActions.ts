@@ -4,7 +4,7 @@
  */
 
 import { promises as fs, writeFileSync } from "fs";
-import { assert } from "@fluidframework/common-utils";
+import { assert } from "../../../copied-utils";
 import {
 	AsyncGenerator,
 	AsyncReducer,

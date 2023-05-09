@@ -56,11 +56,9 @@ export function makeRandom(
 	// RATIONALE: These methods are already bound.  (Technically, XSadd is constructed to avoid
 	//            using 'this' for a minor perf win, but the end result is the same.)
 
-	/* eslint-disable @typescript-eslint/unbound-method */
 	const real = distribution.real(engine.float64);
 	const integer = distribution.integer(engine.uint53);
 	const normal = distribution.normal(engine.float64);
-	/* eslint-enable @typescript-eslint/unbound-method */
 
 	return {
 		bool: (probability = 0.5) => engine.float64() < probability,

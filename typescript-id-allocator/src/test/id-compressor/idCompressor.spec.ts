@@ -612,7 +612,7 @@ function createNetworkTestFunction(
 		test?: (network: IdCompressorTestNetwork) => void,
 	) => {
 		it(title, () => {
-			let network: IdCompressorTestNetwork | undefined = undefined;
+			let network: IdCompressorTestNetwork | undefined;
 			try {
 				const hasCapacity = typeof testOrCapacity === "number";
 				const capacity = hasCapacity ? testOrCapacity : undefined;

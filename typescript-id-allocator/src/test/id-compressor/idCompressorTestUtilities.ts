@@ -3,8 +3,6 @@
  * Licensed under the MIT License.
  */
 
-/* eslint-disable no-bitwise */
-
 import { strict as assert } from "assert";
 import { ITelemetryLogger } from "@fluidframework/common-definitions";
 import {
@@ -76,6 +74,7 @@ export const OriginatingClient = { ...Client, ...OutsideClient };
 export type DestinationClient = Client | MetaClient;
 export const DestinationClient = { ...Client, ...MetaClient };
 
+// eslint-disable-next-line @typescript-eslint/no-extraneous-class
 export class CompressorFactory {
 	private static compressors: IdCompressor[] = [];
 
@@ -121,17 +120,9 @@ export class CompressorFactory {
 		serialized: SerializedIdCompressor,
 		sessionId?: SessionId,
 	): IdCompressor {
-		let compressor: IdCompressor;
-		if (sessionId) {
-			compressor = IdCompressor.deserialize(
-				serialized as SerializedIdCompressorWithNoSession,
-				sessionId,
-			);
-		} else {
-			compressor = IdCompressor.deserialize(
-				serialized as SerializedIdCompressorWithOngoingSession,
-			);
-		}
+		const compressor = sessionId
+			? IdCompressor.deserialize(serialized as SerializedIdCompressorWithNoSession, sessionId)
+			: IdCompressor.deserialize(serialized as SerializedIdCompressorWithOngoingSession);
 		CompressorFactory.compressors.push(compressor);
 		return compressor;
 	}
@@ -372,7 +363,7 @@ export class IdCompressorTestNetwork {
 	): OpSpaceCompressedId[] {
 		assert(numIds > 0, "Must allocate a non-zero number of IDs");
 		if (clientFrom === OriginatingClient.Remote) {
-			let range: IdCreationRange = {
+			const range: IdCreationRange = {
 				sessionId: sessionIdFrom,
 				ids: {
 					firstGenCount: 1,
