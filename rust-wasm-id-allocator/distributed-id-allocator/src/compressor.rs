@@ -113,7 +113,7 @@ impl IdCompressor {
     ) -> Result<i64, AllocatorError> {
         match self.sessions.get(session_id) {
             None => Err(AllocatorError::NoTokenForSession),
-            Some(session_space) => Ok(session_space.get_index() as i64),
+            Some(session_space) => Ok(session_space.get_index().try_into().unwrap()),
         }
     }
 
@@ -169,7 +169,7 @@ impl IdCompressor {
 
     fn generate_next_local_id(&mut self) -> LocalId {
         self.telemetry_stats.local_id_count += 1;
-        let new_local = local_id_from_id(-(self.generated_id_count as i64));
+        let new_local = local_id_from_id(-(self.generated_id_count.try_into().unwrap()));
         self.session_space_normalizer.add_local_range(new_local, 1);
         new_local
     }
@@ -506,10 +506,11 @@ impl IdCompressor {
                 let session_as_stable = StableId::from(self.session_id);
                 if id >= session_as_stable {
                     let gen_count_equivalent = id - session_as_stable + 1;
-                    if gen_count_equivalent <= self.generated_id_count as u128 {
+                    if gen_count_equivalent <= self.generated_id_count.into() {
                         // Is a locally generated ID, with or without a finalized cluster
-                        let local_equivalent =
-                            LocalId::from_generation_count(gen_count_equivalent as u64);
+                        let local_equivalent = LocalId::from_generation_count(
+                            gen_count_equivalent.try_into().unwrap(),
+                        );
                         if self.session_space_normalizer.contains(local_equivalent) {
                             return Ok(SessionSpaceId::from(local_equivalent));
                         }

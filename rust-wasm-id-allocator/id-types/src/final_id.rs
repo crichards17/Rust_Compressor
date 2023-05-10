@@ -26,6 +26,6 @@ impl std::ops::Sub<FinalId> for FinalId {
     type Output = i64;
     fn sub(self, rhs: FinalId) -> Self::Output {
         debug_assert!(self.id >= rhs.id, "Final ID subtraction overflow");
-        self.id as i64 - rhs.id as i64
+        i64::try_from(self.id).unwrap() - i64::try_from(rhs.id).unwrap()
     }
 }

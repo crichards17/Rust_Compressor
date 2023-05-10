@@ -84,7 +84,7 @@ impl std::ops::Add<LocalId> for StableId {
     type Output = Self;
     fn add(self, rhs: LocalId) -> Self::Output {
         StableId {
-            id: self.id + (rhs.to_generation_count() - 1) as u128,
+            id: self.id + u128::from(rhs.to_generation_count() - 1),
         }
     }
 }
@@ -93,7 +93,7 @@ impl std::ops::Add<u64> for StableId {
     type Output = Self;
     fn add(self, rhs: u64) -> Self::Output {
         StableId {
-            id: self.id + rhs as u128,
+            id: self.id + u128::from(rhs),
         }
     }
 }
@@ -101,9 +101,9 @@ impl std::ops::Add<u64> for StableId {
 impl std::ops::Sub<u64> for StableId {
     type Output = Self;
     fn sub(self, rhs: u64) -> Self::Output {
-        debug_assert!(self.id >= rhs as u128);
+        debug_assert!(self.id >= u128::from(rhs));
         StableId {
-            id: self.id - rhs as u128,
+            id: self.id - u128::from(rhs),
         }
     }
 }

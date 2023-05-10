@@ -29,7 +29,7 @@ impl OpSpaceId {
         if self.is_local() {
             CompressedId::Local(local_id_from_id(self.id))
         } else {
-            CompressedId::Final(final_id_from_id(self.id as u64))
+            CompressedId::Final(final_id_from_id(self.id.try_into().unwrap()))
         }
     }
 
@@ -47,7 +47,7 @@ impl OpSpaceId {
 impl From<FinalId> for OpSpaceId {
     fn from(final_id: FinalId) -> Self {
         OpSpaceId {
-            id: final_id.id as i64,
+            id: final_id.id.try_into().unwrap(),
         }
     }
 }

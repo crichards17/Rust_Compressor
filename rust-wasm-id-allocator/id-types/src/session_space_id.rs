@@ -29,7 +29,7 @@ impl SessionSpaceId {
         if self.is_local() {
             CompressedId::Local(local_id_from_id(self.id))
         } else {
-            CompressedId::Final(final_id_from_id(self.id as u64))
+            CompressedId::Final(final_id_from_id(self.id.try_into().unwrap()))
         }
     }
 
@@ -55,7 +55,7 @@ impl From<LocalId> for SessionSpaceId {
 impl From<FinalId> for SessionSpaceId {
     fn from(final_id: FinalId) -> Self {
         SessionSpaceId {
-            id: final_id.id as i64,
+            id: final_id.id.try_into().unwrap(),
         }
     }
 }

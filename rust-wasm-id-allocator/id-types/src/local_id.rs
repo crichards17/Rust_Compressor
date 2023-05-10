@@ -11,12 +11,12 @@ pub struct LocalId {
 impl LocalId {
     /// Returns the inner ID as a generation count. Intended for internal use only.
     pub fn to_generation_count(&self) -> u64 {
-        (-self.id) as u64
+        (-self.id).try_into().unwrap()
     }
 
     /// Creates a local ID from a generation count. Intended for internal use only.
     pub fn from_generation_count(generation_count: u64) -> Self {
-        local_id_from_id(-(generation_count as i64))
+        local_id_from_id(-(i64::try_from(generation_count).unwrap()))
     }
 }
 
@@ -44,6 +44,6 @@ impl PartialEq<i64> for LocalId {
 impl Sub<u64> for LocalId {
     type Output = LocalId;
     fn sub(self, rhs: u64) -> Self::Output {
-        local_id_from_id(self.id - rhs as i64)
+        local_id_from_id(self.id - i64::try_from(rhs).unwrap())
     }
 }
