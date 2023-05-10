@@ -13,6 +13,8 @@ use id_types::*;
 /// Used in interop.
 pub const NIL_TOKEN: i64 = -1;
 
+// Testing LF impact
+
 #[derive(Debug)]
 /// A distributed ID allocator.
 ///
