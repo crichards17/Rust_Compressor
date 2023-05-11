@@ -6,7 +6,6 @@ import {
 import { ITelemetryLogger } from "@fluidframework/common-definitions";
 import { assert, fail } from "./copied-utils";
 import {
-	currentWrittenVersion,
 	IdCreationRange,
 	IIdCompressor,
 	IIdCompressorCore,
@@ -235,7 +234,6 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 		// eslint-disable-next-line @typescript-eslint/consistent-type-assertions
 		return {
 			bytes,
-			version: currentWrittenVersion,
 		} as SerializedIdCompressor;
 	}
 
@@ -248,10 +246,6 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 		serialized: SerializedIdCompressor,
 		sessionId?: SessionId,
 	): IdCompressor {
-		assert(
-			serialized.version === currentWrittenVersion,
-			"Unknown serialized compressor version found.",
-		);
 		const localSessionId = sessionId ?? createSessionId();
 		return new IdCompressor(WasmIdCompressor.deserialize(serialized.bytes, localSessionId));
 	}
