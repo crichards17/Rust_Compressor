@@ -6,7 +6,6 @@ import {
 import { ITelemetryLogger } from "@fluidframework/common-definitions";
 import { assert, fail } from "./copied-utils";
 import {
-	currentWrittenVersion,
 	IdCreationRange,
 	IIdCompressor,
 	IIdCompressorCore,
