@@ -6,17 +6,10 @@ import type { SessionId } from "../identifiers";
 export const currentWrittenVersion = "0.0.1";
 
 /**
- * The minimal required contents of a serialized IdCompressor.
- */
-export interface VersionedSerializedIdCompressor {
-	readonly _versionedSerializedIdCompressor: "8c73c57c-1cf4-4278-8915-6444cb4f6af5";
-	readonly version: string;
-}
-
-/**
  * The serialized contents of an IdCompressor, suitable for persistence in a summary.
  */
-export interface SerializedIdCompressor extends VersionedSerializedIdCompressor {
+export interface SerializedIdCompressor {
+	readonly _serializedIdCompressor: "8c73c57c-1cf4-4278-8915-6444cb4f6af5";
 	readonly bytes: Uint8Array;
 }
 
