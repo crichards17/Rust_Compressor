@@ -19,6 +19,8 @@ import {
 } from "./types";
 import { createSessionId, isNaN, uuidStringFromBytes } from "./utilities";
 
+import { debugState } from "./test/id-compressor/testCommon";
+
 export const defaultClusterCapacity = WasmIdCompressor.get_default_cluster_capacity();
 const nilToken = WasmIdCompressor.get_nil_token();
 const tokenCacheMaxSize = 300;
@@ -62,6 +64,10 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 		}
 		const compressor = new IdCompressor(new WasmIdCompressor(localSessionId), logger);
 		return compressor;
+	}
+
+	public get debugCompressorState(): string {
+		return debugState(this);
 	}
 
 	/**

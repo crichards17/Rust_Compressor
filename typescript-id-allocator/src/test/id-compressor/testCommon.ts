@@ -95,6 +95,14 @@ export function compressorEquals(
 	);
 }
 
+/**
+ * A formatted string representation of the compressor's state.
+ * Intended for debug only. Requires no-snip build.
+ * */
+export function debugState(a: ReadonlyIdCompressor): string {
+	return TestOnly.to_debug_string((a as any).wasmCompressor);
+}
+
 /** An immutable view of an `IdCompressor` */
 export interface ReadonlyIdCompressor
 	extends Omit<

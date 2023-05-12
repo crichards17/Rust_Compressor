@@ -604,6 +604,12 @@ impl IdCompressor {
                     && self.session_space_normalizer == other.session_space_normalizer))
         }
     }
+
+    /// Returns a pretty-print String representation of the compressor.
+    /// Debug-only, intended for testing.
+    pub fn to_debug_string(&self) -> String {
+        format!("{:#?}", self)
+    }
 }
 
 #[derive(Debug)]

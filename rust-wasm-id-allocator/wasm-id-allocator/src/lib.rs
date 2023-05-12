@@ -292,6 +292,15 @@ impl TestOnly {
         #[cfg(not(debug_assertions))]
         Err(JsError::new("Not supported in release."))
     }
+
+    #[wasm_bindgen]
+    /// Returns the the pretty-print debug representation of the compressor state.
+    pub fn to_debug_string(_compressor: &IdCompressor) -> Result<String, JsError> {
+        #[cfg(debug_assertions)]
+        return Ok(format!("{:#?}", _compressor.compressor));
+        #[cfg(not(debug_assertions))]
+        Err(JsError::new("Not supported in release."))
+    }
 }
 
 #[cfg(test)]
@@ -524,5 +533,12 @@ mod tests {
     fn test_nil_token() {
         let token = IdCompressor::get_nil_token();
         assert_eq!(token, -1 as f64);
+    }
+
+    #[test]
+    fn test_pretty_print() {
+        let (mut compressor, _) = initialize_compressor();
+        finalize_compressor(&mut compressor);
+        print!("{}", TestOnly::to_debug_string(&compressor).ok().unwrap());
     }
 }
