@@ -234,14 +234,37 @@ impl IdCompressor {
 #[wasm_bindgen]
 /// Struct for passing telemetry information across the interop boundary.
 pub struct InteropTelemetryStats {
+    eager_final_count: f64,
+    local_id_count: f64,
+    expansion_count: f64,
+    cluster_creation_count: f64,
+}
+
+#[wasm_bindgen]
+impl InteropTelemetryStats {
     /// See [distributed_id_allocator::compressor::TelemetryStats] for more.
-    pub eager_final_count: f64,
+    #[wasm_bindgen(getter)]
+    pub fn eager_final_count(&self) -> f64 {
+        self.eager_final_count
+    }
+
     /// See [distributed_id_allocator::compressor::TelemetryStats] for more.
-    pub local_id_count: f64,
+    #[wasm_bindgen(getter)]
+    pub fn local_id_count(&self) -> f64 {
+        self.local_id_count
+    }
+
     /// See [distributed_id_allocator::compressor::TelemetryStats] for more.
-    pub expansion_count: f64,
+    #[wasm_bindgen(getter)]
+    pub fn expansion_count(&self) -> f64 {
+        self.expansion_count
+    }
+
     /// See [distributed_id_allocator::compressor::TelemetryStats] for more.
-    pub cluster_creation_count: f64,
+    #[wasm_bindgen(getter)]
+    pub fn cluster_creation_count(&self) -> f64 {
+        self.cluster_creation_count
+    }
 }
 
 #[wasm_bindgen]
@@ -249,9 +272,24 @@ pub struct InteropTelemetryStats {
 /// Struct for passing ID ranges across the interop boundary.
 pub struct InteropIds {
     /// See [distributed_id_allocator::compressor::IdRange] for more.
-    pub first_local_gen_count: f64,
+    first_local_gen_count: f64,
     /// See [distributed_id_allocator::compressor::IdRange] for more.
-    pub count: f64,
+    count: f64,
+}
+
+#[wasm_bindgen]
+impl InteropIds {
+    /// See [distributed_id_allocator::compressor::TelemetryStats] for more.
+    #[wasm_bindgen(getter)]
+    pub fn first_local_gen_count(&self) -> f64 {
+        self.first_local_gen_count
+    }
+
+    /// See [distributed_id_allocator::compressor::TelemetryStats] for more.
+    #[wasm_bindgen(getter)]
+    pub fn count(&self) -> f64 {
+        self.count
+    }
 }
 
 fn into_jserror(error: impl ErrorString) -> JsError {
