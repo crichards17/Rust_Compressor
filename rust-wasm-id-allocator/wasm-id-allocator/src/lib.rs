@@ -560,6 +560,7 @@ mod tests {
         assert_eq!(token, -1 as f64);
     }
 
+    #[cfg(feature = "debug-format")]
     #[test]
     fn test_pretty_print() {
         let (mut compressor, _) = initialize_compressor();
