@@ -271,9 +271,7 @@ impl InteropTelemetryStats {
 #[derive(Clone, Copy)]
 /// Struct for passing ID ranges across the interop boundary.
 pub struct InteropIds {
-    /// See [distributed_id_allocator::compressor::IdRange] for more.
     first_local_gen_count: f64,
-    /// See [distributed_id_allocator::compressor::IdRange] for more.
     count: f64,
 }
 
