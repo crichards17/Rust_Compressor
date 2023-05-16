@@ -1,7 +1,7 @@
 use crate::LocalId;
 use uuid::Uuid;
 
-#[derive(Clone, Copy, PartialEq, Hash, Eq, PartialOrd, Ord, Debug)]
+#[derive(Clone, Copy, PartialEq, Hash, Eq, PartialOrd, Ord)]
 /// A compressed version 4, variant 1 UUID (https://datatracker.ietf.org/doc/html/rfc4122).
 /// Can be converted to a UUID, u128, or String as needed.
 pub struct StableId {
@@ -113,6 +113,12 @@ impl std::ops::Sub<StableId> for StableId {
     fn sub(self, rhs: StableId) -> Self::Output {
         debug_assert!(self >= rhs);
         self.id - rhs.id
+    }
+}
+
+impl std::fmt::Debug for StableId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "StableId {{\n    id: {:#?},\n}}", String::from(*self))
     }
 }
 

@@ -2,7 +2,7 @@ use uuid::Uuid;
 
 use crate::{AllocatorError, LocalId, StableId};
 
-#[derive(Eq, PartialEq, PartialOrd, Ord, Hash, Copy, Clone, Debug)]
+#[derive(Eq, PartialEq, PartialOrd, Ord, Hash, Copy, Clone)]
 /// A StableId which is suitable for use as a session identifier.
 /// Uniquely identifies a compressor within a network.
 pub struct SessionId {
@@ -95,5 +95,11 @@ impl std::ops::Add<LocalId> for SessionId {
     type Output = StableId;
     fn add(self, rhs: LocalId) -> Self::Output {
         self.id + rhs
+    }
+}
+
+impl std::fmt::Debug for SessionId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "SessionId {{\n    id: {:#?},\n}}", String::from(self.id))
     }
 }
