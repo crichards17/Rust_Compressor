@@ -230,7 +230,7 @@ impl IdCompressor {
         })
     }
 
-    #[cfg(debug_assertions)]
+    #[cfg(feature = "debug-format")]
     /// Returns the the pretty-print debug representation of the compressor state.
     /// Debug-only.
     pub fn to_debug_string(&self) -> String {
