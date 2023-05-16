@@ -34,3 +34,4 @@ jobs:
       - run: npm run eslint
       - run: npm run prettier
       - run: npm run test --verbose
+      - run: npm run build:release --verbose
