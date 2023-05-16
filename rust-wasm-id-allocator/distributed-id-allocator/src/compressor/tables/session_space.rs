@@ -6,7 +6,6 @@ use std::collections::BTreeMap;
 use std::mem::size_of;
 use std::ops::Bound;
 
-#[derive(Debug)]
 /// The local/UUID space within an individual Session.
 /// Effectively represents the cluster chain for a given session.
 pub struct Sessions {
@@ -196,6 +195,26 @@ impl Sessions {
                 return false;
             }
         }
+    }
+
+    fn session_id_vec(&self) -> Vec<String> {
+        let mut session_ids: Vec<String> = Vec::new();
+        for index in (0..self.session_ids.len()).step_by(16) {
+            let bytes: [u8; 16] = self.session_ids[index..index + size_of::<u128>()]
+                .try_into()
+                .unwrap();
+            session_ids.push(session_id_from_id_u128(u128::from_le_bytes(bytes)).into());
+        }
+        session_ids
+    }
+}
+
+impl std::fmt::Debug for Sessions {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:#?}", self.session_map)?;
+        write!(f, "{:#?}", self.session_list)?;
+        write!(f, " session_ids (UUID form): ")?;
+        write!(f, "{:#?}", &self.session_id_vec())
     }
 }
 
