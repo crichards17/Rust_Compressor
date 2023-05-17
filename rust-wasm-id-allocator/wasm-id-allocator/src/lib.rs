@@ -229,6 +229,13 @@ impl IdCompressor {
             .map_err(into_jserror)?,
         })
     }
+
+    #[cfg(feature = "debug-format")]
+    /// Returns the the pretty-print debug representation of the compressor state.
+    /// Debug-only.
+    pub fn to_debug_string(&self) -> String {
+        format!("{:#?}", self.compressor)
+    }
 }
 
 #[wasm_bindgen]
@@ -295,39 +302,30 @@ fn into_jserror(error: impl ErrorString) -> JsError {
 }
 
 #[wasm_bindgen]
-/// A container struct (to comply with bindgen) for test helper methods invoked by JS.
-/// All methods return errors when compiled in release.
-pub struct TestOnly {}
+#[cfg(debug_assertions)]
+/// Increments the supplied UUID and returns the result.
+/// Debug-only.
+pub fn increment_uuid(_uuid_string: String, _offset: f64) -> Result<Vec<u8>, JsError> {
+    Ok(
+        (StableId::from(SessionId::from_uuid_string(&_uuid_string).ok().unwrap())
+            + (_offset as u64))
+            .into(),
+    )
+}
 
 #[wasm_bindgen]
-impl TestOnly {
-    #[wasm_bindgen]
-    /// Increments the supplied UUID and returns the result.
-    pub fn increment_uuid(_uuid_string: String, _offset: f64) -> Result<Vec<u8>, JsError> {
-        #[cfg(debug_assertions)]
-        return Ok(
-            (StableId::from(SessionId::from_uuid_string(&_uuid_string).ok().unwrap())
-                + (_offset as u64))
-                .into(),
-        );
-        #[cfg(not(debug_assertions))]
-        Err(JsError::new("Not supported in release."))
-    }
-
-    #[wasm_bindgen]
-    /// Compares the two supplied compressors for equality (factoring in local state or not depending on the flag).
-    pub fn compressor_equals(
-        _a: &IdCompressor,
-        _b: &IdCompressor,
-        _compare_local_state: bool,
-    ) -> Result<bool, JsError> {
-        #[cfg(debug_assertions)]
-        return Ok(_a
-            .compressor
-            .equals_test_only(&_b.compressor, _compare_local_state));
-        #[cfg(not(debug_assertions))]
-        Err(JsError::new("Not supported in release."))
-    }
+#[cfg(debug_assertions)]
+/// Compares the two supplied compressors for equality (factoring in local state or not depending on the flag).
+/// Debug-only.
+pub fn compressor_equals(
+    _a: &IdCompressor,
+    _b: &IdCompressor,
+    _compare_local_state: bool,
+) -> Result<bool, JsError> {
+    #[cfg(debug_assertions)]
+    Ok(_a
+        .compressor
+        .equals_test_only(&_b.compressor, _compare_local_state))
 }
 
 #[cfg(test)]
@@ -560,5 +558,13 @@ mod tests {
     fn test_nil_token() {
         let token = IdCompressor::get_nil_token();
         assert_eq!(token, -1 as f64);
+    }
+
+    #[cfg(feature = "debug-format")]
+    #[test]
+    fn test_pretty_print() {
+        let (mut compressor, _) = initialize_compressor();
+        finalize_compressor(&mut compressor);
+        print!("{}", &compressor.to_debug_string());
     }
 }

@@ -1,9 +1,11 @@
 {
 	"scripts": {
 		"build": "npm run build:wasm && npm run build:snip && npm run build:ts",
+		"build:debug-tooling": "npm run build:wasm-debug-tooling && npm run build:ts",
 		"build:release": "npm run build:wasm-release && npm run build:snip && npm run build:opt && npm run build:ts",
 		"build:ts": "npm i && tsc --project \"tsconfig.json\"",
 		"build:wasm": "npm i --only=dev && wasm-pack build --debug --target nodejs --out-dir ../../typescript-id-allocator/dist/wasm ../rust-wasm-id-allocator/wasm-id-allocator",
+		"build:wasm-debug-tooling": "npm i --only=dev && wasm-pack build --debug --target nodejs --out-dir ../../typescript-id-allocator/dist/wasm ../rust-wasm-id-allocator/wasm-id-allocator -- --features \"debug-format\"",
 		"build:wasm-release": "npm i --only=dev && wasm-pack build --target nodejs --out-dir ../../typescript-id-allocator/dist/wasm ../rust-wasm-id-allocator/wasm-id-allocator",
 		"build:snip": "wasm-snip ./dist/wasm/wasm_id_allocator_bg.wasm --snip-rust-fmt-code --snip-rust-panicking-code -o ./dist/wasm/wasm_id_allocator_bg.wasm",
 		"build:opt": "wasm-opt -O2 --enable-mutable-globals -o dist/wasm/wasm_id_allocator_bg.wasm dist/wasm/wasm_id_allocator_bg.wasm",
