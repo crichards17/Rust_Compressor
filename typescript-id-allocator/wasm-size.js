@@ -10,6 +10,6 @@ function readStatsOrError(fileName) {
 }
 
 const stats = readStatsOrError("./dist/wasm/wasm_id_allocator_bg.wasm");
-if (stats.size > 37000) {
+if (stats.size > 30000) {
 	throw Error("WASM binary size unexpectedly increased.");
 }
