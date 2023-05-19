@@ -9,7 +9,13 @@ function readStatsOrError(fileName) {
 	}
 }
 
+const size = process.argv[2];
+if (size === undefined || Number.isNaN(Number.parseInt(size))) {
+	throw new Error("Usage: node wasm-size.js <size>");
+}
+
 const stats = readStatsOrError("./dist/wasm/wasm_id_allocator_bg.wasm");
-if (stats.size > 30000) {
-	throw Error("WASM binary size unexpectedly increased.");
+const parsedSize = Number.parseInt(size);
+if (stats.size > parsedSize) {
+	throw Error(`WASM binary size greater than ${parsedSize} bytes.`);
 }
