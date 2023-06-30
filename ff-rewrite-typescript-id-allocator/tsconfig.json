@@ -1,7 +1,7 @@
 {
 	"exclude": ["dist", "lib", "node_modules"],
 	"compilerOptions": {
-		"target": "es2017",
+		"target": "es2020",
 		"declaration": true,
 		"declarationMap": true,
 		"esModuleInterop": true,

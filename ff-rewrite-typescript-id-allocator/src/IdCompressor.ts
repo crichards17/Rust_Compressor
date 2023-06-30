@@ -1,5 +1,4 @@
 import { ITelemetryLogger } from "@fluidframework/common-definitions";
-import { assert, fail } from "./copied-utils";
 import {
 	IdCreationRange,
 	IIdCompressor,
@@ -12,7 +11,8 @@ import {
 	SessionSpaceCompressedId,
 	StableId,
 } from "./types";
-import { createSessionId, isNaN, uuidStringFromBytes } from "./utilities";
+import { createSessionId } from "./utilities";
+import { assert } from "./copied-utils";
 
 export const defaultClusterCapacity = 512;
 
@@ -52,6 +52,7 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 	 * The size of each newly created ID cluster.
 	 */
 	public get clusterCapacity(): number {
+		assert(this.logger !== undefined, "");
 		throw new Error("Not implemented.");
 	}
 

@@ -34,3 +34,10 @@ export type StableId = UuidString & { readonly StableId: "53172b0d-a3d5-41ea-bd7
  * A StableId which is suitable for use as a session identifier
  */
 export type SessionId = StableId & { readonly SessionId: "4498f850-e14e-4be9-8db0-89ec00997e58" };
+
+/**
+ * A StableId which is suitable for use as a session identifier
+ */
+export type NumericUuid = bigint & {
+	readonly NumericUuid: "be04dd4d-9d7e-4337-a833-eec64c61aa46";
+};
