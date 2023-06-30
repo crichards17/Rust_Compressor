@@ -5,7 +5,11 @@
 
 import { IdCompressor } from "../../../src/IdCompressor";
 import { SessionSpaceCompressedId, StableId, OpSpaceCompressedId } from "../../../src/types";
-import { uuidStringFromBytes } from "../../../src/utilities";
+import {
+	numericUuidFromStableId,
+	offsetNumericUuid,
+	stableIdFromNumericUuid,
+} from "../../utilities";
 
 /**
  * An identifier (v4 UUID) that has been shortened by a distributed compression algorithm.
@@ -76,13 +80,7 @@ export function getOrCreate<K, V>(map: Map<K, V>, key: K, defaultValue: (key: K)
 }
 
 export function incrementStableId(stableId: StableId, offset: number): StableId {
-	// eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
-	const increment = require("wasm-id-allocator").increment_uuid;
-	if (increment !== undefined) {
-		return uuidStringFromBytes(increment(stableId, offset)) as StableId;
-	} else {
-		throw new EvalError("increment_uuid is not available in release build.");
-	}
+	return stableIdFromNumericUuid(offsetNumericUuid(numericUuidFromStableId(stableId), offset));
 }
 
 /**
@@ -93,14 +91,7 @@ export function compressorEquals(
 	b: ReadonlyIdCompressor,
 	compareLocalState: boolean,
 ): boolean {
-	// eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
-	const equals = require("wasm-id-allocator").compressor_equals;
-	if (equals !== undefined) {
-		// eslint-disable-next-line @typescript-eslint/no-unsafe-return
-		return equals((a as any).wasmCompressor, (b as any).wasmCompressor, compareLocalState);
-	} else {
-		throw new EvalError("compressor_equals is not available in release build.");
-	}
+	throw new Error("not implemented");
 }
 
 /** An immutable view of an `IdCompressor` */

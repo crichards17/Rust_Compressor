@@ -127,21 +127,6 @@ function isStableId(str: string): str is StableId {
 	return true;
 }
 
-export function isNaN(num: any): boolean {
-	return Object.is(num, Number.NaN);
-}
-
-export function uuidStringFromBytes(uuidBytes: Uint8Array | undefined): string | undefined {
-	if (uuidBytes === undefined) {
-		return undefined;
-	}
-	let uuidString = "";
-	for (let i = 0; i < 36; i++) {
-		uuidString += String.fromCharCode(uuidBytes[i]);
-	}
-	return uuidString;
-}
-
 // xxxxxxxx-xxxx-Mxxx-Nxxx-xxxxxxxxxxxx
 const versionMask = 0x4n << (19n * 4n); // Version 4
 const variantMask = 0x8n << (15n * 4n); // Variant RFC4122 (1 0 x x)
