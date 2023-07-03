@@ -16,7 +16,7 @@ import {
 	take,
 	BaseFuzzTestState,
 } from "../copied-utils/stochastic";
-import { IdCompressor } from "../../../src/IdCompressor";
+import { IdCompressor } from "../../idCompressor";
 import {
 	IdCreationRange,
 	OpSpaceCompressedId,

@@ -127,6 +127,24 @@ function isStableId(str: string): str is StableId {
 	return true;
 }
 
+/**
+ * A numeric comparator used for sorting in descending order.
+ *
+ * Handles +/-0 like Map: -0 is equal to +0.
+ */
+export function compareFiniteNumbersReversed<T extends number>(a: T, b: T): number {
+	return b - a;
+}
+
+/**
+ * A numeric comparator used for sorting in ascending order.
+ *
+ * Handles +/-0 like Map: -0 is equal to +0.
+ */
+export function compareFiniteNumbers<T extends number>(a: T, b: T): number {
+	return a - b;
+}
+
 // xxxxxxxx-xxxx-Mxxx-Nxxx-xxxxxxxxxxxx
 const versionMask = 0x4n << (19n * 4n); // Version 4
 const variantMask = 0x8n << (15n * 4n); // Variant RFC4122 (1 0 x x)

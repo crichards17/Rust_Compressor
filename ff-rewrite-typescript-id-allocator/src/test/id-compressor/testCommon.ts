@@ -3,13 +3,14 @@
  * Licensed under the MIT License.
  */
 
-import { IdCompressor } from "../../../src/IdCompressor";
+import { IdCompressor } from "../../idCompressor";
 import { SessionSpaceCompressedId, StableId, OpSpaceCompressedId } from "../../../src/types";
 import {
 	numericUuidFromStableId,
 	offsetNumericUuid,
 	stableIdFromNumericUuid,
 } from "../../utilities";
+import { assert } from "../../copied-utils";
 
 /**
  * An identifier (v4 UUID) that has been shortened by a distributed compression algorithm.
@@ -59,6 +60,15 @@ export function isLocalId(id: CompressedId): id is LocalCompressedId {
 }
 
 /**
+ * Turns a negative integer into a local compressed ID. For testing only.
+ */
+export function makeLocalId(negativeInteger: number): LocalCompressedId {
+	const id = negativeInteger as CompressedId;
+	assert(isLocalId(id), "Not a negative integer.");
+	return id;
+}
+
+/**
  * Remove `readonly` from all fields.
  */
 export type Mutable<T> = { -readonly [P in keyof T]: T[P] };
@@ -104,4 +114,35 @@ export interface ReadonlyIdCompressor
 		| "finalizeCreationRange"
 	> {
 	readonly clusterCapacity: number;
+}
+
+/**
+ * Asserts a value is not undefined, and returns the value.
+ * Use when violations are logic errors in the program.
+ *
+ * @remarks
+ * When practical, prefer the pattern `x ?? fail('message')` over `assertNotUndefined(x, 'message')`.
+ * Using `?? fail` allows for message formatting without incurring the cost of formatting the message
+ * in the non failing case.
+ *
+ * Example:
+ * ```typescript
+ * x ?? fail(`x should exist for ${y}`)
+ * ```
+ *
+ * Additionally the `?? fail` avoids an extra call/stack frame in the non failing case.
+ *
+ * Another pattern to prefer over `assertNotUndefined(x, 'message')` is `assert(x !== undefined)`.
+ * This pattern is preferred because it is more general (same approach works with typeof, instance of,
+ * comparison to other values etc.).
+ *
+ * @param value - Value to assert against is non undefined.
+ * @param message - Message to be printed if assertion fails.
+ */
+export function assertNotUndefined<T>(
+	value: T | undefined,
+	message = "value must not be undefined",
+): T {
+	assert(value !== undefined, message);
+	return value;
 }

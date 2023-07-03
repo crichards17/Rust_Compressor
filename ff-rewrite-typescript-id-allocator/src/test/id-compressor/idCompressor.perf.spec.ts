@@ -15,7 +15,7 @@ import {
 	StableId,
 } from "../../../src/types";
 import { take } from "../copied-utils/stochastic";
-import { defaultClusterCapacity, IdCompressor } from "../../../src/IdCompressor";
+import { defaultClusterCapacity, IdCompressor } from "../../idCompressor";
 import { createSessionId } from "../../../src/utilities";
 import { assert, fail } from "../../../src/copied-utils";
 import { FinalCompressedId, LocalCompressedId, isFinalId, isLocalId } from "./testCommon";
