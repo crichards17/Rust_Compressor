@@ -28,6 +28,7 @@
 	"dependencies": {
 		"@fluidframework/common-definitions": "^0.20.1",
 		"@types/uuid": "^9.0.1",
+		"sorted-btree": "^1.8.0",
 		"uuid": "^9.0.0"
 	}
 }

@@ -39,3 +39,9 @@ export interface IdCreationRange {
 		readonly count: number;
 	};
 }
+
+/**
+ * Roughly equates to a minimum of 1M sessions before we start allocating 64 bit IDs.
+ * This value must *NOT* change without careful consideration to compatibility.
+ */
+export const defaultClusterCapacity = 512;

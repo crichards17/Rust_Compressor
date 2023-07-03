@@ -3,6 +3,7 @@ import { v4, NIL } from "uuid";
 import { SessionId, StableId, UuidString } from "./types";
 import { assert } from "./copied-utils/assert";
 import { NumericUuid } from "./types/identifiers";
+import { LocalCompressedId } from "./test/id-compressor/testCommon";
 
 const hexadecimalCharCodes = Array.from("09afAF").map((c) => c.charCodeAt(0)) as [
 	zero: number,
@@ -143,6 +144,21 @@ export function compareFiniteNumbersReversed<T extends number>(a: T, b: T): numb
  */
 export function compareFiniteNumbers<T extends number>(a: T, b: T): number {
 	return a - b;
+}
+
+/**
+ * Compares strings lexically to form a strict partial ordering.
+ */
+export function compareStrings<T extends string>(a: T, b: T): number {
+	return a > b ? 1 : a === b ? 0 : -1;
+}
+
+export function localIdToGenCount(localId: LocalCompressedId): number {
+	return -localId;
+}
+
+export function genCountToLocalId(genCount: number): LocalCompressedId {
+	return -genCount as LocalCompressedId;
 }
 
 // xxxxxxxx-xxxx-Mxxx-Nxxx-xxxxxxxxxxxx

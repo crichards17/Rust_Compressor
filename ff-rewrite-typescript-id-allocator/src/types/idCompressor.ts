@@ -7,18 +7,18 @@ import {
 
 export interface IIdCompressorCore {
 	/**
-	 * Finalizes the supplied range of IDs (which may be from either a remote or local session).
-	 * @param range - the range of session-local IDs to finalize.
-	 */
-	finalizeCreationRange(range: IdCreationRange): void;
-
-	/**
 	 * Returns a range of IDs created by this session in a format for sending to the server for finalizing.
 	 * The range will include all IDs generated via calls to `generateCompressedId` since the last time this method was called.
 	 * @returns the range of IDs, which may be empty. This range must be sent to the server for ordering before
 	 * it is finalized. Ranges must be sent to the server in the order that they are taken via calls to this method.
 	 */
 	takeNextCreationRange(): IdCreationRange;
+
+	/**
+	 * Finalizes the supplied range of IDs (which may be from either a remote or local session).
+	 * @param range - the range of session-local IDs to finalize.
+	 */
+	finalizeCreationRange(range: IdCreationRange): void;
 
 	/**
 	 * Returns a persistable form of the current state of this `IdCompressor` which can be rehydrated via `IdCompressor.deserialize()`.
@@ -31,11 +31,6 @@ export interface IIdCompressorCore {
 	 * This only includes finalized state and is therefore suitable for use in summaries.
 	 */
 	serialize(withSession: false): SerializedIdCompressorWithNoSession;
-
-	/**
-	 * Disposes the compressor and frees the underlying resources.
-	 */
-	dispose(): void;
 }
 
 /**
