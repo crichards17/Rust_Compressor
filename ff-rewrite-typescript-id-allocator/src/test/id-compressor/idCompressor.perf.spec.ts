@@ -15,13 +15,13 @@ import {
 	StableId,
 } from "../../../src/types";
 import { take } from "../copied-utils/stochastic";
-import { defaultClusterCapacity, IdCompressor } from "../../idCompressor";
+import { IdCompressor } from "../../idCompressor";
 import { createSessionId } from "../../../src/utilities";
 import { assert, fail } from "../../../src/copied-utils";
+import { defaultClusterCapacity } from "../../types/persisted-types";
 import { FinalCompressedId, LocalCompressedId, isFinalId, isLocalId } from "./testCommon";
 import {
 	Client,
-	CompressorFactory,
 	DestinationClient,
 	IdCompressorTestNetwork,
 	buildHugeCompressor,
@@ -31,10 +31,6 @@ import {
 } from "./idCompressorTestUtilities";
 
 describe("IdCompressor Perf", () => {
-	afterEach(() => {
-		CompressorFactory.disposeAllCompressors();
-	});
-
 	const type = BenchmarkType.Measurement;
 	const localClient = Client.Client1;
 	const remoteClient = Client.Client2;
@@ -369,8 +365,7 @@ describe("IdCompressor Perf", () => {
 				serialized = perfCompressor.serialize(false);
 			},
 			benchmarkFn: () => {
-				const compressor = IdCompressor.deserialize(serialized, overrideRemoteSessionId);
-				compressor.dispose();
+				IdCompressor.deserialize(serialized, overrideRemoteSessionId);
 			},
 		});
 	});

@@ -4,11 +4,13 @@ import { SessionId } from "./types";
 import {
 	compareStrings,
 	genCountToLocalId,
+	getOrNextLowerInSortedArray,
+	localIdToGenCount,
 	numericUuidFromStableId,
-	offsetNumericUuid,
 	subtractNumericUuids,
 } from "./utilities";
 import { NumericUuid, StableId } from "./types/identifiers";
+import { assert } from "./copied-utils";
 
 /**
  * The local/UUID space within an individual session.
@@ -36,20 +38,22 @@ export class Sessions {
 
 	public getContainingCluster(
 		query: StableId,
-	): [Session, IdCluster, LocalCompressedId] | undefined {
+	): [session: Session, cluster: IdCluster, alignedLocal: LocalCompressedId] | undefined {
 		const possibleMatch = this.sessionMap.getPairOrNextLower(query as SessionId);
 		if (possibleMatch === undefined) {
 			return undefined;
 		}
+		// TODO search by bigint?
 		const numericStable = numericUuidFromStableId(query);
 		const [_, session] = possibleMatch;
-		const maxNumericStable = session.getMaxAllocatedNumericStable();
-		if (numericStable > maxNumericStable) {
-			return undefined;
-		}
 		const alignedLocal = genCountToLocalId(
 			Number(subtractNumericUuids(numericStable, session.sessionUuid)) + 1,
 		);
+		const containingCluster = session.getClusterByLocal(alignedLocal, true);
+		if (containingCluster === undefined) {
+			return undefined;
+		}
+		return [session, containingCluster, alignedLocal];
 	}
 }
 
@@ -70,13 +74,75 @@ export class Session {
 			: this.clusterChain[this.clusterChain.length];
 	}
 
-	public getMaxAllocatedNumericStable(): NumericUuid {
-		return this.clusterChain.length === 0
-			? this.sessionUuid
-			: offsetNumericUuid(
-					this.sessionUuid,
-					this.clusterChain[this.clusterChain.length - 1].count - 1,
-			  );
+	public getMaxAllocatedLocalId(): LocalCompressedId | undefined {
+		if (this.clusterChain.length === 0) {
+			return undefined;
+		} else {
+			const lastCluster = this.clusterChain[this.clusterChain.length - 1];
+			return (lastCluster.baseLocalId - (lastCluster.count - 1)) as LocalCompressedId;
+		}
+	}
+
+	public tryConvertToFinal(
+		searchLocal: LocalCompressedId,
+		includeAllocated: boolean,
+	): FinalCompressedId | undefined {
+		const containingCluster = this.getClusterByLocal(searchLocal, includeAllocated);
+		if (containingCluster === undefined) {
+			return undefined;
+		}
+		return getAllocatedFinal(containingCluster, searchLocal);
+	}
+
+	public getClusterByLocal(
+		localId: LocalCompressedId,
+		includeAllocated: boolean,
+	): IdCluster | undefined {
+		if (localId < (this.getMaxAllocatedLocalId() ?? 0)) {
+			return undefined;
+		}
+		const lastValidLocal: (cluster: IdCluster) => LocalCompressedId = includeAllocated
+			? lastAllocatedLocal
+			: lastFinalizedLocal;
+		const cluster = getOrNextLowerInSortedArray(
+			localId,
+			this.clusterChain,
+			(local, cluster): number => {
+				const lastLocal = lastValidLocal(cluster);
+				if (lastLocal > local) {
+					return -1;
+				} else if (cluster.baseLocalId < local) {
+					return 1;
+				} else {
+					return 0;
+				}
+			},
+		);
+		if (cluster === undefined) {
+			return undefined;
+		}
+		assert(cluster.baseFinalId >= localId, "Search failed.");
+		return cluster;
+	}
+
+	public getClusterByAllocatedFinal(final: FinalCompressedId): IdCluster | undefined {
+		return Session.getContainingCluster(final, this.clusterChain);
+	}
+
+	public static getContainingCluster(
+		finalId: FinalCompressedId,
+		sortedClusters: IdCluster[],
+	): IdCluster | undefined {
+		return getOrNextLowerInSortedArray(finalId, sortedClusters, (final, cluster) => {
+			const lastFinal = lastAllocatedFinal(cluster);
+			if (lastFinal < final) {
+				return -1;
+			} else if (cluster.baseFinalId > final) {
+				return 1;
+			} else {
+				return 0;
+			}
+		});
 	}
 }
 
@@ -86,6 +152,11 @@ export class Session {
  * the cluster to base UUID for the session that created it.
  */
 export interface IdCluster {
+	/**
+	 * The session that created this cluster.
+	 */
+	readonly session: Session;
+
 	/**
 	 * The first final ID in the cluster.
 	 */
@@ -106,4 +177,42 @@ export interface IdCluster {
 	 * The number of final IDs currently allocated in the cluster.
 	 */
 	count: number;
+}
+
+function getAllocatedFinal(
+	cluster: IdCluster,
+	localWithin: LocalCompressedId,
+): FinalCompressedId | undefined {
+	const clusterOffset = localIdToGenCount(localWithin) - localIdToGenCount(cluster.baseLocalId);
+	if (clusterOffset < cluster.capacity) {
+		return ((cluster.baseFinalId as number) + clusterOffset) as FinalCompressedId;
+	}
+	return undefined;
+}
+
+export function getAlignedLocal(
+	cluster: IdCluster,
+	finalWithin: FinalCompressedId,
+): LocalCompressedId | undefined {
+	if (finalWithin < cluster.baseFinalId || finalWithin > lastAllocatedFinal(cluster)) {
+		return undefined;
+	}
+	const finalDelta = finalWithin - cluster.baseFinalId;
+	return (cluster.baseLocalId - finalDelta) as LocalCompressedId;
+}
+
+export function lastAllocatedFinal(cluster: IdCluster): FinalCompressedId {
+	return ((cluster.baseFinalId as number) + (cluster.capacity - 1)) as FinalCompressedId;
+}
+
+export function lastFinalizedFinal(cluster: IdCluster): FinalCompressedId {
+	return ((cluster.baseFinalId as number) + (cluster.count - 1)) as FinalCompressedId;
+}
+
+export function lastAllocatedLocal(cluster: IdCluster): LocalCompressedId {
+	return ((cluster.baseLocalId as number) + (cluster.capacity - 1)) as LocalCompressedId;
+}
+
+export function lastFinalizedLocal(cluster: IdCluster): LocalCompressedId {
+	return ((cluster.baseLocalId as number) + (cluster.count - 1)) as LocalCompressedId;
 }

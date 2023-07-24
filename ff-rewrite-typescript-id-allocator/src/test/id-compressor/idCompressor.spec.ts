@@ -23,9 +23,10 @@ import {
 	CompressorFactory,
 } from "./idCompressorTestUtilities";
 import { compressorEquals, isFinalId, isLocalId } from "./testCommon";
+import { IdCompressor } from "../../idCompressor";
 
 describe("IdCompressor", () => {
-	itCompressor("caches and evicts tokens (clearbox)", () => {
+	it("caches and evicts tokens (clearbox)", () => {
 		const compressor = CompressorFactory.createCompressor(Client.Client1);
 		const id = compressor.generateCompressedId();
 		compressor.finalizeCreationRange(compressor.takeNextCreationRange());
@@ -38,7 +39,7 @@ describe("IdCompressor", () => {
 	});
 
 	describe("Telemetry", () => {
-		itCompressor("emits first cluster and new cluster telemetry events", () => {
+		it("emits first cluster and new cluster telemetry events", () => {
 			const mockLogger = new MockLogger();
 			const compressor = CompressorFactory.createCompressor(Client.Client1, 5, mockLogger);
 			const localId1 = compressor.generateCompressedId();
@@ -58,7 +59,7 @@ describe("IdCompressor", () => {
 			]);
 		});
 
-		itCompressor("emits new cluster event on second cluster", () => {
+		it("emits new cluster event on second cluster", () => {
 			// Fill the first cluster
 			const mockLogger = new MockLogger();
 			const compressor = CompressorFactory.createCompressor(Client.Client1, 1, mockLogger);
@@ -101,7 +102,7 @@ describe("IdCompressor", () => {
 			]);
 		});
 
-		itCompressor("correctly logs telemetry events for eager final id allocations", () => {
+		it("correctly logs telemetry events for eager final id allocations", () => {
 			const mockLogger = new MockLogger();
 			const compressor = CompressorFactory.createCompressor(Client.Client1, 5, mockLogger);
 			const localId1 = compressor.generateCompressedId();
@@ -135,7 +136,7 @@ describe("IdCompressor", () => {
 			]);
 		});
 
-		itCompressor("correctly logs telemetry events for expansion case", () => {
+		it("correctly logs telemetry events for expansion case", () => {
 			const mockLogger = new MockLogger();
 			const compressor = CompressorFactory.createCompressor(Client.Client1, 5, mockLogger);
 			const localId1 = compressor.generateCompressedId();
@@ -187,7 +188,7 @@ describe("IdCompressor", () => {
 			]);
 		});
 
-		itCompressor("emits telemetry when serialized", () => {
+		it("emits telemetry when serialized", () => {
 			const mockLogger = new MockLogger();
 			const compressor = CompressorFactory.createCompressor(Client.Client1, 5, mockLogger);
 			const localId1 = compressor.generateCompressedId();
@@ -476,7 +477,7 @@ describe("IdCompressor", () => {
 					const serializedWithoutLocalState = compressor.serialize(false);
 					assert.throws(
 						() =>
-							CompressorFactory.deserialize(
+							IdCompressor.deserialize(
 								serializedWithoutLocalState,
 								sessionIds.get(Client.Client2),
 							),
@@ -612,18 +613,13 @@ function createNetworkTestFunction(
 		test?: (network: IdCompressorTestNetwork) => void,
 	) => {
 		it(title, () => {
-			let network: IdCompressorTestNetwork | undefined;
-			try {
-				const hasCapacity = typeof testOrCapacity === "number";
-				const capacity = hasCapacity ? testOrCapacity : undefined;
-				network = new IdCompressorTestNetwork(capacity);
-				(hasCapacity ? test ?? fail("test must be defined") : testOrCapacity)(network);
-				if (validateAfter) {
-					network.deliverOperations(DestinationClient.All);
-					network.assertNetworkState();
-				}
-			} finally {
-				network?.dispose();
+			const hasCapacity = typeof testOrCapacity === "number";
+			const capacity = hasCapacity ? testOrCapacity : undefined;
+			const network = new IdCompressorTestNetwork(capacity);
+			(hasCapacity ? test ?? fail("test must be defined") : testOrCapacity)(network);
+			if (validateAfter) {
+				network.deliverOperations(DestinationClient.All);
+				network.assertNetworkState();
 			}
 		}).timeout(10000);
 	};
@@ -639,16 +635,5 @@ function describeNetwork(
 
 	describe(`${title} (with validation)`, () => {
 		its(createNetworkTestFunction(true));
-	});
-}
-
-function itCompressor(title: string, testFn: () => void): void {
-	it(title, () => {
-		assert.equal(CompressorFactory.compressorCount, 0, "Compressor leakage across tests.");
-		try {
-			testFn();
-		} finally {
-			CompressorFactory.disposeAllCompressors();
-		}
 	});
 }

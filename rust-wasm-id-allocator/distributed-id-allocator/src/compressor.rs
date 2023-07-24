@@ -393,7 +393,6 @@ impl IdCompressor {
                         Ok(SessionSpaceId::from(local_to_normalize))
                     } else if local_to_normalize.to_generation_count() <= self.generated_id_count {
                         // Id is an eager final
-
                         match self
                             .get_local_session_space()
                             .try_convert_to_final(local_to_normalize, true)

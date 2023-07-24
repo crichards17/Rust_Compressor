@@ -11,13 +11,18 @@ import {
 	SessionSpaceCompressedId,
 	StableId,
 } from "./types";
-import { createSessionId, localIdToGenCount } from "./utilities";
-import { assert } from "./copied-utils";
-import { Session, Sessions } from "./sessions";
+import {
+	createSessionId,
+	localIdToGenCount,
+	offsetNumericUuid,
+	stableIdFromNumericUuid,
+} from "./utilities";
+import { assert, fail } from "./copied-utils";
+import { getAlignedLocal, lastFinalizedLocal, Session, Sessions } from "./sessions";
 import { SessionSpaceNormalizer } from "./sessionSpaceNormalizer";
 import { defaultClusterCapacity } from "./types/persisted-types";
 import { FinalSpace } from "./finalSpace";
-import { LocalCompressedId } from "./test/id-compressor/testCommon";
+import { isFinalId, LocalCompressedId } from "./test/id-compressor/testCommon";
 
 /**
  * See {@link IIdCompressor} and {@link IIdCompressorCore}
@@ -46,10 +51,30 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 		this.localSessionId = localSessionId;
 		this.localSession = this.sessions.getOrCreate(localSessionId);
 		this.newClusterCapacity = defaultClusterCapacity;
+		assert(this.logger !== undefined, "use logger");
 	}
 
-	public static create(logger?: ITelemetryLogger): IdCompressor {
-		return new IdCompressor(createSessionId(), logger);
+	public static create(logger?: ITelemetryLogger): IdCompressor;
+	public static create(sessionId: SessionId, logger?: ITelemetryLogger): IdCompressor;
+	public static create(
+		sessionIdOrLogger?: SessionId | ITelemetryLogger,
+		loggerOrUndefined?: ITelemetryLogger,
+	): IdCompressor {
+		let localSessionId: SessionId;
+		let logger: ITelemetryLogger | undefined;
+		if (sessionIdOrLogger === undefined) {
+			localSessionId = createSessionId();
+		} else {
+			if (typeof sessionIdOrLogger === "string") {
+				localSessionId = sessionIdOrLogger;
+				logger = loggerOrUndefined;
+			} else {
+				localSessionId = createSessionId();
+				logger = loggerOrUndefined;
+			}
+		}
+		const compressor = new IdCompressor(localSessionId, logger);
+		return compressor;
 	}
 
 	/**
@@ -112,26 +137,130 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 	}
 
 	public normalizeToOpSpace(id: SessionSpaceCompressedId): OpSpaceCompressedId {
-		throw new Error("Not implemented.");
+		if (isFinalId(id)) {
+			return id;
+		} else {
+			const local = id as unknown as LocalCompressedId;
+			if (!this.normalizer.contains(local)) {
+				throw new Error("Invalid ID to normalize.");
+			}
+			const finalForm = this.localSession.tryConvertToFinal(local, true);
+			return finalForm === undefined
+				? (local as unknown as OpSpaceCompressedId)
+				: (finalForm as OpSpaceCompressedId);
+		}
 	}
 
 	public normalizeToSessionSpace(
 		id: OpSpaceCompressedId,
 		originSessionId: SessionId,
 	): SessionSpaceCompressedId {
-		throw new Error("Not implemented.");
+		if (isFinalId(id)) {
+			const containingCluster = this.localSession.getClusterByAllocatedFinal(id);
+			if (containingCluster === undefined) {
+				// Does not exist in local cluster chain
+				if (id > this.finalSpace.getFinalIdLimit()) {
+					throw new Error("Unknown op space ID.");
+				}
+				return id as unknown as SessionSpaceCompressedId;
+			} else {
+				const alignedLocal = getAlignedLocal(containingCluster, id);
+				if (alignedLocal === undefined) {
+					throw new Error("Unknown op space ID.");
+				}
+				if (this.normalizer.contains(alignedLocal)) {
+					return alignedLocal;
+				} else if (localIdToGenCount(alignedLocal) <= this.generatedIdCount) {
+					return id as unknown as SessionSpaceCompressedId;
+				} else {
+					throw new Error("Unknown op space ID.");
+				}
+			}
+		} else {
+			const localToNormalize = id as unknown as LocalCompressedId;
+			if (originSessionId === this.localSessionId) {
+				if (this.normalizer.contains(localToNormalize)) {
+					return localToNormalize;
+				} else if (localIdToGenCount(localToNormalize) <= this.generatedIdCount) {
+					// Id is an eager final
+					const correspondingFinal = this.localSession.tryConvertToFinal(
+						localToNormalize,
+						true,
+					);
+					if (correspondingFinal === undefined) {
+						throw new Error("Unknown op space ID.");
+					}
+					return correspondingFinal as unknown as SessionSpaceCompressedId;
+				} else {
+					throw new Error("Unknown op space ID.");
+				}
+			} else {
+				// LocalId from a remote session
+				const remoteSession = this.sessions.get(originSessionId);
+				const correspondingFinal = remoteSession?.tryConvertToFinal(
+					localToNormalize,
+					false,
+				);
+				if (correspondingFinal === undefined) {
+					throw new Error("Unknown op space ID.");
+				}
+				return correspondingFinal as unknown as SessionSpaceCompressedId;
+			}
+		}
 	}
 
 	public decompress(id: SessionSpaceCompressedId): StableId {
-		throw new Error("Not implemented.");
+		return (
+			this.tryDecompress(id) ?? fail("Compressed ID was not generated by this compressor.")
+		);
 	}
 
 	public tryDecompress(id: SessionSpaceCompressedId): StableId | undefined {
-		throw new Error("Not implemented.");
+		if (isFinalId(id)) {
+			const containingCluster = this.finalSpace.getContainingCluster(id);
+			if (containingCluster === undefined) {
+				return undefined;
+			}
+			const alignedLocal = getAlignedLocal(containingCluster, id);
+			if (alignedLocal === undefined) {
+				return undefined;
+			}
+			const alignedGenCount = localIdToGenCount(alignedLocal);
+			if (alignedLocal < lastFinalizedLocal(containingCluster)) {
+				// must be an id generated (allocated or finalized) by the local session, or a finalized id from a remote session
+				if (containingCluster.session === this.localSession) {
+					if (this.normalizer.contains(alignedLocal)) {
+						// the supplied ID was final, but was have been minted as local. the supplier should not have the ID in final form.
+						return undefined;
+					}
+					if (alignedGenCount > this.generatedIdCount) {
+						// the supplied ID was never generated
+						return undefined;
+					}
+				} else {
+					return undefined;
+				}
+			}
+
+			return stableIdFromNumericUuid(
+				offsetNumericUuid(containingCluster.session.sessionUuid, alignedGenCount - 1),
+			);
+		} else {
+			const localToDecompress = id as unknown as LocalCompressedId;
+			if (!this.normalizer.contains(localToDecompress)) {
+				return undefined;
+			}
+			return stableIdFromNumericUuid(
+				offsetNumericUuid(
+					this.localSession.sessionUuid,
+					localIdToGenCount(localToDecompress) - 1,
+				),
+			);
+		}
 	}
 
 	public recompress(uncompressed: StableId): SessionSpaceCompressedId {
-		throw new Error("Not implemented.");
+		return this.tryRecompress(uncompressed) ?? fail("Could not recompress.");
 	}
 
 	public tryRecompress(uncompressed: StableId): SessionSpaceCompressedId | undefined {

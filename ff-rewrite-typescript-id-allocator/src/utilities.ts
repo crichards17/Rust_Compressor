@@ -4,6 +4,7 @@ import { SessionId, StableId, UuidString } from "./types";
 import { assert } from "./copied-utils/assert";
 import { NumericUuid } from "./types/identifiers";
 import { LocalCompressedId } from "./test/id-compressor/testCommon";
+import { AppendOnlySortedMap } from "./appendOnlySortedMap";
 
 const hexadecimalCharCodes = Array.from("09afAF").map((c) => c.charCodeAt(0)) as [
 	zero: number,
@@ -214,4 +215,20 @@ export function subtractNumericUuids(a: NumericUuid, b: NumericUuid): NumericUui
 export function addNumericUuids(a: NumericUuid, b: NumericUuid): NumericUuid {
 	// eslint-disable-next-line @typescript-eslint/restrict-plus-operands
 	return (a + b) as NumericUuid;
+}
+
+export function getOrNextLowerInSortedArray<K, V>(
+	search: K,
+	arr: readonly V[],
+	searchFn: (s: K, value: V) => number,
+): V | undefined {
+	let index = AppendOnlySortedMap.keyIndexOf(arr, search, searchFn);
+	if (index < 0) {
+		index ^= AppendOnlySortedMap.failureXor;
+		if (index > 0) {
+			index = index - 1;
+		}
+		return undefined;
+	}
+	return arr[index];
 }

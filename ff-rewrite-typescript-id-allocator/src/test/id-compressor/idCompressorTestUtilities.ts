@@ -20,7 +20,6 @@ import { IdCompressor } from "../../idCompressor";
 import {
 	IdCreationRange,
 	OpSpaceCompressedId,
-	SerializedIdCompressor,
 	SerializedIdCompressorWithNoSession,
 	SerializedIdCompressorWithOngoingSession,
 	SessionId,
@@ -76,12 +75,6 @@ export const DestinationClient = { ...Client, ...MetaClient };
 
 // eslint-disable-next-line @typescript-eslint/no-extraneous-class
 export class CompressorFactory {
-	private static compressors: IdCompressor[] = [];
-
-	public static get compressorCount(): number {
-		return CompressorFactory.compressors.length;
-	}
-
 	/**
 	 * Creates a new compressor with the supplied cluster capacity.
 	 */
@@ -107,36 +100,7 @@ export class CompressorFactory {
 	): IdCompressor {
 		const compressor = IdCompressor.create(sessionId, logger);
 		compressor.clusterCapacity = clusterCapacity;
-		CompressorFactory.compressors.push(compressor);
 		return compressor;
-	}
-
-	public static deserialize(serialized: SerializedIdCompressorWithOngoingSession): IdCompressor;
-	public static deserialize(
-		serialized: SerializedIdCompressorWithNoSession,
-		newSessionId: SessionId,
-	): IdCompressor;
-	public static deserialize(
-		serialized: SerializedIdCompressor,
-		sessionId?: SessionId,
-	): IdCompressor {
-		const compressor = sessionId
-			? IdCompressor.deserialize(serialized as SerializedIdCompressorWithNoSession, sessionId)
-			: IdCompressor.deserialize(serialized as SerializedIdCompressorWithOngoingSession);
-		CompressorFactory.compressors.push(compressor);
-		return compressor;
-	}
-
-	public static disposeAllCompressors(): void {
-		CompressorFactory.compressors.forEach((compressor) => compressor.dispose());
-		CompressorFactory.compressors = [];
-	}
-
-	public static disposeCompressor(compressor: IdCompressor): void {
-		const index = CompressorFactory.compressors.indexOf(compressor);
-		assert(index >= 0, "Compressor not found in factory collection.");
-		CompressorFactory.compressors.splice(index, 1);
-		compressor.dispose();
 	}
 }
 
@@ -453,8 +417,6 @@ export class IdCompressorTestNetwork {
 		const compressor = this.compressors.get(client);
 		const [_, resumedCompressor] = roundtrip(compressor, true);
 		this.compressors.set(client, resumedCompressor);
-		// Eagerly dispose for performance
-		CompressorFactory.disposeCompressor(compressor);
 	}
 
 	/**
@@ -600,10 +562,6 @@ export class IdCompressorTestNetwork {
 			expectSerializes(compressor);
 		}
 	}
-
-	public dispose(): void {
-		CompressorFactory.disposeAllCompressors();
-	}
 }
 
 /**
@@ -628,14 +586,11 @@ export function roundtrip(
 ): [SerializedIdCompressorWithOngoingSession | SerializedIdCompressorWithNoSession, IdCompressor] {
 	if (withSession) {
 		const serialized = compressor.serialize(withSession);
-		return [serialized, CompressorFactory.deserialize(serialized)];
+		return [serialized, IdCompressor.deserialize(serialized)];
 	}
 
 	const nonLocalSerialized = compressor.serialize(withSession);
-	return [
-		nonLocalSerialized,
-		CompressorFactory.deserialize(nonLocalSerialized, createSessionId()),
-	];
+	return [nonLocalSerialized, IdCompressor.deserialize(nonLocalSerialized, createSessionId())];
 }
 
 /**
@@ -657,8 +612,6 @@ export function expectSerializes(
 			[serialized, deserialized] = roundtrip(compressor, false);
 		}
 		assert.strictEqual(compressorEquals(compressor, deserialized, withSession), true);
-		// Eagerly dispose for performance
-		CompressorFactory.disposeCompressor(deserialized);
 		return serialized;
 	}
 
