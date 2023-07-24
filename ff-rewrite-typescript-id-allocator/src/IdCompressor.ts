@@ -13,12 +13,21 @@ import {
 } from "./types";
 import {
 	createSessionId,
+	genCountToLocalId,
 	localIdToGenCount,
+	numericUuidFromStableId,
 	offsetNumericUuid,
 	stableIdFromNumericUuid,
+	subtractNumericUuids,
 } from "./utilities";
 import { assert, fail } from "./copied-utils";
-import { getAlignedLocal, lastFinalizedLocal, Session, Sessions } from "./sessions";
+import {
+	getAlignedLocal,
+	getAllocatedFinal,
+	lastFinalizedLocal,
+	Session,
+	Sessions,
+} from "./sessions";
 import { SessionSpaceNormalizer } from "./sessionSpaceNormalizer";
 import { defaultClusterCapacity } from "./types/persisted-types";
 import { FinalSpace } from "./finalSpace";
@@ -264,7 +273,41 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 	}
 
 	public tryRecompress(uncompressed: StableId): SessionSpaceCompressedId | undefined {
-		throw new Error("Not implemented.");
+		const match = this.sessions.getContainingCluster(uncompressed);
+		if (match === undefined) {
+			const numericUncompressed = numericUuidFromStableId(uncompressed);
+			const offset = subtractNumericUuids(numericUncompressed, this.localSession.sessionUuid);
+			if (offset < Number.MAX_SAFE_INTEGER) {
+				const genCountEquivalent = Number(offset) + 1;
+				const localEquivalent = genCountToLocalId(genCountEquivalent);
+				if (this.normalizer.contains(localEquivalent)) {
+					return localEquivalent;
+				}
+			}
+			return undefined;
+		} else {
+			const [containingCluster, alignedLocal] = match;
+			if (containingCluster.session === this.localSession) {
+				// Local session
+				if (this.normalizer.contains(alignedLocal)) {
+					return alignedLocal;
+				} else if (localIdToGenCount(alignedLocal) < this.generatedIdCount) {
+					// Id is an eager final
+					return getAllocatedFinal(containingCluster, alignedLocal) as
+						| SessionSpaceCompressedId
+						| undefined;
+				} else {
+					return undefined;
+				}
+			} else {
+				// Not the local session
+				return localIdToGenCount(alignedLocal) < lastFinalizedLocal(containingCluster)
+					? (getAllocatedFinal(containingCluster, alignedLocal) as
+							| SessionSpaceCompressedId
+							| undefined)
+					: undefined;
+			}
+		}
 	}
 
 	public serialize(withSession: true): SerializedIdCompressorWithOngoingSession;

@@ -38,7 +38,7 @@ export class Sessions {
 
 	public getContainingCluster(
 		query: StableId,
-	): [session: Session, cluster: IdCluster, alignedLocal: LocalCompressedId] | undefined {
+	): [cluster: IdCluster, alignedLocal: LocalCompressedId] | undefined {
 		const possibleMatch = this.sessionMap.getPairOrNextLower(query as SessionId);
 		if (possibleMatch === undefined) {
 			return undefined;
@@ -53,7 +53,7 @@ export class Sessions {
 		if (containingCluster === undefined) {
 			return undefined;
 		}
-		return [session, containingCluster, alignedLocal];
+		return [containingCluster, alignedLocal];
 	}
 }
 
@@ -179,7 +179,7 @@ export interface IdCluster {
 	count: number;
 }
 
-function getAllocatedFinal(
+export function getAllocatedFinal(
 	cluster: IdCluster,
 	localWithin: LocalCompressedId,
 ): FinalCompressedId | undefined {
