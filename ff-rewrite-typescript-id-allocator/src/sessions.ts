@@ -2,7 +2,7 @@ import BTree from "sorted-btree";
 import { FinalCompressedId, LocalCompressedId } from "./test/id-compressor/testCommon";
 import { SessionId } from "./types";
 import {
-	compareStrings,
+	compareBigints,
 	genCountToLocalId,
 	getOrNextLowerInSortedArray,
 	localIdToGenCount,
@@ -17,34 +17,34 @@ import { assert } from "./copied-utils";
  * Contains a collection of all sessions that make up a distributed document's IDs.
  */
 export class Sessions {
-	// TODO: add map cache to accelerate session lookup
-	private readonly sessionMap = new BTree<SessionId, Session>(undefined, compareStrings);
+	private readonly sessionCache = new Map<StableId, Session>();
+	private readonly sessionMap = new BTree<NumericUuid, Session>(undefined, compareBigints);
 	private readonly sessionList: Session[] = [];
 
 	public getOrCreate(sessionId: SessionId): Session {
-		const existing = this.sessionMap.get(sessionId);
+		const existing = this.sessionCache.get(sessionId);
 		if (existing !== undefined) {
 			return existing;
 		}
 		const session = new Session(sessionId);
 		this.sessionList.push(session);
-		this.sessionMap.set(sessionId, session);
+		this.sessionMap.set(session.sessionUuid, session);
+		this.sessionCache.set(sessionId, session);
 		return session;
 	}
 
 	public get(sessionId: SessionId): Session | undefined {
-		return this.sessionMap.get(sessionId);
+		return this.sessionCache.get(sessionId);
 	}
 
 	public getContainingCluster(
 		query: StableId,
 	): [cluster: IdCluster, alignedLocal: LocalCompressedId] | undefined {
-		const possibleMatch = this.sessionMap.getPairOrNextLower(query as SessionId);
+		const numericStable = numericUuidFromStableId(query);
+		const possibleMatch = this.sessionMap.getPairOrNextLower(numericStable);
 		if (possibleMatch === undefined) {
 			return undefined;
 		}
-		// TODO search by bigint?
-		const numericStable = numericUuidFromStableId(query);
 		const [_, session] = possibleMatch;
 		const alignedLocal = genCountToLocalId(
 			Number(subtractNumericUuids(numericStable, session.sessionUuid)) + 1,
@@ -54,6 +54,10 @@ export class Sessions {
 			return undefined;
 		}
 		return [containingCluster, alignedLocal];
+	}
+
+	public rangeCollides(rangeBase: NumericUuid, rangeMax: NumericUuid): boolean {
+		return this.sessionMap.getRange(rangeBase, rangeMax, true, 1).length > 0;
 	}
 }
 
@@ -66,6 +70,22 @@ export class Session {
 
 	public constructor(sessionId: SessionId) {
 		this.sessionUuid = numericUuidFromStableId(sessionId);
+	}
+
+	public addEmptyCluster(
+		baseFinalId: FinalCompressedId,
+		baseLocalId: LocalCompressedId,
+		capacity: number,
+	): IdCluster {
+		const newCluster: IdCluster = {
+			session: this,
+			baseFinalId,
+			baseLocalId,
+			capacity,
+			count: 0,
+		};
+		this.clusterChain.push(newCluster);
+		return newCluster;
 	}
 
 	public getTailCluster(): IdCluster | undefined {

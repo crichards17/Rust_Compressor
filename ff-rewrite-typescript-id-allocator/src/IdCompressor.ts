@@ -24,6 +24,7 @@ import { assert, fail } from "./copied-utils";
 import {
 	getAlignedLocal,
 	getAllocatedFinal,
+	IdCluster,
 	lastFinalizedLocal,
 	Session,
 	Sessions,
@@ -31,7 +32,7 @@ import {
 import { SessionSpaceNormalizer } from "./sessionSpaceNormalizer";
 import { defaultClusterCapacity } from "./types/persisted-types";
 import { FinalSpace } from "./finalSpace";
-import { isFinalId, LocalCompressedId } from "./test/id-compressor/testCommon";
+import { FinalCompressedId, isFinalId, LocalCompressedId } from "./test/id-compressor/testCommon";
 
 /**
  * See {@link IIdCompressor} and {@link IIdCompressorCore}
@@ -142,7 +143,79 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 	}
 
 	public finalizeCreationRange(range: IdCreationRange): void {
-		throw new Error("Not implemented.");
+		// Check if the range has IDs
+		if (range.ids === undefined) {
+			return;
+		} else if (range.ids.count === 0) {
+			throw new Error("Malformed ID Range.");
+		}
+
+		const { sessionId, ids } = range;
+		const { count, firstGenCount } = ids;
+		const session = this.sessions.getOrCreate(sessionId);
+		const rangeBaseNumeric = offsetNumericUuid(session.sessionUuid, firstGenCount - 1);
+		const rangeMaxNumeric = offsetNumericUuid(rangeBaseNumeric, count - 1);
+		if (this.sessions.rangeCollides(rangeBaseNumeric, rangeMaxNumeric)) {
+			throw new Error("Cluster collision detected.");
+		}
+
+		const rangeBaseLocal = genCountToLocalId(firstGenCount);
+		let tailCluster = session.getTailCluster();
+		if (tailCluster === undefined) {
+			// This is the first cluster in the session space
+			if (rangeBaseLocal !== -1) {
+				throw new Error("Ranges finalized out of order.");
+			}
+			tailCluster = this.addEmptyCluster(
+				session,
+				rangeBaseLocal,
+				this.clusterCapacity + count,
+			);
+		}
+
+		const remainingCapacity = tailCluster.capacity - tailCluster.count;
+		if (tailCluster.baseLocalId - tailCluster.count !== rangeBaseLocal) {
+			throw new Error("Ranges finalized out of order.");
+		}
+
+		if (remainingCapacity >= count) {
+			// The current range fits in the existing cluster
+			tailCluster.count += count;
+		} else {
+			const overflow = count - remainingCapacity;
+			const newClaimedFinalCount = overflow + this.clusterCapacity;
+			if (tailCluster === this.finalSpace.getTailCluster()) {
+				// Tail cluster is the last cluster, and so can be expanded.
+				tailCluster.capacity += newClaimedFinalCount;
+				tailCluster.count += count;
+			} else {
+				// Tail cluster is not the last cluster. Fill and overflow to new.
+				tailCluster.count = tailCluster.capacity;
+				const newCluster = this.addEmptyCluster(
+					session,
+					(rangeBaseLocal - remainingCapacity) as LocalCompressedId,
+					newClaimedFinalCount,
+				);
+				newCluster.count += overflow;
+			}
+		}
+		// TODO add final lim cache?
+	}
+
+	private addEmptyCluster(
+		session: Session,
+		baseLocalId: LocalCompressedId,
+		capacity: number,
+	): IdCluster {
+		const tailCluster = this.finalSpace.getTailCluster();
+		const nextBaseFinal =
+			tailCluster === undefined
+				? (0 as FinalCompressedId)
+				: (((tailCluster.baseFinalId as number) +
+						tailCluster.capacity) as FinalCompressedId);
+		const newCluster = session.addEmptyCluster(nextBaseFinal, baseLocalId, capacity);
+		this.finalSpace.addCluster(newCluster);
+		return newCluster;
 	}
 
 	public normalizeToOpSpace(id: SessionSpaceCompressedId): OpSpaceCompressedId {

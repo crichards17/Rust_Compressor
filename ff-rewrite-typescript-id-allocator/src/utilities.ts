@@ -154,6 +154,13 @@ export function compareStrings<T extends string>(a: T, b: T): number {
 	return a > b ? 1 : a === b ? 0 : -1;
 }
 
+/**
+ * Compares bigints to form a strict partial ordering.
+ */
+export function compareBigints<T extends bigint>(a: T, b: T): number {
+	return a > b ? 1 : a === b ? 0 : -1;
+}
+
 export function localIdToGenCount(localId: LocalCompressedId): number {
 	return -localId;
 }
