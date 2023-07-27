@@ -3,7 +3,7 @@ import type { SessionId } from "../identifiers";
 /**
  * The version of IdCompressor that is currently persisted.
  */
-export const currentWrittenVersion = "0.0.1";
+export const currentWrittenVersion = 1;
 
 /**
  * The serialized contents of an IdCompressor, suitable for persistence in a summary.

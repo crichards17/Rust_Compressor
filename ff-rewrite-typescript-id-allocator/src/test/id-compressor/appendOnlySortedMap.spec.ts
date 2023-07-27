@@ -7,7 +7,7 @@
 
 import { strict as assert } from "assert";
 import { validateAssertionError } from "@fluidframework/test-runtime-utils";
-import { AppendOnlyDoublySortedMap, AppendOnlySortedMap } from "../../appendOnlySortedMap";
+import { AppendOnlySortedMap } from "../../appendOnlySortedMap";
 import { compareFiniteNumbers } from "../../utilities";
 import { assertNotUndefined } from "./testCommon";
 
@@ -198,76 +198,4 @@ function runAppendOnlyMapTests(mapBuilder: () => AppendOnlySortedMap<number, num
 
 describe("AppendOnlySortedMap", () => {
 	runAppendOnlyMapTests(() => new AppendOnlySortedMap(compareFiniteNumbers));
-});
-
-describe("AppendOnlyDoublySortedMap", () => {
-	const mapBuilder = () =>
-		new AppendOnlyDoublySortedMap<number, number, number>(
-			compareFiniteNumbers,
-			(value) => value,
-			compareFiniteNumbers,
-		);
-	runAppendOnlyMapTests(mapBuilder);
-
-	it("detects out-of-order values", () => {
-		const map = mapBuilder();
-		map.append(0, 0);
-		const exception = "Inserted value must be > all others in the map.";
-		assert.throws(
-			() => map.append(1, -1),
-			(e) => validateAssertionError(e, exception),
-		);
-		map.append(2, 1);
-	});
-
-	it("can get an entry or next lower by value", () => {
-		[99, 100].forEach((elementCount) => {
-			const map = mapBuilder();
-			for (let i = 0; i < elementCount; i++) {
-				map.append(i - elementCount, i * 2);
-			}
-			assert.equal(map.getPairOrNextLowerByValue(-1), undefined);
-			for (let i = 1; i < elementCount; i++) {
-				assert.deepEqual(map.getPairOrNextLowerByValue(i * 2), [i - elementCount, i * 2]);
-				assert.deepEqual(map.getPairOrNextLowerByValue(i * 2 + 1), [
-					i - elementCount,
-					i * 2,
-				]);
-			}
-		});
-	});
-
-	it("can get an entry or next higher by value", () => {
-		[99, 100].forEach((elementCount) => {
-			const map = mapBuilder();
-			for (let i = 0; i < elementCount; i++) {
-				map.append(i - elementCount, i * 2);
-			}
-			for (let i = 0; i < elementCount - 1; i++) {
-				assert.deepEqual(map.getPairOrNextHigherByValue(i * 2), [i - elementCount, i * 2]);
-				assert.deepEqual(map.getPairOrNextHigherByValue(i * 2 + 1), [
-					i - elementCount + 1,
-					i * 2 + 2,
-				]);
-			}
-			const maxValue = (elementCount - 1) * 2;
-			assert.deepEqual(map.getPairOrNextHigherByValue(maxValue), [-1, maxValue]);
-			assert.equal(map.getPairOrNextHigherByValue(maxValue + 1), undefined);
-		});
-	});
-
-	it("validity assertion detects out-of-order keys", () => {
-		const map = new AppendOnlyDoublySortedMap<[number], [number], number>(
-			(a, b) => compareFiniteNumbers(a[0], b[0]),
-			(value) => value[0],
-			compareFiniteNumbers,
-		);
-		map.append([0], [0]);
-		map.append([1], [1]);
-		assertNotUndefined(map.get([1]))[0] = -1; // mutate value
-		assert.throws(
-			() => map.assertValid(),
-			(e) => validateAssertionError(e, "Values in map must be sorted."),
-		);
-	});
 });

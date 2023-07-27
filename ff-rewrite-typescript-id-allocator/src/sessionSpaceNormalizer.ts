@@ -7,6 +7,13 @@ export class SessionSpaceNormalizer {
 		compareFiniteNumbersReversed,
 	);
 
+	public get contents(): Pick<
+		AppendOnlySortedMap<LocalCompressedId, number>,
+		"size" | "entries"
+	> {
+		return this.leadingLocals;
+	}
+
 	public addLocalRange(baseLocal: LocalCompressedId, count: number): void {
 		const last = this.leadingLocals.last();
 		if (last !== undefined) {

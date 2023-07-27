@@ -4,7 +4,6 @@ import { SessionId, StableId, UuidString } from "./types";
 import { assert } from "./copied-utils/assert";
 import { NumericUuid } from "./types/identifiers";
 import { LocalCompressedId } from "./test/id-compressor/testCommon";
-import { AppendOnlySortedMap } from "./appendOnlySortedMap";
 
 const hexadecimalCharCodes = Array.from("09afAF").map((c) => c.charCodeAt(0)) as [
 	zero: number,
@@ -224,18 +223,75 @@ export function addNumericUuids(a: NumericUuid, b: NumericUuid): NumericUuid {
 	return (a + b) as NumericUuid;
 }
 
-export function getOrNextLowerInSortedArray<K, V>(
-	search: K,
-	arr: readonly V[],
-	searchFn: (s: K, value: V) => number,
-): V | undefined {
-	let index = AppendOnlySortedMap.keyIndexOf(arr, search, searchFn);
-	if (index < 0) {
-		index ^= AppendOnlySortedMap.failureXor;
-		if (index > 0) {
-			index = index - 1;
+export function binarySearch<S, T>(
+	search: S,
+	arr: readonly T[],
+	comparator: (a: S, b: T) => number,
+): T | undefined {
+	let left = 0;
+	let right = arr.length - 1;
+	while (left <= right) {
+		const mid = Math.floor((left + right) / 2);
+		const c = comparator(search, arr[mid]);
+		if (c === 0) {
+			return arr[mid]; // Found the target, return its index.
+		} else if (c > 0) {
+			left = mid + 1; // Continue search on right half.
+		} else {
+			right = mid - 1; // Continue search on left half.
 		}
-		return undefined;
 	}
-	return arr[index];
+	return undefined; // If we reach here, target is not in array.
+}
+
+const float64Buffer = new Float64Array(1);
+const float64Uint8 = new Uint8Array(float64Buffer.buffer);
+
+const bigint64Buffer = new BigInt64Array(2);
+const bigint64Uint8 = new Uint8Array(bigint64Buffer.buffer);
+
+export function setNumber(arr: Uint8Array, index: number, value: number): number {
+	float64Buffer[0] = value;
+	arr.set(float64Uint8, index);
+	return index + 8; // Float64Array elements are 8 bytes.
+}
+
+const halfNumeric = BigInt("0xFFFFFFFFFFFFFFFF");
+const sixtyFour = BigInt(64);
+export function setNumericUuid(arr: Uint8Array, index: number, value: NumericUuid): number {
+	bigint64Buffer[0] = value & halfNumeric;
+	bigint64Buffer[1] = value >> sixtyFour;
+	arr.set(bigint64Uint8, index);
+	return index + 16; // BigInt128 values are 16 bytes.
+}
+
+export function setBoolean(arr: Uint8Array, index: number, value: boolean): number {
+	arr[index] = value ? 1 : 0;
+	return index + 1; // Boolean values are 1 byte.
+}
+
+interface Index {
+	bytes: Uint8Array;
+	value: number;
+}
+
+export function readNumber(index: Index): number {
+	float64Uint8.set(index.bytes.subarray(index.value, index.value + 8));
+	index.value += 8;
+	return float64Buffer[0];
+}
+
+export function readNumericUuid(index: Index): NumericUuid {
+	bigint64Uint8.set(index.bytes.subarray(index.value, index.value + 16));
+	const lowerHalf = bigint64Buffer[0];
+	const upperHalf = bigint64Buffer[1];
+	const value = (upperHalf << BigInt(64)) | lowerHalf;
+	index.value += 16;
+	return value as NumericUuid;
+}
+
+export function readBoolean(index: Index): boolean {
+	const value = index.bytes[index.value] === 1;
+	index.value += 1;
+	return value;
 }

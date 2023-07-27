@@ -2,11 +2,12 @@ import BTree from "sorted-btree";
 import { FinalCompressedId, LocalCompressedId } from "./test/id-compressor/testCommon";
 import { SessionId } from "./types";
 import {
+	binarySearch,
 	compareBigints,
 	genCountToLocalId,
-	getOrNextLowerInSortedArray,
 	localIdToGenCount,
 	numericUuidFromStableId,
+	stableIdFromNumericUuid,
 	subtractNumericUuids,
 } from "./utilities";
 import { NumericUuid, StableId } from "./types/identifiers";
@@ -18,8 +19,21 @@ import { assert } from "./copied-utils";
  */
 export class Sessions {
 	private readonly sessionCache = new Map<StableId, Session>();
-	private readonly sessionMap = new BTree<NumericUuid, Session>(undefined, compareBigints);
-	private readonly sessionList: Session[] = [];
+	private sessionMap = new BTree<NumericUuid, Session>(undefined, compareBigints);
+	private sessionList: Session[] = [];
+
+	public get sessions(): readonly Session[] {
+		return this.sessionList;
+	}
+
+	public bulkLoad(sessions: [NumericUuid, Session][]): void {
+		assert(this.sessionList.length === 0, "Must be empty to bulk load.");
+		this.sessionList = sessions.map((session) => session[1]);
+		for (const [numeric, session] of sessions) {
+			this.sessionCache.set(stableIdFromNumericUuid(numeric), session);
+		}
+		this.sessionMap = new BTree(sessions, compareBigints);
+	}
 
 	public getOrCreate(sessionId: SessionId): Session {
 		const existing = this.sessionCache.get(sessionId);
@@ -57,7 +71,13 @@ export class Sessions {
 	}
 
 	public rangeCollides(rangeBase: NumericUuid, rangeMax: NumericUuid): boolean {
-		return this.sessionMap.getRange(rangeBase, rangeMax, true, 1).length > 0;
+		const intersection = this.sessionMap.getRange(rangeBase, rangeMax, true, 1);
+		for (const [_, session] of intersection) {
+			if (session.getTailCluster() !== undefined) {
+				return true;
+			}
+		}
+		return false;
 	}
 }
 
@@ -68,8 +88,9 @@ export class Session {
 	private readonly clusterChain: IdCluster[] = [];
 	public readonly sessionUuid: NumericUuid;
 
-	public constructor(sessionId: SessionId) {
-		this.sessionUuid = numericUuidFromStableId(sessionId);
+	public constructor(sessionId: SessionId | NumericUuid) {
+		this.sessionUuid =
+			typeof sessionId === "string" ? numericUuidFromStableId(sessionId) : sessionId;
 	}
 
 	public addEmptyCluster(
@@ -91,7 +112,7 @@ export class Session {
 	public getTailCluster(): IdCluster | undefined {
 		return this.clusterChain.length === 0
 			? undefined
-			: this.clusterChain[this.clusterChain.length];
+			: this.clusterChain[this.clusterChain.length - 1];
 	}
 
 	public getMaxAllocatedLocalId(): LocalCompressedId | undefined {
@@ -124,20 +145,16 @@ export class Session {
 		const lastValidLocal: (cluster: IdCluster) => LocalCompressedId = includeAllocated
 			? lastAllocatedLocal
 			: lastFinalizedLocal;
-		const cluster = getOrNextLowerInSortedArray(
-			localId,
-			this.clusterChain,
-			(local, cluster): number => {
-				const lastLocal = lastValidLocal(cluster);
-				if (lastLocal > local) {
-					return -1;
-				} else if (cluster.baseLocalId < local) {
-					return 1;
-				} else {
-					return 0;
-				}
-			},
-		);
+		const cluster = binarySearch(localId, this.clusterChain, (local, cluster): number => {
+			const lastLocal = lastValidLocal(cluster);
+			if (local < lastLocal) {
+				return 1;
+			} else if (local > cluster.baseLocalId) {
+				return -1;
+			} else {
+				return 0;
+			}
+		});
 		if (cluster === undefined) {
 			return undefined;
 		}
@@ -153,11 +170,11 @@ export class Session {
 		finalId: FinalCompressedId,
 		sortedClusters: IdCluster[],
 	): IdCluster | undefined {
-		return getOrNextLowerInSortedArray(finalId, sortedClusters, (final, cluster) => {
+		return binarySearch(finalId, sortedClusters, (final, cluster) => {
 			const lastFinal = lastAllocatedFinal(cluster);
-			if (lastFinal < final) {
+			if (final < cluster.baseFinalId) {
 				return -1;
-			} else if (cluster.baseFinalId > final) {
+			} else if (final > lastFinal) {
 				return 1;
 			} else {
 				return 0;
@@ -230,9 +247,9 @@ export function lastFinalizedFinal(cluster: IdCluster): FinalCompressedId {
 }
 
 export function lastAllocatedLocal(cluster: IdCluster): LocalCompressedId {
-	return ((cluster.baseLocalId as number) + (cluster.capacity - 1)) as LocalCompressedId;
+	return ((cluster.baseLocalId as number) - (cluster.capacity - 1)) as LocalCompressedId;
 }
 
 export function lastFinalizedLocal(cluster: IdCluster): LocalCompressedId {
-	return ((cluster.baseLocalId as number) + (cluster.count - 1)) as LocalCompressedId;
+	return ((cluster.baseLocalId as number) - (cluster.count - 1)) as LocalCompressedId;
 }
