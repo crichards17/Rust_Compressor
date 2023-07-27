@@ -27,7 +27,10 @@ export class Sessions {
 	}
 
 	public bulkLoad(sessions: [NumericUuid, Session][]): void {
-		assert(this.sessionList.length === 0, "Must be empty to bulk load.");
+		assert(
+			this.sessionList.length === 1 && this.sessionList[0].getTailCluster() === undefined,
+			"Must be empty to bulk load.",
+		);
 		this.sessionList = sessions.map((session) => session[1]);
 		for (const [numeric, session] of sessions) {
 			this.sessionCache.set(stableIdFromNumericUuid(numeric), session);

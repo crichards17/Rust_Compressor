@@ -20,9 +20,9 @@ import {
 	readBoolean,
 	readNumber,
 	readNumericUuid,
-	setBoolean,
-	setNumber,
-	setNumericUuid,
+	writeBoolean,
+	writeNumber,
+	writeNumericUuid,
 	stableIdFromNumericUuid,
 	subtractNumericUuids,
 } from "./utilities";
@@ -250,6 +250,7 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 			if (containingCluster === undefined) {
 				// Does not exist in local cluster chain
 				if (id > this.finalSpace.getFinalIdLimit()) {
+					// TODO: remove duplicate error strings
 					throw new Error("Unknown op space ID.");
 				}
 				return id as unknown as SessionSpaceCompressedId;
@@ -287,10 +288,10 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 			} else {
 				// LocalId from a remote session
 				const remoteSession = this.sessions.get(originSessionId);
-				const correspondingFinal = remoteSession?.tryConvertToFinal(
-					localToNormalize,
-					false,
-				);
+				if (remoteSession === undefined) {
+					throw new Error("No IDs have ever been finalized by the supplied session.");
+				}
+				const correspondingFinal = remoteSession.tryConvertToFinal(localToNormalize, false);
 				if (correspondingFinal === undefined) {
 					throw new Error("Unknown op space ID.");
 				}
@@ -382,7 +383,7 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 				}
 			} else {
 				// Not the local session
-				return localIdToGenCount(alignedLocal) < lastFinalizedLocal(containingCluster)
+				return localIdToGenCount(alignedLocal) >= lastFinalizedLocal(containingCluster)
 					? (getAllocatedFinal(containingCluster, alignedLocal) as
 							| SessionSpaceCompressedId
 							| undefined)
@@ -418,33 +419,33 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 		);
 
 		let index = 0;
-		index = setNumber(serialized, index, currentWrittenVersion);
-		index = setBoolean(serialized, index, withSession);
+		index = writeNumber(serialized, index, currentWrittenVersion);
+		index = writeBoolean(serialized, index, withSession);
 
 		if (withSession) {
-			index = setNumericUuid(serialized, index, this.localSession.sessionUuid);
-			index = setNumber(serialized, index, this.generatedIdCount);
-			index = setNumber(serialized, index, this.nextRangeBaseGenCount);
-			index = setNumber(serialized, index, normalizer.contents.size);
+			index = writeNumericUuid(serialized, index, this.localSession.sessionUuid);
+			index = writeNumber(serialized, index, this.generatedIdCount);
+			index = writeNumber(serialized, index, this.nextRangeBaseGenCount);
+			index = writeNumber(serialized, index, normalizer.contents.size);
 			for (const [leadingLocal, count] of normalizer.contents.entries()) {
-				index = setNumber(serialized, index, localIdToGenCount(leadingLocal));
-				index = setNumber(serialized, index, count);
+				index = writeNumber(serialized, index, localIdToGenCount(leadingLocal));
+				index = writeNumber(serialized, index, count);
 			}
 		}
 
-		index = setNumber(serialized, index, this.clusterCapacity);
-		index = setNumber(serialized, index, sessions.sessions.length);
+		index = writeNumber(serialized, index, this.clusterCapacity);
+		index = writeNumber(serialized, index, sessions.sessions.length);
 		const sessionIndexMap = new Map<Session, number>();
 		for (let i = indexOffset; i < sessions.sessions.length; i++) {
 			const session = sessions.sessions[i];
-			index = setNumericUuid(serialized, index, session.sessionUuid);
+			index = writeNumericUuid(serialized, index, session.sessionUuid);
 			sessionIndexMap.set(session, i - indexOffset);
 		}
-		index = setNumber(serialized, index, finalSpace.clusters.length);
+		index = writeNumber(serialized, index, finalSpace.clusters.length);
 		finalSpace.clusters.forEach((cluster) => {
-			index = setNumber(serialized, index, sessionIndexMap.get(cluster.session) as number);
-			index = setNumber(serialized, index, cluster.capacity);
-			index = setNumber(serialized, index, cluster.count);
+			index = writeNumber(serialized, index, sessionIndexMap.get(cluster.session) as number);
+			index = writeNumber(serialized, index, cluster.capacity);
+			index = writeNumber(serialized, index, cluster.count);
 		});
 
 		return { bytes: serialized } as unknown as SerializedIdCompressor;
@@ -459,7 +460,7 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 		serialized: SerializedIdCompressor,
 		sessionId?: SessionId,
 	): IdCompressor {
-		const index = { value: 0, bytes: serialized.bytes };
+		const index = { index: 0, bytes: serialized.bytes };
 		const version = readNumber(index);
 		assert(version === currentWrittenVersion, "Unknown serialized version.");
 		const hasLocalState = readBoolean(index);

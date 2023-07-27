@@ -250,7 +250,7 @@ const float64Uint8 = new Uint8Array(float64Buffer.buffer);
 const bigint64Buffer = new BigInt64Array(2);
 const bigint64Uint8 = new Uint8Array(bigint64Buffer.buffer);
 
-export function setNumber(arr: Uint8Array, index: number, value: number): number {
+export function writeNumber(arr: Uint8Array, index: number, value: number): number {
 	float64Buffer[0] = value;
 	arr.set(float64Uint8, index);
 	return index + 8; // Float64Array elements are 8 bytes.
@@ -258,40 +258,40 @@ export function setNumber(arr: Uint8Array, index: number, value: number): number
 
 const halfNumeric = BigInt("0xFFFFFFFFFFFFFFFF");
 const sixtyFour = BigInt(64);
-export function setNumericUuid(arr: Uint8Array, index: number, value: NumericUuid): number {
+export function writeNumericUuid(arr: Uint8Array, index: number, value: NumericUuid): number {
 	bigint64Buffer[0] = value & halfNumeric;
 	bigint64Buffer[1] = value >> sixtyFour;
 	arr.set(bigint64Uint8, index);
 	return index + 16; // BigInt128 values are 16 bytes.
 }
 
-export function setBoolean(arr: Uint8Array, index: number, value: boolean): number {
+export function writeBoolean(arr: Uint8Array, index: number, value: boolean): number {
 	arr[index] = value ? 1 : 0;
 	return index + 1; // Boolean values are 1 byte.
 }
 
 interface Index {
 	bytes: Uint8Array;
-	value: number;
+	index: number;
 }
 
 export function readNumber(index: Index): number {
-	float64Uint8.set(index.bytes.subarray(index.value, index.value + 8));
-	index.value += 8;
+	float64Uint8.set(index.bytes.subarray(index.index, index.index + 8));
+	index.index += 8;
 	return float64Buffer[0];
 }
 
 export function readNumericUuid(index: Index): NumericUuid {
-	bigint64Uint8.set(index.bytes.subarray(index.value, index.value + 16));
+	bigint64Uint8.set(index.bytes.subarray(index.index, index.index + 16));
 	const lowerHalf = bigint64Buffer[0];
 	const upperHalf = bigint64Buffer[1];
-	const value = (upperHalf << BigInt(64)) | lowerHalf;
-	index.value += 16;
+	const value = (upperHalf << sixtyFour) | lowerHalf;
+	index.index += 16;
 	return value as NumericUuid;
 }
 
 export function readBoolean(index: Index): boolean {
-	const value = index.bytes[index.value] === 1;
-	index.value += 1;
+	const value = index.bytes[index.index] === 1;
+	index.index += 1;
 	return value;
 }
