@@ -13,8 +13,8 @@ import {
 } from "./types";
 import {
 	createSessionId,
-	genCountToLocalId,
-	localIdToGenCount,
+	localIdFromGenCount,
+	genCountFromLocalId,
 	numericUuidFromStableId,
 	offsetNumericUuid,
 	readBoolean,
@@ -118,7 +118,7 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 		if (tailCluster === undefined) {
 			return this.generateNextLocalId();
 		}
-		const clusterOffset = this.generatedIdCount - localIdToGenCount(tailCluster.baseLocalId);
+		const clusterOffset = this.generatedIdCount - genCountFromLocalId(tailCluster.baseLocalId);
 		return tailCluster.capacity > clusterOffset
 			? // Space in the cluster: eager final
 			  (((tailCluster.baseFinalId as number) + clusterOffset) as SessionSpaceCompressedId)
@@ -161,13 +161,7 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 		const { sessionId, ids } = range;
 		const { count, firstGenCount } = ids;
 		const session = this.sessions.getOrCreate(sessionId);
-		const rangeBaseNumeric = offsetNumericUuid(session.sessionUuid, firstGenCount - 1);
-		const rangeMaxNumeric = offsetNumericUuid(rangeBaseNumeric, count - 1);
-		if (this.sessions.rangeCollides(rangeBaseNumeric, rangeMaxNumeric)) {
-			throw new Error("Cluster collision detected.");
-		}
-
-		const rangeBaseLocal = genCountToLocalId(firstGenCount);
+		const rangeBaseLocal = localIdFromGenCount(firstGenCount);
 		let tailCluster = session.getTailCluster();
 		if (tailCluster === undefined) {
 			// This is the first cluster in the session space
@@ -222,6 +216,9 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 				: (((tailCluster.baseFinalId as number) +
 						tailCluster.capacity) as FinalCompressedId);
 		const newCluster = session.addEmptyCluster(nextBaseFinal, baseLocalId, capacity);
+		if (this.sessions.clusterCollides(session, newCluster)) {
+			throw new Error("Cluster collision detected.");
+		}
 		this.finalSpace.addCluster(newCluster);
 		return newCluster;
 	}
@@ -261,7 +258,7 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 				}
 				if (this.normalizer.contains(alignedLocal)) {
 					return alignedLocal;
-				} else if (localIdToGenCount(alignedLocal) <= this.generatedIdCount) {
+				} else if (genCountFromLocalId(alignedLocal) <= this.generatedIdCount) {
 					return id as unknown as SessionSpaceCompressedId;
 				} else {
 					throw new Error("Unknown op space ID.");
@@ -272,7 +269,7 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 			if (originSessionId === this.localSessionId) {
 				if (this.normalizer.contains(localToNormalize)) {
 					return localToNormalize;
-				} else if (localIdToGenCount(localToNormalize) <= this.generatedIdCount) {
+				} else if (genCountFromLocalId(localToNormalize) <= this.generatedIdCount) {
 					// Id is an eager final
 					const correspondingFinal = this.localSession.tryConvertToFinal(
 						localToNormalize,
@@ -316,7 +313,7 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 			if (alignedLocal === undefined) {
 				return undefined;
 			}
-			const alignedGenCount = localIdToGenCount(alignedLocal);
+			const alignedGenCount = genCountFromLocalId(alignedLocal);
 			if (alignedLocal < lastFinalizedLocal(containingCluster)) {
 				// must be an id generated (allocated or finalized) by the local session, or a finalized id from a remote session
 				if (containingCluster.session === this.localSession) {
@@ -344,7 +341,7 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 			return stableIdFromNumericUuid(
 				offsetNumericUuid(
 					this.localSession.sessionUuid,
-					localIdToGenCount(localToDecompress) - 1,
+					genCountFromLocalId(localToDecompress) - 1,
 				),
 			);
 		}
@@ -361,7 +358,7 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 			const offset = subtractNumericUuids(numericUncompressed, this.localSession.sessionUuid);
 			if (offset < Number.MAX_SAFE_INTEGER) {
 				const genCountEquivalent = Number(offset) + 1;
-				const localEquivalent = genCountToLocalId(genCountEquivalent);
+				const localEquivalent = localIdFromGenCount(genCountEquivalent);
 				if (this.normalizer.contains(localEquivalent)) {
 					return localEquivalent;
 				}
@@ -373,7 +370,7 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 				// Local session
 				if (this.normalizer.contains(alignedLocal)) {
 					return alignedLocal;
-				} else if (localIdToGenCount(alignedLocal) < this.generatedIdCount) {
+				} else if (genCountFromLocalId(alignedLocal) <= this.generatedIdCount) {
 					// Id is an eager final
 					return getAllocatedFinal(containingCluster, alignedLocal) as
 						| SessionSpaceCompressedId
@@ -383,7 +380,7 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 				}
 			} else {
 				// Not the local session
-				return localIdToGenCount(alignedLocal) >= lastFinalizedLocal(containingCluster)
+				return genCountFromLocalId(alignedLocal) >= lastFinalizedLocal(containingCluster)
 					? (getAllocatedFinal(containingCluster, alignedLocal) as
 							| SessionSpaceCompressedId
 							| undefined)
@@ -405,7 +402,7 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 		// session id, reducing the session count by 1, and adjusting all cluster
 		// session indexes by 1.
 		const indexOffset = this.generatedIdCount === 0 ? 1 : 0;
-		const sessionCount = sessions.sessions.length * 16 - indexOffset;
+		const sessionCount = (sessions.sessions.length - indexOffset) * 16;
 		// Layout
 		const serialized = new Uint8Array(
 			8 + // version
@@ -428,13 +425,13 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 			index = writeNumber(serialized, index, this.nextRangeBaseGenCount);
 			index = writeNumber(serialized, index, normalizer.contents.size);
 			for (const [leadingLocal, count] of normalizer.contents.entries()) {
-				index = writeNumber(serialized, index, localIdToGenCount(leadingLocal));
+				index = writeNumber(serialized, index, genCountFromLocalId(leadingLocal));
 				index = writeNumber(serialized, index, count);
 			}
 		}
 
 		index = writeNumber(serialized, index, this.clusterCapacity);
-		index = writeNumber(serialized, index, sessions.sessions.length);
+		index = writeNumber(serialized, index, sessionCount);
 		const sessionIndexMap = new Map<Session, number>();
 		for (let i = indexOffset; i < sessions.sessions.length; i++) {
 			const session = sessions.sessions[i];
@@ -476,7 +473,7 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 			const normalizerCount = readNumber(index);
 			for (let i = 0; i < normalizerCount; i++) {
 				compressor.normalizer.addLocalRange(
-					genCountToLocalId(readNumber(index)),
+					localIdFromGenCount(readNumber(index)),
 					readNumber(index),
 				);
 			}

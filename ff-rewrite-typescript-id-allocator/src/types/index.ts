@@ -8,10 +8,4 @@ export {
 
 export { IIdCompressorCore, IIdCompressor } from "./idCompressor";
 
-export {
-	SessionSpaceCompressedId,
-	OpSpaceCompressedId,
-	SessionId,
-	StableId,
-	UuidString,
-} from "./identifiers";
+export { SessionSpaceCompressedId, OpSpaceCompressedId, SessionId, StableId } from "./identifiers";

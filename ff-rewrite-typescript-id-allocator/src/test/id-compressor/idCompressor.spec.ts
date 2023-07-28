@@ -769,7 +769,7 @@ describe("IdCompressor", () => {
 		it("detects when a new cluster is allocated whose UUIDs collide with another cluster", () => {
 			const compressor1 = CompressorFactory.createCompressor(Client.Client1);
 			const compressor2 = CompressorFactory.createCompressorWithSession(
-				incrementStableId(compressor1.localSessionId, 6) as SessionId,
+				incrementStableId(compressor1.localSessionId, 5) as SessionId,
 			);
 			compressor1.generateCompressedId();
 			const creationRange1 = compressor1.takeNextCreationRange();

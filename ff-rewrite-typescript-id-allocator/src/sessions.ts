@@ -4,11 +4,12 @@ import { SessionId } from "./types";
 import {
 	binarySearch,
 	compareBigints,
-	genCountToLocalId,
-	localIdToGenCount,
+	localIdFromGenCount,
+	genCountFromLocalId,
 	numericUuidFromStableId,
 	stableIdFromNumericUuid,
 	subtractNumericUuids,
+	offsetNumericUuid,
 } from "./utilities";
 import { NumericUuid, StableId } from "./types/identifiers";
 import { assert } from "./copied-utils";
@@ -63,7 +64,7 @@ export class Sessions {
 			return undefined;
 		}
 		const [_, session] = possibleMatch;
-		const alignedLocal = genCountToLocalId(
+		const alignedLocal = localIdFromGenCount(
 			Number(subtractNumericUuids(numericStable, session.sessionUuid)) + 1,
 		);
 		const containingCluster = session.getClusterByLocal(alignedLocal, true);
@@ -73,14 +74,30 @@ export class Sessions {
 		return [containingCluster, alignedLocal];
 	}
 
-	public rangeCollides(rangeBase: NumericUuid, rangeMax: NumericUuid): boolean {
-		const intersection = this.sessionMap.getRange(rangeBase, rangeMax, true, 1);
-		for (const [_, session] of intersection) {
-			if (session.getTailCluster() !== undefined) {
-				return true;
-			}
+	public clusterCollides(owningSession: Session, cluster: IdCluster): boolean {
+		const clusterBaseNumeric = offsetNumericUuid(
+			owningSession.sessionUuid,
+			genCountFromLocalId(cluster.baseLocalId) - 1,
+		);
+		const clusterMaxNumeric = offsetNumericUuid(clusterBaseNumeric, cluster.capacity - 1);
+		let closestMatch: [NumericUuid, Session] | undefined =
+			this.sessionMap.getPairOrNextLower(clusterMaxNumeric);
+		while (closestMatch !== undefined && closestMatch[1] === owningSession) {
+			closestMatch = this.sessionMap.nextLowerPair(closestMatch[0]);
 		}
-		return false;
+		if (closestMatch === undefined) {
+			return false;
+		}
+
+		const [_, session] = closestMatch;
+		assert(session !== owningSession, "Failed to attempt to detect collisions.");
+		const lastCluster = session.getTailCluster();
+		assert(lastCluster !== undefined, "Empty cluster chain in non-local session.");
+		const lastAllocatedNumeric = offsetNumericUuid(
+			session.sessionUuid,
+			genCountFromLocalId(lastAllocatedLocal(lastCluster)) - 1,
+		);
+		return lastAllocatedNumeric >= clusterBaseNumeric;
 	}
 }
 
@@ -118,15 +135,6 @@ export class Session {
 			: this.clusterChain[this.clusterChain.length - 1];
 	}
 
-	public getMaxAllocatedLocalId(): LocalCompressedId | undefined {
-		if (this.clusterChain.length === 0) {
-			return undefined;
-		} else {
-			const lastCluster = this.clusterChain[this.clusterChain.length - 1];
-			return (lastCluster.baseLocalId - (lastCluster.count - 1)) as LocalCompressedId;
-		}
-	}
-
 	public tryConvertToFinal(
 		searchLocal: LocalCompressedId,
 		includeAllocated: boolean,
@@ -142,9 +150,6 @@ export class Session {
 		localId: LocalCompressedId,
 		includeAllocated: boolean,
 	): IdCluster | undefined {
-		if (localId < (this.getMaxAllocatedLocalId() ?? 0)) {
-			return undefined;
-		}
 		const lastValidLocal: (cluster: IdCluster) => LocalCompressedId = includeAllocated
 			? lastAllocatedLocal
 			: lastFinalizedLocal;
@@ -158,10 +163,6 @@ export class Session {
 				return 0;
 			}
 		});
-		if (cluster === undefined) {
-			return undefined;
-		}
-		assert(cluster.baseFinalId >= localId, "Search failed.");
 		return cluster;
 	}
 
@@ -223,7 +224,8 @@ export function getAllocatedFinal(
 	cluster: IdCluster,
 	localWithin: LocalCompressedId,
 ): FinalCompressedId | undefined {
-	const clusterOffset = localIdToGenCount(localWithin) - localIdToGenCount(cluster.baseLocalId);
+	const clusterOffset =
+		genCountFromLocalId(localWithin) - genCountFromLocalId(cluster.baseLocalId);
 	if (clusterOffset < cluster.capacity) {
 		return ((cluster.baseFinalId as number) + clusterOffset) as FinalCompressedId;
 	}

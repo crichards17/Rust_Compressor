@@ -1,6 +1,6 @@
 /* eslint-disable no-bitwise */
-import { v4, NIL } from "uuid";
-import { SessionId, StableId, UuidString } from "./types";
+import { v4 } from "uuid";
+import { SessionId, StableId } from "./types";
 import { assert } from "./copied-utils/assert";
 import { NumericUuid } from "./types/identifiers";
 import { LocalCompressedId } from "./test/id-compressor/testCommon";
@@ -20,44 +20,6 @@ function isHexadecimalCharacter(charCode: number): boolean {
 		(charCode >= hexadecimalCharCodes[2] && charCode <= hexadecimalCharCodes[3]) ||
 		(charCode >= hexadecimalCharCodes[4] && charCode <= hexadecimalCharCodes[5])
 	);
-}
-
-/** The null (lowest/all-zeros) UUID */
-export const nilUuid = assertIsUuidString(NIL);
-
-/**
- * Asserts that the given string is a UUID
- */
-function assertIsUuidString(uuidString: string): UuidString {
-	assert(isUuidString(uuidString), 0x4a2 /* Expected an UuidString */);
-	return uuidString;
-}
-
-/**
- * Returns true iff the given string is a valid UUID-like string of hexadecimal characters
- * 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'
- */
-function isUuidString(str: string): str is UuidString {
-	for (let i = 0; i < str.length; i++) {
-		switch (i) {
-			case 8:
-			case 13:
-			case 18:
-			case 23:
-				if (str.charAt(i) !== "-") {
-					return false;
-				}
-				break;
-
-			default:
-				if (!isHexadecimalCharacter(str.charCodeAt(i))) {
-					return false;
-				}
-				break;
-		}
-	}
-
-	return true;
 }
 
 /**
@@ -160,11 +122,11 @@ export function compareBigints<T extends bigint>(a: T, b: T): number {
 	return a > b ? 1 : a === b ? 0 : -1;
 }
 
-export function localIdToGenCount(localId: LocalCompressedId): number {
+export function genCountFromLocalId(localId: LocalCompressedId): number {
 	return -localId;
 }
 
-export function genCountToLocalId(genCount: number): LocalCompressedId {
+export function localIdFromGenCount(genCount: number): LocalCompressedId {
 	return -genCount as LocalCompressedId;
 }
 
