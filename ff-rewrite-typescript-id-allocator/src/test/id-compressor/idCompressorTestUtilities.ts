@@ -29,7 +29,6 @@ import {
 import { assertIsSessionId, createSessionId } from "../../../src/utilities";
 import { fail } from "../../../src/copied-utils";
 import {
-	compressorEquals,
 	FinalCompressedId,
 	getOrCreate,
 	incrementStableId,
@@ -611,7 +610,7 @@ export function expectSerializes(
 		} else {
 			[serialized, deserialized] = roundtrip(compressor, false);
 		}
-		assert.strictEqual(compressorEquals(compressor, deserialized, withSession), true);
+		assert.strictEqual(compressor.equals(deserialized, withSession), true);
 		return serialized;
 	}
 

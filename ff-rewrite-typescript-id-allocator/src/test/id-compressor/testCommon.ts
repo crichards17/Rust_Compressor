@@ -93,17 +93,6 @@ export function incrementStableId(stableId: StableId, offset: number): StableId 
 	return stableIdFromNumericUuid(offsetNumericUuid(numericUuidFromStableId(stableId), offset));
 }
 
-/**
- * Only for use in tests.
- */
-export function compressorEquals(
-	a: ReadonlyIdCompressor,
-	b: ReadonlyIdCompressor,
-	compareLocalState: boolean,
-): boolean {
-	throw new Error("not implemented");
-}
-
 /** An immutable view of an `IdCompressor` */
 export interface ReadonlyIdCompressor
 	extends Omit<

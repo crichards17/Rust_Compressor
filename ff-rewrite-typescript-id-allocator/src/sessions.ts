@@ -20,23 +20,23 @@ import { assert } from "./copied-utils";
  */
 export class Sessions {
 	private readonly sessionCache = new Map<StableId, Session>();
-	private sessionMap = new BTree<NumericUuid, Session>(undefined, compareBigints);
-	private sessionList: Session[] = [];
+	private readonly sessionMap = new BTree<NumericUuid, Session>(undefined, compareBigints);
+	private readonly sessionList: Session[] = [];
+
+	public constructor(sessions?: [NumericUuid, Session][]) {
+		if (sessions !== undefined) {
+			// bulk load path
+			this.sessionList = sessions.map((session) => session[1]);
+			for (const [numeric, session] of sessions) {
+				this.sessionCache.set(stableIdFromNumericUuid(numeric), session);
+			}
+			this.sessionMap = new BTree(sessions, compareBigints);
+			assert(this.sessionCache.size === this.sessionList.length, "Duplicate sessions found.");
+		}
+	}
 
 	public get sessions(): readonly Session[] {
 		return this.sessionList;
-	}
-
-	public bulkLoad(sessions: [NumericUuid, Session][]): void {
-		assert(
-			this.sessionList.length === 1 && this.sessionList[0].getTailCluster() === undefined,
-			"Must be empty to bulk load.",
-		);
-		this.sessionList = sessions.map((session) => session[1]);
-		for (const [numeric, session] of sessions) {
-			this.sessionCache.set(stableIdFromNumericUuid(numeric), session);
-		}
-		this.sessionMap = new BTree(sessions, compareBigints);
 	}
 
 	public getOrCreate(sessionId: SessionId): Session {
@@ -99,6 +99,35 @@ export class Sessions {
 		);
 		return lastAllocatedNumeric >= clusterBaseNumeric;
 	}
+
+	public equals(other: Sessions, includeLocalState: boolean): boolean {
+		const emptySessionsThis: Session[] = [];
+		for (const [stableId, session] of this.sessionCache.entries()) {
+			if (session.getTailCluster() === undefined) {
+				emptySessionsThis.push(session);
+			} else {
+				const otherSession = other.sessionCache.get(stableId);
+				if (otherSession === undefined || !otherSession.equals(session)) {
+					return false;
+				}
+			}
+		}
+		const emptySessionsOther: Session[] = [];
+		other.sessionList.forEach((session) => {
+			if (session.getTailCluster() === undefined) {
+				emptySessionsOther.push(session);
+			}
+		});
+		assert(
+			emptySessionsThis.length <= 1 && emptySessionsOther.length <= 1,
+			"Only the local session can be empty.",
+		);
+		return (
+			!includeLocalState ||
+			emptySessionsThis.length === 0 ||
+			emptySessionsThis[0].equals(emptySessionsOther[0])
+		);
+	}
 }
 
 /**
@@ -129,10 +158,12 @@ export class Session {
 		return newCluster;
 	}
 
+	public isEmpty(): boolean {
+		return this.clusterChain.length === 0;
+	}
+
 	public getTailCluster(): IdCluster | undefined {
-		return this.clusterChain.length === 0
-			? undefined
-			: this.clusterChain[this.clusterChain.length - 1];
+		return this.isEmpty() ? undefined : this.clusterChain[this.clusterChain.length - 1];
 	}
 
 	public tryConvertToFinal(
@@ -185,6 +216,25 @@ export class Session {
 			}
 		});
 	}
+
+	public equals(other: Session): boolean {
+		for (let i = 0; i < this.clusterChain.length; i++) {
+			if (!clustersEqual(this.clusterChain[i], other.clusterChain[i])) {
+				return false;
+			}
+		}
+		return this.sessionUuid === other.sessionUuid;
+	}
+}
+
+export function clustersEqual(a: IdCluster, b: IdCluster): boolean {
+	return (
+		a.session.sessionUuid === b.session.sessionUuid &&
+		a.baseFinalId === b.baseFinalId &&
+		a.baseLocalId === b.baseLocalId &&
+		a.capacity === b.capacity &&
+		a.count === b.count
+	);
 }
 
 /**

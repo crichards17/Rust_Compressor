@@ -36,4 +36,23 @@ export class SessionSpaceNormalizer {
 		}
 		return false;
 	}
+
+	public equals(other: SessionSpaceNormalizer): boolean {
+		if (this.leadingLocals.size !== other.leadingLocals.size) {
+			return false;
+		}
+		for (let i = 0; i < this.leadingLocals.size; i++) {
+			const pairThis = this.leadingLocals.getAtIndex(i);
+			const pairOther = other.leadingLocals.getAtIndex(i);
+			if (
+				pairThis === undefined ||
+				pairOther === undefined ||
+				pairThis[0] !== pairOther[0] ||
+				pairThis[1] !== pairOther[1]
+			) {
+				return false;
+			}
+		}
+		return true;
+	}
 }

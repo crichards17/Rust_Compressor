@@ -65,9 +65,21 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 	private readonly finalSpace = new FinalSpace();
 	// -----------------------
 
-	private constructor(localSessionId: SessionId, private readonly logger?: ITelemetryLogger) {
-		this.localSessionId = localSessionId;
-		this.localSession = this.sessions.getOrCreate(localSessionId);
+	private constructor(
+		localSessionIdOrDeserialized: SessionId | { localSessionId: SessionId; sessions: Sessions },
+		private readonly logger?: ITelemetryLogger,
+	) {
+		if (typeof localSessionIdOrDeserialized === "string") {
+			this.localSessionId = localSessionIdOrDeserialized;
+			this.localSession = this.sessions.getOrCreate(localSessionIdOrDeserialized);
+		} else {
+			// Deserialize/bulk load case
+			this.sessions = localSessionIdOrDeserialized.sessions;
+			this.localSessionId = localSessionIdOrDeserialized.localSessionId;
+			const localSession = this.sessions.get(this.localSessionId);
+			assert(localSession !== undefined, "Malformed sessions on deserialization.");
+			this.localSession = localSession;
+		}
 		this.newClusterCapacity = defaultClusterCapacity;
 		assert(this.logger === undefined, "use logger");
 	}
@@ -393,8 +405,17 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 	public serialize(withSession: false): SerializedIdCompressorWithNoSession;
 	public serialize(withSession: boolean): SerializedIdCompressor {
 		const { normalizer, finalSpace, sessions } = this;
-		const localStateSize = withSession
-			? 8 /* length */ + this.normalizer.contents.size * 16
+		// The local state, if present, is split into two chunks (with sessions serialized in between) to make
+		// deserialization easier. This is done to make using constructor calls easier and avoid making
+		// fields mutable.
+		const localStateFirstChunk = withSession
+			? 16 // local uuid
+			: 0;
+		const localStateSecondChunk = withSession
+			? 8 + // generated ID count
+			  8 + // next range base genCount
+			  8 + // count of normalizer pairs
+			  this.normalizer.contents.size * 16 // pairs
 			: 0;
 		// The only empty session (if there is one) will be the local session.
 		// It is stored first in the session vector, so to avoid accumulating empty
@@ -402,18 +423,19 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 		// session id, reducing the session count by 1, and adjusting all cluster
 		// session indexes by 1.
 		const indexOffset = this.generatedIdCount === 0 ? 1 : 0;
-		const sessionCount = (sessions.sessions.length - indexOffset) * 16;
-		// Layout
-		const serialized = new Uint8Array(
+		const sessionCount = sessions.sessions.length - indexOffset;
+		const totalByteSize =
 			8 + // version
-				1 + // hasLocalState
-				localStateSize + // local state
-				8 + // cluster capacity
-				8 + // session count
-				sessionCount + // session IDs
-				8 + // cluster count
-				finalSpace.clusters.length * 8 * 3, // clusters: (sessionIndex, capacity, count)[]
-		);
+			1 + // hasLocalState
+			localStateFirstChunk + // local uuid
+			8 + // session count
+			sessionCount * 16 + // session IDs
+			localStateSecondChunk + // remainder of local state
+			8 + // cluster capacity
+			8 + // cluster count
+			finalSpace.clusters.length * 8 * 3; // clusters: (sessionIndex, capacity, count)[]
+		// Layout
+		const serialized = new Uint8Array(totalByteSize);
 
 		let index = 0;
 		index = writeNumber(serialized, index, currentWrittenVersion);
@@ -421,6 +443,18 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 
 		if (withSession) {
 			index = writeNumericUuid(serialized, index, this.localSession.sessionUuid);
+		}
+
+		index = writeNumber(serialized, index, sessionCount);
+		const sessionIndexMap = new Map<Session, number>();
+		for (let i = indexOffset; i < sessions.sessions.length; i++) {
+			const session = sessions.sessions[i];
+			assert(!session.isEmpty(), "Empty sessions must not be serialized.");
+			index = writeNumericUuid(serialized, index, session.sessionUuid);
+			sessionIndexMap.set(session, i - indexOffset);
+		}
+
+		if (withSession) {
 			index = writeNumber(serialized, index, this.generatedIdCount);
 			index = writeNumber(serialized, index, this.nextRangeBaseGenCount);
 			index = writeNumber(serialized, index, normalizer.contents.size);
@@ -431,13 +465,6 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 		}
 
 		index = writeNumber(serialized, index, this.clusterCapacity);
-		index = writeNumber(serialized, index, sessionCount);
-		const sessionIndexMap = new Map<Session, number>();
-		for (let i = indexOffset; i < sessions.sessions.length; i++) {
-			const session = sessions.sessions[i];
-			index = writeNumericUuid(serialized, index, session.sessionUuid);
-			sessionIndexMap.set(session, i - indexOffset);
-		}
 		index = writeNumber(serialized, index, finalSpace.clusters.length);
 		finalSpace.clusters.forEach((cluster) => {
 			index = writeNumber(serialized, index, sessionIndexMap.get(cluster.session) as number);
@@ -460,14 +487,46 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 		const index = { index: 0, bytes: serialized.bytes };
 		const version = readNumber(index);
 		assert(version === currentWrittenVersion, "Unknown serialized version.");
+
 		const hasLocalState = readBoolean(index);
-		let compressor: IdCompressor;
-		// Local state
+		let localSessionUuid: NumericUuid;
+		// Local session ID
 		if (hasLocalState) {
 			assert(sessionId === undefined, "Local state should not exist in serialized form.");
-			const localSessionUuid = readNumericUuid(index);
-			const localSessionId = stableIdFromNumericUuid(localSessionUuid);
-			compressor = new IdCompressor(localSessionId as SessionId);
+			localSessionUuid = readNumericUuid(index);
+		} else {
+			assert(sessionId !== undefined, "Local state should exist in serialized form.");
+			localSessionUuid = numericUuidFromStableId(sessionId);
+		}
+
+		// Sessions
+		const sessionCount = readNumber(index);
+		const sessions: [NumericUuid, Session][] = [
+			[localSessionUuid, new Session(localSessionUuid)],
+		];
+		let sessionIndexOffset = 0;
+		if (sessionCount > 0) {
+			// Always ensure that the first session in the list is the local session.
+			// This is only done as an optimization to avoid filtering for empty sessions in serialization.
+			const firstNumeric = readNumericUuid(index);
+			// Discard the first entry if it is the local session; it was already added
+			if (firstNumeric !== localSessionUuid) {
+				sessionIndexOffset = 1;
+				sessions.push([firstNumeric, new Session(firstNumeric)]);
+			}
+			for (let i = 1; i < sessionCount; i++) {
+				const numeric = readNumericUuid(index);
+				sessions.push([numeric, new Session(numeric)]);
+			}
+		}
+		const compressor = new IdCompressor({
+			sessions: new Sessions(sessions),
+			localSessionId: stableIdFromNumericUuid(localSessionUuid) as SessionId,
+		});
+
+		// Remainder of local state
+		if (hasLocalState) {
+			assert(sessionId === undefined, "Local state should not exist in serialized form.");
 			compressor.generatedIdCount = readNumber(index);
 			compressor.nextRangeBaseGenCount = readNumber(index);
 			const normalizerCount = readNumber(index);
@@ -479,24 +538,15 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 			}
 		} else {
 			assert(sessionId !== undefined, "Local state should exist in serialized form.");
-			compressor = new IdCompressor(sessionId);
-		}
-
-		// Sessions
-		compressor.clusterCapacity = readNumber(index);
-		const sessionCount = readNumber(index);
-		const sessions: [NumericUuid, Session][] = [];
-		for (let i = 0; i < sessionCount; i++) {
-			const numeric = readNumericUuid(index);
-			sessions.push([numeric, new Session(numeric)]);
 		}
 
 		// Clusters
+		compressor.clusterCapacity = readNumber(index);
 		const clusterCount = readNumber(index);
 		const baseFinalId = 0;
 		for (let i = 0; i < clusterCount; i++) {
 			const sessionIndex = readNumber(index);
-			const session = sessions[sessionIndex][1];
+			const session = sessions[sessionIndex + sessionIndexOffset][1];
 			const tailCluster = session.getTailCluster();
 			const baseLocalId =
 				tailCluster === undefined ? -1 : lastAllocatedLocal(tailCluster) - 1;
@@ -511,7 +561,24 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 			compressor.finalSpace.addCluster(cluster);
 		}
 
-		compressor.sessions.bulkLoad(sessions);
 		return compressor;
+	}
+
+	public equals(other: IdCompressor, includeLocalState: boolean): boolean {
+		if (
+			includeLocalState &&
+			(this.localSessionId !== other.localSessionId ||
+				!this.localSession.equals(other.localSession) ||
+				!this.normalizer.equals(other.normalizer) ||
+				this.nextRangeBaseGenCount !== other.nextRangeBaseGenCount ||
+				this.generatedIdCount !== other.generatedIdCount)
+		) {
+			return false;
+		}
+		return (
+			this.newClusterCapacity === other.newClusterCapacity &&
+			this.sessions.equals(other.sessions, includeLocalState) &&
+			this.finalSpace.equals(other.finalSpace)
+		);
 	}
 }

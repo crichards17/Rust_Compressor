@@ -1,5 +1,5 @@
 import { assert } from "./copied-utils";
-import { IdCluster, Session } from "./sessions";
+import { IdCluster, Session, clustersEqual } from "./sessions";
 import { FinalCompressedId } from "./test/id-compressor/testCommon";
 
 export class FinalSpace {
@@ -34,5 +34,14 @@ export class FinalSpace {
 		}
 		const lastCluster = this.clusterList[this.clusterList.length - 1];
 		return ((lastCluster.baseFinalId as number) + lastCluster.count) as FinalCompressedId;
+	}
+
+	public equals(other: FinalSpace): boolean {
+		for (let i = 0; i < this.clusterList.length; i++) {
+			if (!clustersEqual(this.clusterList[i], other.clusterList[i])) {
+				return false;
+			}
+		}
+		return this.clusterList.length === other.clusterList.length;
 	}
 }

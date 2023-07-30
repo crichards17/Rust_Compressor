@@ -28,13 +28,7 @@ import {
 	makeOpGenerator,
 	CompressorFactory,
 } from "./idCompressorTestUtilities";
-import {
-	LocalCompressedId,
-	compressorEquals,
-	incrementStableId,
-	isFinalId,
-	isLocalId,
-} from "./testCommon";
+import { LocalCompressedId, incrementStableId, isFinalId, isLocalId } from "./testCommon";
 
 describe("IdCompressor", () => {
 	it("detects invalid cluster sizes", () => {
@@ -756,8 +750,7 @@ describe("IdCompressor", () => {
 			const [__, roundtrippedCompressorResumed] = roundtrip(compressorResumed, false);
 			const [___, roundtrippedCompressor2] = roundtrip(compressor2, false);
 			assert(
-				compressorEquals(
-					roundtrippedCompressorResumed,
+				roundtrippedCompressorResumed.equals(
 					roundtrippedCompressor2,
 					false, // don't compare local state
 				),
@@ -1170,7 +1163,7 @@ describe("IdCompressor", () => {
 					let deserializedPrev = roundtrip(compressors[0][1], false)[1];
 					for (let i = 1; i < compressors.length; i++) {
 						const deserializedCur = roundtrip(compressors[i][1], false)[1];
-						assert(compressorEquals(deserializedPrev, deserializedCur, false));
+						assert(deserializedPrev.equals(deserializedCur, false));
 						deserializedPrev = deserializedCur;
 					}
 				});
