@@ -31,7 +31,11 @@ export class Sessions {
 				this.sessionCache.set(stableIdFromNumericUuid(numeric), session);
 			}
 			this.sessionMap = new BTree(sessions, compareBigints);
-			assert(this.sessionCache.size === this.sessionList.length, "Duplicate sessions found.");
+			assert(
+				this.sessionCache.size === this.sessionList.length &&
+					this.sessionList.length === this.sessionMap.size,
+				"Cannot resume existing session.",
+			);
 		}
 	}
 
@@ -46,7 +50,7 @@ export class Sessions {
 		}
 		const session = new Session(sessionId);
 		this.sessionList.push(session);
-		this.sessionMap.set(session.sessionUuid, session);
+		assert(this.sessionMap.set(session.sessionUuid, session), "Duplicate session in map.");
 		this.sessionCache.set(sessionId, session);
 		return session;
 	}
@@ -82,7 +86,20 @@ export class Sessions {
 		const clusterMaxNumeric = offsetNumericUuid(clusterBaseNumeric, cluster.capacity - 1);
 		let closestMatch: [NumericUuid, Session] | undefined =
 			this.sessionMap.getPairOrNextLower(clusterMaxNumeric);
-		while (closestMatch !== undefined && closestMatch[1] === owningSession) {
+		// Find the first non-empty session that is not the owner of this new cluster.
+		// Once we have that, check to see if its cluster chain overlaps with the new cluster.
+		// Consider the following diagram of UUID space:
+		// Cluster chain A:  |----------------------|
+		// Cluster chain B:       |----------|
+		// Cluster chain C:                       |-------|
+		// While it is true that when adding a cluster to chain C, we would find
+		// the next lower session (which is B) and erroneously determine we do not collide
+		// with any other session, but this situation is impossible to get into as B would
+		// have detected that it collided with A (or the other way around, depending on ordering).
+		while (
+			closestMatch !== undefined &&
+			(closestMatch[1] === owningSession || closestMatch[1].isEmpty())
+		) {
 			closestMatch = this.sessionMap.nextLowerPair(closestMatch[0]);
 		}
 		if (closestMatch === undefined) {
@@ -92,7 +109,9 @@ export class Sessions {
 		const [_, session] = closestMatch;
 		assert(session !== owningSession, "Failed to attempt to detect collisions.");
 		const lastCluster = session.getTailCluster();
-		assert(lastCluster !== undefined, "Empty cluster chain in non-local session.");
+		if (lastCluster === undefined) {
+			return false;
+		}
 		const lastAllocatedNumeric = offsetNumericUuid(
 			session.sessionUuid,
 			genCountFromLocalId(lastAllocatedLocal(lastCluster)) - 1,
