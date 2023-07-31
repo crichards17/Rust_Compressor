@@ -65,6 +65,11 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 	private readonly finalSpace = new FinalSpace();
 	// -----------------------
 
+	// ----- Telemetry state -----
+	private telemetryLocalIdCount = 0;
+	private telemetryEagerFinalIdCount = 0;
+	// -----------------------
+
 	private constructor(
 		localSessionIdOrDeserialized: SessionId | { localSessionId: SessionId; sessions: Sessions },
 		private readonly logger?: ITelemetryLogger,
@@ -81,7 +86,6 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 			this.localSession = localSession;
 		}
 		this.newClusterCapacity = defaultClusterCapacity;
-		assert(this.logger === undefined, "use logger");
 	}
 
 	public static create(logger?: ITelemetryLogger): IdCompressor;
@@ -128,14 +132,19 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 		this.generatedIdCount++;
 		const tailCluster = this.localSession.getTailCluster();
 		if (tailCluster === undefined) {
+			this.telemetryLocalIdCount++;
 			return this.generateNextLocalId();
 		}
 		const clusterOffset = this.generatedIdCount - genCountFromLocalId(tailCluster.baseLocalId);
-		return tailCluster.capacity > clusterOffset
-			? // Space in the cluster: eager final
-			  (((tailCluster.baseFinalId as number) + clusterOffset) as SessionSpaceCompressedId)
-			: // No space in the cluster, return next local
-			  this.generateNextLocalId();
+		if (tailCluster.capacity > clusterOffset) {
+			this.telemetryEagerFinalIdCount++;
+			// Space in the cluster: eager final
+			return ((tailCluster.baseFinalId as number) +
+				clusterOffset) as SessionSpaceCompressedId;
+		}
+		// No space in the cluster, return next local
+		this.telemetryLocalIdCount++;
+		return this.generateNextLocalId();
 	}
 
 	private generateNextLocalId(): LocalCompressedId {
@@ -173,6 +182,7 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 		const { sessionId, ids } = range;
 		const { count, firstGenCount } = ids;
 		const session = this.sessions.getOrCreate(sessionId);
+		const isLocal = session === this.localSession;
 		const rangeBaseLocal = localIdFromGenCount(firstGenCount);
 		let tailCluster = session.getTailCluster();
 		if (tailCluster === undefined) {
@@ -185,6 +195,12 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 				rangeBaseLocal,
 				this.clusterCapacity + count,
 			);
+			if (isLocal) {
+				this.logger?.sendTelemetryEvent({
+					eventName: "RuntimeIdCompressor:FirstCluster",
+					sessionId: this.localSessionId,
+				});
+			}
 		}
 
 		const remainingCapacity = tailCluster.capacity - tailCluster.count;
@@ -202,6 +218,15 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 				// Tail cluster is the last cluster, and so can be expanded.
 				tailCluster.capacity += newClaimedFinalCount;
 				tailCluster.count += count;
+				if (isLocal) {
+					this.logger?.sendTelemetryEvent({
+						eventName: "RuntimeIdCompressor:ClusterExpansion",
+						sessionId: this.localSessionId,
+						previousCapacity: tailCluster.capacity - newClaimedFinalCount,
+						newCapacity: tailCluster.capacity,
+						overflow,
+					});
+				}
 			} else {
 				// Tail cluster is not the last cluster. Fill and overflow to new.
 				tailCluster.count = tailCluster.capacity;
@@ -211,9 +236,25 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 					newClaimedFinalCount,
 				);
 				newCluster.count += overflow;
+				if (isLocal) {
+					this.logger?.sendTelemetryEvent({
+						eventName: "RuntimeIdCompressor:NewCluster",
+						sessionId: this.localSessionId,
+					});
+				}
 			}
 		}
-		// TODO add final lim cache?
+
+		if (isLocal) {
+			this.logger?.sendTelemetryEvent({
+				eventName: "RuntimeIdCompressor:IdCompressorStatus",
+				eagerFinalIdCount: this.telemetryEagerFinalIdCount,
+				localIdCount: this.telemetryLocalIdCount,
+				sessionId: this.localSessionId,
+			});
+			this.telemetryEagerFinalIdCount = 0;
+			this.telemetryLocalIdCount = 0;
+		}
 	}
 
 	private addEmptyCluster(
@@ -471,6 +512,13 @@ export class IdCompressor implements IIdCompressor, IIdCompressorCore {
 			index = writeNumber(serialized, index, sessionIndexMap.get(cluster.session) as number);
 			index = writeNumber(serialized, index, cluster.capacity);
 			index = writeNumber(serialized, index, cluster.count);
+		});
+
+		this.logger?.sendTelemetryEvent({
+			eventName: "RuntimeIdCompressor:SerializedIdCompressorSize",
+			size: serialized.byteLength,
+			clusterCount: finalSpace.clusters.length,
+			sessionCount: sessions.sessions.length,
 		});
 
 		return { bytes: serialized } as unknown as SerializedIdCompressor;

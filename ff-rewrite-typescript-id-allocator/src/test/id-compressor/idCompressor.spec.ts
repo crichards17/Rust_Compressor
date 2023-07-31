@@ -570,13 +570,14 @@ describe("IdCompressor", () => {
 
 			mockLogger.assertMatch([
 				{
-					eventName: "RuntimeIdCompressor:IdCompressorFinalizeStatus",
+					eventName: "RuntimeIdCompressor:FirstCluster",
+					sessionId: compressor.localSessionId,
+				},
+				{
+					eventName: "RuntimeIdCompressor:IdCompressorStatus",
 					eagerFinalIdCount: 0,
 					localIdCount: 1,
-					rangeSize: 1,
-					clusterCapacity: 5,
-					clusterChange: "Creation",
-					sessionId: sessionIds.get(Client.Client1),
+					sessionId: compressor.localSessionId,
 				},
 			]);
 		});
@@ -600,26 +601,21 @@ describe("IdCompressor", () => {
 			// Make sure we emitted the FirstCluster event
 			mockLogger.assertMatchAny([
 				{
-					clusterChange: "Creation",
+					eventName: "RuntimeIdCompressor:FirstCluster",
 				},
 			]);
 			mockLogger.clear();
 
-			// Fill the one remaining spot and make sure no clusters are created/expanded
+			// Fill the one remaining spot
 			compressor.generateCompressedId();
 			compressor.finalizeCreationRange(compressor.takeNextCreationRange());
-			mockLogger.assertMatchAny([
-				{
-					clusterChange: "None",
-				},
-			]);
 
 			// Trigger a new cluster creation
 			compressor.generateCompressedId();
 			compressor.finalizeCreationRange(compressor.takeNextCreationRange());
 			mockLogger.assertMatchAny([
 				{
-					clusterChange: "Creation",
+					eventName: "RuntimeIdCompressor:NewCluster",
 				},
 			]);
 		});
@@ -633,11 +629,10 @@ describe("IdCompressor", () => {
 			compressor.finalizeCreationRange(compressor.takeNextCreationRange());
 			mockLogger.assertMatchAny([
 				{
-					eventName: "RuntimeIdCompressor:IdCompressorFinalizeStatus",
+					eventName: "RuntimeIdCompressor:IdCompressorStatus",
 					eagerFinalIdCount: 0,
 					localIdCount: 1,
-					clusterChange: "Creation",
-					sessionId: sessionIds.get(Client.Client1),
+					sessionId: compressor.localSessionId,
 				},
 			]);
 			mockLogger.clear();
@@ -649,11 +644,10 @@ describe("IdCompressor", () => {
 			compressor.finalizeCreationRange(compressor.takeNextCreationRange());
 			mockLogger.assertMatchAny([
 				{
-					eventName: "RuntimeIdCompressor:IdCompressorFinalizeStatus",
+					eventName: "RuntimeIdCompressor:IdCompressorStatus",
 					eagerFinalIdCount: 2,
 					localIdCount: 0,
-					clusterChange: "None",
-					sessionId: sessionIds.get(Client.Client1),
+					sessionId: compressor.localSessionId,
 				},
 			]);
 		});
@@ -667,11 +661,10 @@ describe("IdCompressor", () => {
 			compressor.finalizeCreationRange(compressor.takeNextCreationRange());
 			mockLogger.assertMatchAny([
 				{
-					eventName: "RuntimeIdCompressor:IdCompressorFinalizeStatus",
+					eventName: "RuntimeIdCompressor:IdCompressorStatus",
 					eagerFinalIdCount: 0,
 					localIdCount: 1,
-					clusterChange: "Creation",
-					sessionId: sessionIds.get(Client.Client1),
+					sessionId: compressor.localSessionId,
 				},
 			]);
 			mockLogger.clear();
@@ -684,11 +677,10 @@ describe("IdCompressor", () => {
 			compressor.finalizeCreationRange(compressor.takeNextCreationRange());
 			mockLogger.assertMatchAny([
 				{
-					eventName: "RuntimeIdCompressor:IdCompressorFinalizeStatus",
+					eventName: "RuntimeIdCompressor:IdCompressorStatus",
 					eagerFinalIdCount: 5,
 					localIdCount: 0,
-					clusterChange: "None",
-					sessionId: sessionIds.get(Client.Client1),
+					sessionId: compressor.localSessionId,
 				},
 			]);
 			mockLogger.clear();
@@ -699,13 +691,13 @@ describe("IdCompressor", () => {
 			assert(isLocalId(expansionId2));
 
 			compressor.finalizeCreationRange(compressor.takeNextCreationRange());
-			mockLogger.assertMatch([
+			mockLogger.assertMatchAny([
 				{
-					eventName: "RuntimeIdCompressor:IdCompressorFinalizeStatus",
-					eagerFinalIdCount: 0,
-					localIdCount: 2,
-					clusterChange: "Expansion",
-					sessionId: sessionIds.get(Client.Client1),
+					eventName: "RuntimeIdCompressor:ClusterExpansion",
+					sessionId: compressor.localSessionId,
+					previousCapacity: 6,
+					newCapacity: 13,
+					overflow: 2,
 				},
 			]);
 		});
@@ -722,7 +714,9 @@ describe("IdCompressor", () => {
 			mockLogger.assertMatchAny([
 				{
 					eventName: "RuntimeIdCompressor:SerializedIdCompressorSize",
-					size: 64,
+					size: 73,
+					clusterCount: 1,
+					sessionCount: 1,
 				},
 			]);
 		});

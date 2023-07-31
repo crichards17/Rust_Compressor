@@ -245,8 +245,8 @@ export function readNumber(index: Index): number {
 
 export function readNumericUuid(index: Index): NumericUuid {
 	bigint64Uint8.set(index.bytes.subarray(index.index, index.index + 16));
-	const lowerHalf = bigint64Buffer[0];
-	const upperHalf = bigint64Buffer[1];
+	const lowerHalf = BigInt.asUintN(64, bigint64Buffer[0]);
+	const upperHalf = BigInt.asUintN(64, bigint64Buffer[1]);
 	const value = (upperHalf << sixtyFour) | lowerHalf;
 	index.index += 16;
 	return value as NumericUuid;

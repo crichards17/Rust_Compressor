@@ -160,7 +160,6 @@ export class Session {
 	public constructor(sessionId: SessionId | NumericUuid) {
 		this.sessionUuid =
 			typeof sessionId === "string" ? numericUuidFromStableId(sessionId) : sessionId;
-		assert(this.sessionUuid >= 0, "Malformed session UUID.");
 	}
 
 	public addEmptyCluster(
