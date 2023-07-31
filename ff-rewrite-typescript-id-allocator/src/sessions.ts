@@ -153,12 +153,14 @@ export class Sessions {
  * The IDs created by a specific session, stored as a cluster chain to allow for fast searches.
  */
 export class Session {
+	// All clusters created by this session, in creation order (thus sorted by base final and local ID).
 	private readonly clusterChain: IdCluster[] = [];
 	public readonly sessionUuid: NumericUuid;
 
 	public constructor(sessionId: SessionId | NumericUuid) {
 		this.sessionUuid =
 			typeof sessionId === "string" ? numericUuidFromStableId(sessionId) : sessionId;
+		assert(this.sessionUuid >= 0, "Malformed session UUID.");
 	}
 
 	public addEmptyCluster(

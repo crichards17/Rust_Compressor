@@ -35,14 +35,14 @@ describe("IdCompressor", () => {
 		const compressor = CompressorFactory.createCompressor(Client.Client1, 1);
 		assert.throws(
 			() => (compressor.clusterCapacity = -1),
-			(e) => validateAssertionError(e, "Cluster size must be a non-zero integer."),
+			(e) => validateAssertionError(e, "Clusters must have a positive capacity."),
 		);
 		assert.throws(
 			() => (compressor.clusterCapacity = 0),
-			(e) => validateAssertionError(e, "Cluster size must be a non-zero integer."),
+			(e) => validateAssertionError(e, "Clusters must have a positive capacity."),
 		);
 		assert.throws(
-			() => (compressor.clusterCapacity = 2 ** 11 + 1),
+			() => (compressor.clusterCapacity = 2 ** 20 + 1),
 			(e) => validateAssertionError(e, "Clusters must not exceed max cluster size."),
 		);
 	});
