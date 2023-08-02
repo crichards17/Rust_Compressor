@@ -1,0 +1,21 @@
+{
+	"exclude": ["dist", "lib", "node_modules"],
+	"compilerOptions": {
+		"target": "es2020",
+		"declaration": true,
+		"declarationMap": true,
+		"esModuleInterop": true,
+		"module": "commonjs",
+		"moduleResolution": "node",
+		"noUnusedLocals": true,
+		"sourceMap": true,
+		"noImplicitAny": false,
+		"incremental": true,
+		"types": ["mocha"],
+		"strict": true,
+		"pretty": true,
+		"lib": ["ES2017", "ES2018.Promise", "DOM", "DOM.Iterable"],
+		"outDir": "./dist/javascript",
+		"rootDir": "../ff-rewrite-typescript-id-allocator",
+	},
+}

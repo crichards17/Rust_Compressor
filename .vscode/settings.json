@@ -1,7 +1,13 @@
 {
-  "mochaExplorer.files": "typescript-id-allocator/dist/javascript/src/test/**/*.js",
+  "mochaExplorer.files": [
+    "typescript-id-allocator/dist/javascript/src/test/**/*.js",
+    "ff-rewrite-typescript-id-allocator/dist/javascript/src/test/**/*.js"
+  ],
   "mochaExplorer.require": "source-map-support/register",
-  "mochaExplorer.watch": "typescript-id-allocator/dist/javascript/src/test/**/*.js",
+  "mochaExplorer.watch": [
+    "typescript-id-allocator/dist/javascript/src/test/**/*.js",
+    "ff-rewrite-typescript-id-allocator/dist/javascript/src/test/**/*.js"
+  ],
   "editor.formatOnSave": true,
   "[rust]": {
     "editor.defaultFormatter": "rust-lang.rust-analyzer"
